@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sub War 2060 - Monterey Bay Canyon</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="sonarContacts">
+            <h4>Sonar Contacts</h4>
+            <div id="sonarMode">
+                <div id="sonar">Mode: Active</div>
+                <div id="sonarPower">Power: High (100m)</div>
+                <div id="sonarRate">Rate: Normal (2.0s)</div>
+            </div>
+            <div id="sonarControls">
+                <div class="sonar-shortcuts">R - Single Ping | M - Mode | P - Power | L - Rate</div>
+            </div>
+            <div id="contactsList">No contacts detected</div>
+        </div>
+        
+        <!-- Advanced Reticle HUD System -->
+        <div id="reticleHUD">
+            <!-- Torpedo Data (below reticle) -->
+            <div id="reticleTorpedoData">
+                <div id="reticleTubeInfo">Tube 1 [MT]</div>
+                <div id="reticleLockStatus"></div>
+            </div>
+            
+            <!-- Noise Indicator (above reticle) -->
+            <div id="reticleNoiseIndicator">
+                <div class="noise-label">NOISE</div>
+                <div class="noise-bar">
+                    <div id="noiseLevel"></div>
+                </div>
+                <div class="noise-value">6dB</div>
+            </div>
+            
+            <!-- Speed Bar (left side) -->
+            <div id="reticleSpeedBar">
+                <div class="speed-label">SPEED</div>
+                <div class="speed-bar-container">
+                    <div id="speedBarFill"></div>
+                    <div id="speedTargetCaret">></div>
+                </div>
+                <div class="speed-values">
+                    <div class="speed-current">0</div>
+                    <div class="speed-max">85</div>
+                </div>
+            </div>
+            
+            <!-- Depth Bar (right side) -->
+            <div id="reticleDepthBar">
+                <div class="depth-label">DEPTH</div>
+                <div class="depth-bar-container">
+                    <div id="depthBarFill"></div>
+                    <div id="bottomDepthMarker" class="bottom-depth-marker"></div>
+                </div>
+                <div class="depth-values">
+                    <div class="depth-current">50m</div>
+                    <div class="depth-bottom">500m</div>
+                    <div class="depth-crush">1000m</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Off-screen contact indicators -->
+        <div id="offScreenIndicators">
+            <div id="contactArrowTop" class="contact-arrow arrow-top">▲</div>
+            <div id="contactArrowBottom" class="contact-arrow arrow-bottom">▼</div>
+            <div id="contactArrowLeft" class="contact-arrow arrow-left">◄</div>
+            <div id="contactArrowRight" class="contact-arrow arrow-right">►</div>
+        </div>
+        
+        
+        <div id="armorSystems">
+            <h4>Armor & Systems</h4>
+            <div class="armor-section">
+                <div class="armor-title">Armor HP (O:Oobleck/M:Meta-Material)</div>
+                <div id="armorFore">FORE: 100% (O:50 M:50)</div>
+                <div id="armorPort">PORT: 100% (O:50 M:50)</div>
+                <div id="armorStarboard">STARBOARD: 100% (O:50 M:50)</div>
+                <div id="armorAft">AFT: 100% (O:50 M:50)</div>
+                <div id="armorTop">TOP: 100% (O:50 M:50)</div>
+                <div id="armorBottom">BOTTOM: 100% (O:50 M:50)</div>
+            </div>
+            <div class="systems-section">
+                <div class="systems-title">Internal Systems HP</div>
+                <div id="systemHull">Hull: 100%</div>
+                <div id="systemEngines">Engines: 100%</div>
+                <div id="systemWeapons">Weapons: 100%</div>
+                <div id="systemSensors">Sensors: 100%</div>
+                <div id="systemLifeSupport">Life Support: 100%</div>
+                <div id="systemNavigation">Navigation: 100%</div>
+            </div>
+        </div>
+        
+        <div id="controls">
+            <div>🏔️ <strong>MONTEREY BAY CANYON</strong> 🏔️<br>
+            <strong>Location:</strong> 36.663277°N, 122.388124°W | <strong>Max Depth:</strong> 3,885m (12,743 ft)<br>
+            <strong>Features:</strong> Largest Pacific submarine canyon, steep canyon walls, continental shelf<br>
+            Mouse Move - Maneuver Icon | Mouse Wheel - Throttle | Left Click - Cannons | Right Click - Rockets<br>
+            SPACE - Launch Torpedo | Keys 1-8 - Select Torpedo Tube (Double-tap to cycle torpedo type) | Key 9 - Deploy Mine<br>
+            R - Single Ping | M - Sonar Mode | P - Sonar Power | L - Ping Rate | TAB - Cycle Targets | C - Emergency Repair<br>
+            V - Toggle Thermoclines | T - Toggle Terrain Wireframe | B - Terrain Shader Mode | N - Terrain Solid Mode | K - Toggle Camera Mode<br>
+            Shift+1-6 - Emergency Armor Redistribution (Fore/Port/Starboard/Aft/Top/Bottom)<br>
+            F1 - Patrol Mission | F2 - Stealth Operation | F3 - Combat Training | F4 - Rescue Mission</div>
+        </div>
+    </div>
+    
+    <!-- Three.js from unpkg CDN -->
+    <script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
+    <!-- THREE.Terrain library -->
+    <script src="lib/THREE.Terrain.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/submarine.js"></script>
+    <script src="js/monterey_bay_bathymetry_terrain.js"></script>
+    <script src="js/procedural_terrain.js"></script>
+    <script src="js/ocean.js"></script>
+    <script src="js/sealife.js"></script>
+    <script src="js/tactical.js"></script>
+    <script src="js/enemies.js"></script>
+    <script src="js/weapons.js"></script>
+    <script src="js/oolite_loader.js"></script>
+    <script src="demo_oolite_integration.js"></script>
+    <script>
+        // Initialize Monterey Bay game when page loads
+        window.addEventListener('load', () => {
+            // Set up Monterey Bay bathymetric terrain
+            window.NOAABathymetryTerrain = window.MontereyBayBathymetryTerrain;
+            initGame();
+        });
+    </script>
+</body>
+</html>

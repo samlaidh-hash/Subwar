@@ -1,0 +1,745 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Isometric Seabed Visualization</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #001122;
+            color: white;
+            margin: 0;
+        }
+        canvas {
+            border: 2px solid #00ffff;
+            margin: 20px 0;
+            display: block;
+            background: linear-gradient(to bottom, #003366 0%, #000066 100%);
+        }
+        .controls {
+            margin: 20px 0;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            border-radius: 5px;
+            font-size: 14px;
+        }
+        button:hover {
+            background: #0088ff;
+        }
+        .info {
+            background: #003366;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .settings {
+            display: flex;
+            gap: 20px;
+            align-items: center;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
+        .slider-group {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        input[type="range"] {
+            width: 120px;
+        }
+        .legend {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin: 10px 0;
+            flex-wrap: wrap;
+        }
+        .color-box {
+            width: 30px;
+            height: 20px;
+            border: 1px solid white;
+        }
+    </style>
+</head>
+<body>
+    <h1>🏔️ Sub War 2060 - Isometric Seabed Visualization</h1>
+    
+    <div class="info">
+        <h3>📊 3D Terrain Information:</h3>
+        <p><strong>View:</strong> Isometric 3D perspective of oceanographic terrain with realistic depth zones</p>
+        <p><strong>Size:</strong> 50km × 50km seabed rendered in isometric projection</p>
+        <p><strong>Depth Range:</strong> 100m (seamount tops) to 11,000m (deep ocean trench) with vertical exaggeration</p>
+        <p><strong>Features:</strong> Continental shelf, slope, abyssal plain, deep trench, seamount group, scale objects</p>
+    </div>
+
+    <div class="settings">
+        <div class="slider-group">
+            <label>Vertical Scale:</label>
+            <input type="range" id="verticalScale" min="0.5" max="5" step="0.1" value="2">
+            <span id="verticalScaleValue">2.0x</span>
+        </div>
+        <div class="slider-group">
+            <label>View Angle:</label>
+            <input type="range" id="viewAngle" min="0" max="360" step="5" value="45">
+            <span id="viewAngleValue">45°</span>
+        </div>
+        <div class="slider-group">
+            <label>Detail Level:</label>
+            <input type="range" id="detailLevel" min="50" max="500" step="25" value="200">
+            <span id="detailLevelValue">200</span>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button onclick="generateIsometricView()">🏔️ Generate Isometric View</button>
+        <button onclick="addScaleObjects()">📏 Add Scale Objects</button>
+        <button onclick="addSubmarinePosition()">🚁 Show Submarine Start</button>
+        <button onclick="toggleWireframe()">🔲 Toggle Wireframe</button>
+        <button onclick="toggleShading()">💡 Toggle Shading</button>
+        <button onclick="downloadIsometricPNG()">💾 Download PNG</button>
+        <button onclick="animateRotation()">🔄 Animate Rotation</button>
+    </div>
+
+    <canvas id="isometricCanvas" width="1400" height="1000"></canvas>
+
+    <div class="legend">
+        <strong>Depth Colors:</strong>
+        <div class="color-box" style="background: #ffff88;"></div>
+        <span>100-500m (Shelf)</span>
+        <div class="color-box" style="background: #88ff88;"></div>
+        <span>500-2000m (Slope)</span>
+        <div class="color-box" style="background: #00ffff;"></div>
+        <span>2000-6000m (Abyssal)</span>
+        <div class="color-box" style="background: #0088ff;"></div>
+        <span>6000-10000m (Deep)</span>
+        <div class="color-box" style="background: #003366;"></div>
+        <span>10000-11000m (Trench)</span>
+    </div>
+
+    <div class="info">
+        <h3>🎮 Controls:</h3>
+        <p><strong>Vertical Scale:</strong> Exaggerate height differences for better visibility</p>
+        <p><strong>View Angle:</strong> Rotate the viewing perspective</p>
+        <p><strong>Detail Level:</strong> Adjust terrain resolution (higher = more detail, slower)</p>
+        <p><strong>Scale Objects:</strong> Red ships, white whales, green reefs for size reference</p>
+        <p><strong>Submarine Start:</strong> Yellow submarine icon at origin (0,0) showing your starting position</p>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('isometricCanvas');
+        const ctx = canvas.getContext('2d');
+        const terrainSize = 50000; // 50km
+        
+        let currentResolution = 200;
+        let verticalScale = 2.0;
+        let viewAngle = 45;
+        let showWireframe = false;
+        let showShading = true;
+        let isAnimating = false;
+        let terrainData = null;
+        let scaleObjects = [];
+        let submarinePosition = { x: 0, y: -3000, z: 18000 }; // Submarine starts near trench at 3000m depth
+
+        // Update slider displays
+        document.getElementById('verticalScale').addEventListener('input', (e) => {
+            verticalScale = parseFloat(e.target.value);
+            document.getElementById('verticalScaleValue').textContent = verticalScale.toFixed(1) + 'x';
+        });
+
+        document.getElementById('viewAngle').addEventListener('input', (e) => {
+            viewAngle = parseInt(e.target.value);
+            document.getElementById('viewAngleValue').textContent = viewAngle + '°';
+        });
+
+        document.getElementById('detailLevel').addEventListener('input', (e) => {
+            currentResolution = parseInt(e.target.value);
+            document.getElementById('detailLevelValue').textContent = currentResolution;
+        });
+
+        // Updated terrain generation matching the main game with oceanographic zones
+        function getHeightAtPosition(x, z) {
+            // OCEANOGRAPHIC ZONES ALONG Z-AXIS (North-South)
+            // Terrain coordinates: Z goes from -25000 to +25000 (50km total)
+            // Zone boundaries:
+            // Continental Shelf: Z = -25000 to -15000 (0-10km from north edge) 
+            // Continental Slope: Z = -15000 to +15000 (10km to 40km) 
+            // Abyssal Plain: Z = +15000 to +25000 (40km to 50km from north edge)
+            
+            // Determine which oceanographic zone this vertex is in
+            let zoneDepth, zoneVariation;
+            
+            if (z <= -15000) {
+                // CONTINENTAL SHELF ZONE (100-200m depth)
+                const shelfPosition = (z + 25000) / 10000; // 0 to 1 across shelf
+                zoneDepth = -100 - (shelfPosition * 100); // -100m to -200m
+                // Small variations - gentle seabed
+                zoneVariation = Math.sin(x * 0.001) * 20 + Math.sin(z * 0.0015) * 15;
+                
+            } else if (z >= 15000) {
+                // ABYSSAL PLAIN ZONE (2000-6000m depth) WITH DEEP TRENCH
+                const abyssalPosition = (z - 15000) / 10000; // 0 to 1 across abyss
+                zoneDepth = -2000 - (abyssalPosition * 4000); // -2000m to -6000m
+                
+                // DEEP OCEAN TRENCH in center of abyssal plain
+                // Trench runs East-West (along X-axis) in middle of abyssal zone
+                const trenchCenterZ = 20000; // Middle of abyssal plain (45km from north)
+                const distanceFromTrenchCenter = Math.abs(z - trenchCenterZ);
+                const trenchHalfWidth = 1500; // 1.5km radius = 3km total width
+                
+                if (distanceFromTrenchCenter <= trenchHalfWidth) {
+                    // INSIDE THE TRENCH - Apply dramatic depth modifications
+                    const trenchProgress = distanceFromTrenchCenter / trenchHalfWidth; // 0 at center, 1 at edge
+                    
+                    // Determine which side of trench we're on (North vs South side)
+                    const isNorthSide = z < trenchCenterZ;
+                    
+                    if (isNorthSide) {
+                        // NORTH SIDE: Stepped terraces descending to trench
+                        const stepCount = 4; // 4 major steps/terraces
+                        const stepDepth = 1250; // 1.25km per step (5km total to 11km depth)
+                        const stepProgress = trenchProgress * stepCount;
+                        const currentStep = Math.floor(stepProgress);
+                        const withinStepProgress = stepProgress - currentStep;
+                        
+                        // Create step effect with some smoothing
+                        const stepSmoothing = Math.sin(withinStepProgress * Math.PI) * 0.3;
+                        const totalStepDepth = (currentStep + stepSmoothing) * stepDepth;
+                        
+                        zoneDepth = -6000 - totalStepDepth; // Start from abyssal plain depth
+                        
+                    } else {
+                        // SOUTH SIDE: Sheer cliff drop
+                        const cliffSteepness = 4; // Exponential steepness factor
+                        const cliffDepth = Math.pow(1 - trenchProgress, cliffSteepness) * 5000; // 0-5km additional depth
+                        zoneDepth = -6000 - (5000 - cliffDepth); // Sheer drop from 6km to 11km
+                    }
+                    
+                    // Reduced variation within trench (focus on the dramatic depth change)
+                    zoneVariation = Math.sin(x * 0.001) * 50;
+                    
+                } else {
+                    // CHECK FOR SEAMOUNTS adjacent to trench on sheer wall (south) side
+                    const seamountInfo = getSeamountHeight(x, z, trenchCenterZ, abyssalPosition);
+                    if (seamountInfo.isSeamount) {
+                        // Override zone depth with seamount height
+                        zoneDepth = seamountInfo.height;
+                        zoneVariation = 0; // No additional variation on seamounts
+                    } else {
+                        // NORMAL ABYSSAL PLAIN - outside trench and seamounts
+                        // Gentle undulations - deep ocean floor
+                        zoneVariation = Math.sin(x * 0.0005) * 100 + Math.sin(z * 0.0003) * 80;
+                    }
+                }
+                
+            } else {
+                // CONTINENTAL SLOPE ZONE (200-2000m depth)
+                const slopePosition = (z + 15000) / 30000; // 0 to 1 across slope
+                zoneDepth = -200 - (slopePosition * 1800); // -200m to -2000m (smooth transition)
+                // Moderate variations - sloping terrain
+                const slopeVariation = Math.sin(x * 0.0008) * 60 + Math.sin(z * 0.001) * 40;
+                // Add slope-specific features (canyons, ridges)
+                const canyonFeature = Math.sin(x * 0.002 + z * 0.0005) * 150;
+                zoneVariation = slopeVariation + canyonFeature;
+            }
+            
+            const newHeight = zoneDepth + zoneVariation;
+            return newHeight;
+        }
+
+        function getSeamountHeight(x, z, trenchCenterZ, abyssalPosition) {
+            // SEAMOUNT GROUP - Adjacent to trench on sheer wall (south) side
+            // Each seamount is a discrete vertical feature with flat plateau top
+            
+            // Define seamount locations (south of trench, in abyssal plain)
+            const seamountData = [
+                // Large seamount cluster
+                { centerX: -2000, centerZ: 22000, baseRadius: 800, topRadius: 300, topDepth: -200 },  // 200m below surface
+                { centerX: 1500, centerZ: 21500, baseRadius: 600, topRadius: 200, topDepth: -150 },   // 150m below surface
+                { centerX: 3000, centerZ: 23000, baseRadius: 1000, topRadius: 400, topDepth: -350 },  // 350m below surface
+                
+                // Medium seamounts
+                { centerX: -1000, centerZ: 23500, baseRadius: 500, topRadius: 150, topDepth: -100 },  // 100m below surface
+                { centerX: 2000, centerZ: 22500, baseRadius: 700, topRadius: 250, topDepth: -250 },   // 250m below surface
+                { centerX: 0, centerZ: 24000, baseRadius: 600, topRadius: 180, topDepth: -300 },      // 300m below surface
+                
+                // Smaller seamounts
+                { centerX: -3000, centerZ: 21000, baseRadius: 400, topRadius: 100, topDepth: -400 },  // 400m below surface
+                { centerX: 500, centerZ: 23800, baseRadius: 350, topRadius: 80, topDepth: -500 },     // 500m below surface
+            ];
+            
+            // Check if position is within any seamount
+            for (const seamount of seamountData) {
+                const distanceFromCenter = Math.sqrt(
+                    Math.pow(x - seamount.centerX, 2) + Math.pow(z - seamount.centerZ, 2)
+                );
+                
+                if (distanceFromCenter <= seamount.baseRadius) {
+                    // INSIDE SEAMOUNT - Calculate height based on position within seamount
+                    
+                    const abyssalFloorDepth = -6000; // Base depth of abyssal floor
+                    const totalSeamountHeight = abyssalFloorDepth - seamount.topDepth; // Height from floor to top
+                    
+                    if (distanceFromCenter <= seamount.topRadius) {
+                        // FLAT PLATEAU TOP - Uniform depth
+                        return {
+                            isSeamount: true,
+                            height: seamount.topDepth
+                        };
+                    } else {
+                        // STEEP SLOPES - Linear transition from plateau to abyssal floor
+                        const slopeRadius = seamount.baseRadius - seamount.topRadius;
+                        const distanceFromPlateauEdge = distanceFromCenter - seamount.topRadius;
+                        const slopeProgress = distanceFromPlateauEdge / slopeRadius; // 0 at plateau edge, 1 at base
+                        
+                        // Steep linear slope from plateau top to abyssal floor
+                        const height = seamount.topDepth - (slopeProgress * totalSeamountHeight);
+                        
+                        return {
+                            isSeamount: true,
+                            height: height
+                        };
+                    }
+                }
+            }
+            
+            // Not within any seamount
+            return {
+                isSeamount: false,
+                height: null
+            };
+        }
+
+        function depthToColor(depth, shading = 1.0) {
+            // Updated color mapping for new depth range (100m to 11,000m)
+            const normalizedDepth = Math.max(0, Math.min(1, (depth + 100) / (-11000 + 100)));
+            
+            let r, g, b;
+            
+            if (normalizedDepth < 0.1) {
+                // Shallow: 100-1000m (light yellow to green)
+                const t = normalizedDepth / 0.1;
+                r = Math.floor((255 - t * 119) * shading); // 255 to 136
+                g = Math.floor(255 * shading);             // Bright green
+                b = Math.floor((136 - t * 88) * shading);  // 136 to 48
+            } else if (normalizedDepth < 0.3) {
+                // Medium: 1000-3000m (green to cyan) 
+                const t = (normalizedDepth - 0.1) / 0.2;
+                r = Math.floor((136 - t * 136) * shading); // 136 to 0
+                g = Math.floor(255 * shading);             // Full green
+                b = Math.floor((48 + t * 207) * shading);  // 48 to 255
+            } else if (normalizedDepth < 0.6) {
+                // Deep: 3000-6500m (cyan to blue)
+                const t = (normalizedDepth - 0.3) / 0.3;
+                r = 0;
+                g = Math.floor((255 - t * 119) * shading); // 255 to 136
+                b = Math.floor(255 * shading);             // Full blue
+            } else if (normalizedDepth < 0.9) {
+                // Very Deep: 6500-10000m (blue to dark blue)
+                const t = (normalizedDepth - 0.6) / 0.3;
+                r = 0;
+                g = Math.floor((136 - t * 88) * shading);  // 136 to 48  
+                b = Math.floor((255 - t * 119) * shading); // 255 to 136
+            } else {
+                // Abyssal/Trench: 10000-11000m (dark blue to black)
+                const t = (normalizedDepth - 0.9) / 0.1;
+                r = 0;
+                g = Math.floor((48 - t * 48) * shading);   // 48 to 0
+                b = Math.floor((136 - t * 88) * shading);  // 136 to 48
+            }
+            
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+
+        function worldToIsometric(x, y, z, angle) {
+            // Convert world coordinates to isometric screen coordinates
+            const rad = (angle * Math.PI) / 180;
+            const cos = Math.cos(rad);
+            const sin = Math.sin(rad);
+            
+            // Rotate around Y axis
+            const rotX = x * cos - z * sin;
+            const rotZ = x * sin + z * cos;
+            
+            // Isometric projection
+            const isoX = (rotX - rotZ) * Math.cos(Math.PI / 6);
+            const isoY = (rotX + rotZ) * Math.sin(Math.PI / 6) - y;
+            
+            return { x: isoX, y: isoY };
+        }
+
+        function generateTerrainData() {
+            console.log(`🏔️ Generating terrain data at ${currentResolution}x${currentResolution} resolution...`);
+            
+            terrainData = new Array(currentResolution);
+            const step = terrainSize / currentResolution;
+            const halfSize = terrainSize / 2;
+            
+            for (let i = 0; i < currentResolution; i++) {
+                terrainData[i] = new Array(currentResolution);
+                for (let j = 0; j < currentResolution; j++) {
+                    const worldX = (i - currentResolution/2) * step;
+                    const worldZ = (j - currentResolution/2) * step;
+                    terrainData[i][j] = getHeightAtPosition(worldX, worldZ);
+                }
+                
+                if (i % 20 === 0) {
+                    console.log(`Progress: ${Math.round(i/currentResolution * 100)}%`);
+                }
+            }
+            
+            console.log('✅ Terrain data generated!');
+        }
+
+        function generateIsometricView() {
+            generateTerrainData();
+            renderIsometric();
+        }
+
+        function renderIsometric() {
+            console.log('🎨 Rendering isometric view...');
+            
+            // Clear canvas
+            ctx.fillStyle = 'linear-gradient(to bottom, #003366 0%, #000066 100%)';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            const step = terrainSize / currentResolution;
+            const scale = Math.min(canvas.width, canvas.height) / (terrainSize * 1.5);
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height * 0.7;
+            
+            // Render terrain tiles
+            for (let i = 0; i < currentResolution - 1; i++) {
+                for (let j = 0; j < currentResolution - 1; j++) {
+                    const worldX1 = (i - currentResolution/2) * step;
+                    const worldZ1 = (j - currentResolution/2) * step;
+                    const worldX2 = worldX1 + step;
+                    const worldZ2 = worldZ1 + step;
+                    
+                    const h1 = terrainData[i][j] * verticalScale;
+                    const h2 = terrainData[i+1][j] * verticalScale;
+                    const h3 = terrainData[i][j+1] * verticalScale;
+                    const h4 = terrainData[i+1][j+1] * verticalScale;
+                    
+                    // Calculate shading based on terrain slope
+                    let shading = 1.0;
+                    if (showShading) {
+                        const dx = (h2 - h1 + h4 - h3) / 2;
+                        const dz = (h3 - h1 + h4 - h2) / 2;
+                        const lightAngle = Math.atan2(dz, dx) + Math.PI/4;
+                        shading = 0.5 + 0.5 * Math.cos(lightAngle);
+                    }
+                    
+                    // Project corners to screen space
+                    const p1 = worldToIsometric(worldX1, h1, worldZ1, viewAngle);
+                    const p2 = worldToIsometric(worldX2, h2, worldZ1, viewAngle);
+                    const p3 = worldToIsometric(worldX1, h3, worldZ2, viewAngle);
+                    const p4 = worldToIsometric(worldX2, h4, worldZ2, viewAngle);
+                    
+                    const screenP1 = { x: centerX + p1.x * scale, y: centerY + p1.y * scale };
+                    const screenP2 = { x: centerX + p2.x * scale, y: centerY + p2.y * scale };
+                    const screenP3 = { x: centerX + p3.x * scale, y: centerY + p3.y * scale };
+                    const screenP4 = { x: centerX + p4.x * scale, y: centerY + p4.y * scale };
+                    
+                    // Use average height for color
+                    const avgHeight = (h1 + h2 + h3 + h4) / (4 * verticalScale);
+                    
+                    if (showWireframe) {
+                        // Draw wireframe
+                        ctx.strokeStyle = depthToColor(avgHeight, shading);
+                        ctx.lineWidth = 0.5;
+                        ctx.beginPath();
+                        ctx.moveTo(screenP1.x, screenP1.y);
+                        ctx.lineTo(screenP2.x, screenP2.y);
+                        ctx.lineTo(screenP4.x, screenP4.y);
+                        ctx.lineTo(screenP3.x, screenP3.y);
+                        ctx.closePath();
+                        ctx.stroke();
+                    } else {
+                        // Draw filled quad
+                        ctx.fillStyle = depthToColor(avgHeight, shading);
+                        ctx.beginPath();
+                        ctx.moveTo(screenP1.x, screenP1.y);
+                        ctx.lineTo(screenP2.x, screenP2.y);
+                        ctx.lineTo(screenP4.x, screenP4.y);
+                        ctx.lineTo(screenP3.x, screenP3.y);
+                        ctx.closePath();
+                        ctx.fill();
+                    }
+                }
+                
+                if (i % 20 === 0) {
+                    console.log(`Render progress: ${Math.round(i/(currentResolution-1) * 100)}%`);
+                }
+            }
+            
+            console.log('✅ Isometric rendering complete!');
+        }
+
+        function generateScaleObjects() {
+            scaleObjects = [];
+            
+            // Ships
+            const ships = [
+                { name: 'Destroyer', length: 110, color: 'red' },
+                { name: 'Cargo Ship', length: 180, color: 'darkred' },
+                { name: 'Battleship', length: 250, color: 'red' },
+                { name: 'Container Ship', length: 300, color: 'darkred' },
+                { name: 'Aircraft Carrier', length: 330, color: 'red' }
+            ];
+            
+            ships.forEach(ship => {
+                const x = (Math.random() - 0.5) * terrainSize * 0.8;
+                const z = (Math.random() - 0.5) * terrainSize * 0.8;
+                const height = getHeightAtPosition(x, z);
+                scaleObjects.push({
+                    type: 'ship',
+                    x: x, y: height, z: z,
+                    size: ship.length,
+                    color: ship.color,
+                    name: ship.name
+                });
+            });
+            
+            // Whales
+            const whales = [
+                { name: 'Blue Whale', length: 30 },
+                { name: 'Sperm Whale', length: 18 },
+                { name: 'Humpback Whale', length: 16 },
+                { name: 'Gray Whale', length: 14 }
+            ];
+            
+            whales.forEach(whale => {
+                const x = (Math.random() - 0.5) * terrainSize * 0.6;
+                const z = (Math.random() - 0.5) * terrainSize * 0.6;
+                const height = getHeightAtPosition(x, z);
+                scaleObjects.push({
+                    type: 'whale',
+                    x: x, y: height, z: z,
+                    size: whale.length,
+                    color: 'white',
+                    name: whale.name
+                });
+            });
+            
+            // Reefs
+            const reefs = [50, 100, 200, 300];
+            reefs.forEach(radius => {
+                let x, z, height, attempts = 0;
+                do {
+                    x = (Math.random() - 0.5) * terrainSize * 0.7;
+                    z = (Math.random() - 0.5) * terrainSize * 0.7;
+                    height = getHeightAtPosition(x, z);
+                    attempts++;
+                } while (height < -500 && attempts < 20);
+                
+                scaleObjects.push({
+                    type: 'reef',
+                    x: x, y: height, z: z,
+                    size: radius,
+                    color: 'lime',
+                    name: `Coral Reef (${radius}m)`
+                });
+            });
+        }
+
+        function addScaleObjects() {
+            if (!terrainData) {
+                alert('Please generate the terrain first!');
+                return;
+            }
+            
+            if (!scaleObjects.length) {
+                generateScaleObjects();
+            }
+            
+            console.log('📏 Adding scale objects to isometric view...');
+            
+            const scale = Math.min(canvas.width, canvas.height) / (terrainSize * 1.5);
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height * 0.7;
+            
+            scaleObjects.forEach(obj => {
+                const projectedHeight = obj.y * verticalScale;
+                const isoPos = worldToIsometric(obj.x, projectedHeight, obj.z, viewAngle);
+                const screenX = centerX + isoPos.x * scale;
+                const screenY = centerY + isoPos.y * scale;
+                
+                ctx.save();
+                
+                if (obj.type === 'ship') {
+                    ctx.fillStyle = obj.color;
+                    ctx.strokeStyle = 'white';
+                    ctx.lineWidth = 2;
+                    const length = obj.size * scale * 0.01;
+                    const width = Math.max(2, length / 8);
+                    ctx.fillRect(screenX - length/2, screenY - width/2, length, width);
+                    ctx.strokeRect(screenX - length/2, screenY - width/2, length, width);
+                } else if (obj.type === 'whale') {
+                    ctx.fillStyle = obj.color;
+                    ctx.strokeStyle = 'black';
+                    ctx.lineWidth = 1;
+                    const length = obj.size * scale * 0.01;
+                    ctx.beginPath();
+                    ctx.ellipse(screenX, screenY, length/2, Math.max(1, length/6), 0, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.stroke();
+                } else if (obj.type === 'reef') {
+                    ctx.strokeStyle = obj.color;
+                    ctx.lineWidth = 2;
+                    const radius = obj.size * scale * 0.005;
+                    ctx.beginPath();
+                    ctx.arc(screenX, screenY, radius, 0, 2 * Math.PI);
+                    ctx.stroke();
+                }
+                
+                ctx.restore();
+            });
+            
+            console.log('✅ Scale objects added!');
+        }
+
+        function addSubmarinePosition() {
+            if (!terrainData) {
+                alert('Please generate the terrain first!');
+                return;
+            }
+            
+            console.log('🚁 Adding submarine starting position...');
+            
+            // Submarine is at surface level (Y=0) at world origin (0,0,0)
+            const scale = Math.min(canvas.width, canvas.height) / (terrainSize * 1.5);
+            const centerX = canvas.width / 2;
+            const centerY = canvas.height * 0.7;
+            
+            // Project submarine position to isometric view
+            const isoPos = worldToIsometric(submarinePosition.x, submarinePosition.y, submarinePosition.z, viewAngle);
+            const screenX = centerX + isoPos.x * scale;
+            const screenY = centerY + isoPos.y * scale;
+            
+            ctx.save();
+            
+            // Draw submarine in bright yellow with detailed shape
+            ctx.fillStyle = '#ffff00';
+            ctx.strokeStyle = '#ffaa00';
+            ctx.lineWidth = 3;
+            ctx.shadowColor = '#000000';
+            ctx.shadowBlur = 3;
+            
+            // Draw submarine hull (elongated ellipse)
+            ctx.beginPath();
+            ctx.ellipse(screenX, screenY, 15, 5, viewAngle * Math.PI / 180, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.stroke();
+            
+            // Draw conning tower
+            ctx.fillStyle = '#ffaa00';
+            ctx.fillRect(screenX - 3, screenY - 8, 6, 8);
+            
+            // Draw periscope
+            ctx.strokeStyle = '#ffff00';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(screenX, screenY - 8);
+            ctx.lineTo(screenX, screenY - 15);
+            ctx.stroke();
+            
+            // Draw crosshair for precise positioning
+            ctx.strokeStyle = '#ffffff';
+            ctx.lineWidth = 2;
+            const crossSize = 25;
+            ctx.beginPath();
+            ctx.moveTo(screenX - crossSize, screenY);
+            ctx.lineTo(screenX + crossSize, screenY);
+            ctx.moveTo(screenX, screenY - crossSize);
+            ctx.lineTo(screenX, screenY + crossSize);
+            ctx.stroke();
+            
+            // Add text labels
+            ctx.fillStyle = '#ffffff';
+            ctx.font = 'bold 14px Arial';
+            ctx.textAlign = 'center';
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 1;
+            ctx.strokeText('SUBMARINE START', screenX, screenY - 35);
+            ctx.fillText('SUBMARINE START', screenX, screenY - 35);
+            ctx.strokeText('(0,0,18000) 3000m Depth', screenX, screenY + 45);
+            ctx.fillText('(0,0,18000) 3000m Depth', screenX, screenY + 45);
+            
+            ctx.restore();
+            
+            console.log('✅ Submarine position marked at origin in isometric view!');
+        }
+
+        function toggleWireframe() {
+            showWireframe = !showWireframe;
+            if (terrainData) renderIsometric();
+        }
+
+        function toggleShading() {
+            showShading = !showShading;
+            if (terrainData) renderIsometric();
+        }
+
+        function downloadIsometricPNG() {
+            if (!terrainData) {
+                alert('Please generate the terrain first!');
+                return;
+            }
+            
+            const link = document.createElement('a');
+            link.download = 'subwar2060_isometric_seabed.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            
+            console.log('✅ Isometric PNG downloaded!');
+        }
+
+        function animateRotation() {
+            if (isAnimating) {
+                isAnimating = false;
+                return;
+            }
+            
+            if (!terrainData) {
+                alert('Please generate the terrain first!');
+                return;
+            }
+            
+            isAnimating = true;
+            console.log('🔄 Starting rotation animation...');
+            
+            function animate() {
+                if (!isAnimating) return;
+                
+                viewAngle = (viewAngle + 2) % 360;
+                document.getElementById('viewAngle').value = viewAngle;
+                document.getElementById('viewAngleValue').textContent = viewAngle + '°';
+                
+                renderIsometric();
+                if (scaleObjects.length > 0) {
+                    addScaleObjects();
+                }
+                
+                requestAnimationFrame(animate);
+            }
+            
+            animate();
+        }
+
+        // Auto-generate on page load
+        window.addEventListener('load', () => {
+            console.log('🏔️ Isometric seabed visualizer ready!');
+        });
+    </script>
+</body>
+</html>

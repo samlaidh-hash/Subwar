@@ -1,0 +1,27 @@
+// Test Ship Model for Oolite Parser
+// Simple diamond-shaped spacecraft
+
+NVERTS 6
+
+// Vertices (x, y, z coordinates)
+0.0, 0.0, 15.0
+0.0, 0.0, -15.0
+10.0, 0.0, 0.0
+-10.0, 0.0, 0.0
+0.0, 8.0, 0.0
+0.0, -8.0, 0.0
+
+NFACES 8
+
+// Faces: color, normal_x, normal_y, normal_z, v1, v2, v3
+// Front pyramid faces
+1, 0.577, 0.577, 0.577, 0, 4, 2
+2, -0.577, 0.577, 0.577, 0, 3, 4
+3, -0.577, -0.577, 0.577, 0, 5, 3
+4, 0.577, -0.577, 0.577, 0, 2, 5
+
+// Rear pyramid faces  
+5, 0.577, 0.577, -0.577, 1, 2, 4
+6, -0.577, 0.577, -0.577, 1, 4, 3
+7, -0.577, -0.577, -0.577, 1, 3, 5
+8, 0.577, -0.577, -0.577, 1, 5, 2

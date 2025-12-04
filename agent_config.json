@@ -1,0 +1,246 @@
+{
+  "agentConfiguration": {
+    "name": "Intelligent Code-Aware Agent",
+    "version": "1.0.0",
+    "description": "Smart code mapping and predictive search system with visual analysis",
+    "
+": "reduce_redundant_code_searching"
+  },
+
+  "coreFeatures": {
+    "smartCodeMapping": {
+      "enabled": true,
+      "buildKnowledgeGraph": true,
+      "rememberFileLocations": true,
+      "trackDependencies": true
+    },
+
+    "predictiveSearch": {
+      "enabled": true,
+      "confidenceThreshold": 0.6,
+      "maxPredictions": 5,
+      "learningRate": 0.8
+    },
+
+    "memorySystem": {
+      "enabled": true,
+      "maxSearchHistory": 100,
+      "maxRecentFiles": 20,
+      "persistenceFile": "agent_knowledge.json"
+    },
+
+    "patternRecognition": {
+      "enabled": true,
+      "learnFromSuccess": true,
+      "identifyTaskPatterns": true,
+      "adaptToCodebase": true
+    },
+
+    "visualAnalysis": {
+      "enabled": true,
+      "screenshotAnalysis": true,
+      "uiCodeMapping": true,
+      "errorScreenshotAnalysis": true
+    }
+  },
+
+  "integrationSettings": {
+    "tools": {
+      "Glob": {
+        "enabled": true,
+        "maxResults": 50,
+        "patterns": ["**/*.js", "**/*.html", "**/*.css", "**/*.json"]
+      },
+
+      "Grep": {
+        "enabled": true,
+        "maxResults": 100,
+        "caseSensitive": false,
+        "includeLineNumbers": true
+      },
+
+      "Read": {
+        "enabled": true,
+        "maxFileSize": "10MB",
+        "previewLength": 2000
+      }
+    },
+
+    "searchStrategy": {
+      "phase1ConfidenceThreshold": 0.7,
+      "phase2ConfidenceThreshold": 0.5,
+      "maxPhase1Files": 3,
+      "maxPhase2Patterns": 5,
+      "enableExploratorySearch": true
+    }
+  },
+
+  "learningConfiguration": {
+    "knowledgeGraph": {
+      "maxNodes": 1000,
+      "maxEdges": 5000,
+      "decayRate": 0.95,
+      "reinforcementLearning": true
+    },
+
+    "patternLearning": {
+      "minPatternOccurrence": 3,
+      "maxPatterns": 500,
+      "adaptationSpeed": "medium"
+    },
+
+    "visualLearning": {
+      "maxScreenshots": 50,
+      "maxUIMappings": 200,
+      "confidenceThreshold": 0.6
+    }
+  },
+
+  "codebaseProfiles": {
+    "threejs_game": {
+      "framework": "Three.js",
+      "architecture": "single_page_application",
+      "mainFiles": ["index.html", "js/submarine.js"],
+      "testFiles": ["test*.html", "test*.js"],
+      "patterns": {
+        "functions": ["function.*submarine", "function.*torpedo", "function.*sonar"],
+        "classes": ["class.*Submarine", "class.*Three"],
+        "files": ["submarine.*js", "test.*html"],
+        "ui": ["canvas", "button.*torpedo", "minimap"]
+      },
+      "commonLocations": {
+        "gameLogic": ["js/submarine.js", "index.html"],
+        "rendering": ["index.html"],
+        "testing": ["test*.html", "test*.js"],
+        "debugging": ["debug*.js", "debug*.html"]
+      }
+    },
+
+    "react_app": {
+      "framework": "React",
+      "architecture": "component_based",
+      "mainFiles": ["src/App.js", "src/index.js"],
+      "patterns": {
+        "components": ["const.*=.*=>", "function.*Component"],
+        "hooks": ["use[A-Z]\\w+", "useState", "useEffect"],
+        "files": ["*.jsx?", "components/.*"]
+      }
+    },
+
+    "vue_app": {
+      "framework": "Vue.js",
+      "architecture": "component_based",
+      "mainFiles": ["src/main.js", "src/App.vue"],
+      "patterns": {
+        "components": ["<template>", "<script>", "export default"],
+        "files": ["*.vue", "components/.*"]
+      }
+    }
+  },
+
+  "visualAnalysisRules": {
+    "screenshotPatterns": {
+      "gameCanvas": {
+        "patterns": ["canvas", "webgl", "three.*js"],
+        "suggestedFiles": ["index.html", "js/submarine.js"],
+        "confidence": 0.8
+      },
+
+      "uiControls": {
+        "patterns": ["button", "input", "form"],
+        "suggestedFiles": ["index.html", "css/*.css"],
+        "confidence": 0.7
+      },
+
+      "debugInterface": {
+        "patterns": ["console", "debug", "error"],
+        "suggestedFiles": ["debug*.js", "test*.html"],
+        "confidence": 0.9
+      },
+
+      "gameElements": {
+        "submarine": {
+          "suggestedFiles": ["js/submarine.js"],
+          "confidence": 0.9
+        },
+        "minimap": {
+          "suggestedFiles": ["js/submarine.js"],
+          "confidence": 0.8
+        },
+        "terrain": {
+          "suggestedFiles": ["js/submarine.js", "index.html"],
+          "confidence": 0.7
+        }
+      }
+    }
+  },
+
+  "performanceSettings": {
+    "caching": {
+      "enabled": true,
+      "maxCacheSize": "100MB",
+      "ttl": 3600000
+    },
+
+    "optimization": {
+      "batchRequests": true,
+      "parallelSearches": 3,
+      "timeoutMs": 30000
+    },
+
+    "monitoring": {
+      "logLevel": "info",
+      "trackMetrics": true,
+      "reportErrors": true
+    }
+  },
+
+  "shortcuts": {
+    "quickCommands": {
+      "findFunction": {
+        "pattern": "find function {name}",
+        "action": "searchFunction",
+        "confidence": 0.9
+      },
+
+      "findClass": {
+        "pattern": "find class {name}",
+        "action": "searchClass",
+        "confidence": 0.9
+      },
+
+      "findFile": {
+        "pattern": "find file {name}",
+        "action": "searchFile",
+        "confidence": 0.8
+      },
+
+      "debugIssue": {
+        "pattern": "debug {issue}",
+        "action": "debuggingMode",
+        "confidence": 0.7
+      },
+
+      "analyzeScreenshot": {
+        "pattern": "analyze screenshot",
+        "action": "visualAnalysis",
+        "confidence": 0.8
+      }
+    }
+  },
+
+  "errorHandling": {
+    "fallbackStrategies": [
+      "broadKeywordSearch",
+      "fileExtensionSearch",
+      "recentFileSearch",
+      "manualExploration"
+    ],
+
+    "retryPolicy": {
+      "maxRetries": 3,
+      "backoffMultiplier": 2,
+      "baseDelayMs": 1000
+    }
+  }
+}

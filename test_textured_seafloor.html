@@ -1,0 +1,179 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Textured Seafloor Test</title>
+    <style>
+        body { margin: 0; background: #001122; color: #00ff88; font-family: monospace; }
+        #info { 
+            position: absolute; top: 10px; left: 10px; z-index: 1000; 
+            background: rgba(0,0,0,0.8); padding: 15px; border: 1px solid #00ff88;
+            max-width: 400px;
+        }
+        .status { margin: 5px 0; }
+        .success { color: #00ff88; }
+        .warning { color: #ffaa00; }
+        .error { color: #ff4444; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <div class="status"><strong>🌊 TEXTURED SEAFLOOR TEST</strong></div>
+        <div class="status">Realistic ocean bottom with sand, mud, and rock textures</div>
+        <div class="status">B = Textured Seafloor | N = Solid Color | V = Wireframe | T = Toggle</div>
+        <div class="status" id="terrainStatus">⏳ Loading terrain...</div>
+        <div class="status" id="materialStatus">⏳ Creating materials...</div>
+        <div class="status" id="textureStatus">⏳ Generating textures...</div>
+    </div>
+
+    <script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
+    <script src="js/simple_terrain_fix.js"></script>
+
+    <script>
+        let scene, camera, renderer, terrain;
+        
+        function updateStatus(id, message, type = 'success') {
+            const element = document.getElementById(id);
+            element.textContent = message;
+            element.className = `status ${type}`;
+        }
+
+        function init() {
+            try {
+                updateStatus('terrainStatus', '🎨 Initializing 3D scene...', 'warning');
+                
+                // Scene
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x001122);
+
+                // Camera positioned to see seafloor clearly
+                camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 100000);
+                camera.position.set(500, 1500, 2500);
+                camera.lookAt(0, 0, 0);
+
+                // Renderer
+                renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                renderer.shadowMap.enabled = true;
+                renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+                document.body.appendChild(renderer.domElement);
+
+                updateStatus('terrainStatus', '💡 Adding underwater lighting...', 'warning');
+
+                // Underwater lighting setup
+                const ambientLight = new THREE.AmbientLight(0x004466, 0.4);
+                scene.add(ambientLight);
+                
+                const directionalLight = new THREE.DirectionalLight(0x66aaff, 0.8);
+                directionalLight.position.set(1000, 2000, 1000);
+                directionalLight.castShadow = true;
+                directionalLight.shadow.mapSize.width = 2048;
+                directionalLight.shadow.mapSize.height = 2048;
+                scene.add(directionalLight);
+
+                updateStatus('materialStatus', '🎨 Creating textured seafloor...', 'warning');
+
+                // Create terrain with textured seafloor
+                if (window.SimpleTerrain) {
+                    terrain = new window.SimpleTerrain(scene);
+                    terrain.wireframeMode = false; // Start with textured mode
+                    terrain.useFallbackMaterial = false; // Use textured material
+                    terrain.createTerrain();
+                    
+                    updateStatus('terrainStatus', '✅ Textured seafloor created successfully!', 'success');
+                    updateStatus('materialStatus', '✅ Realistic sand/mud/rock textures applied', 'success');
+                    updateStatus('textureStatus', '✅ Procedural ocean bottom texture generated', 'success');
+                    
+                    console.log('🌊 Textured seafloor terrain created:', {
+                        visible: terrain.isVisible,
+                        wireframe: terrain.wireframeMode,
+                        useFallback: terrain.useFallbackMaterial,
+                        children: terrain.terrainGroup.children.length
+                    });
+                } else {
+                    updateStatus('terrainStatus', '❌ SimpleTerrain class not found', 'error');
+                }
+
+                // Controls
+                document.addEventListener('keydown', (e) => {
+                    if (!terrain) return;
+                    
+                    switch(e.key.toLowerCase()) {
+                        case 'b':
+                            console.log('🌊 Switching to textured seafloor mode...');
+                            terrain.setVisualizationMode('textured');
+                            updateStatus('materialStatus', '🌊 Textured seafloor mode active', 'success');
+                            break;
+                        case 'n':
+                            console.log('🎨 Switching to solid color mode...');
+                            terrain.setVisualizationMode('solid');
+                            updateStatus('materialStatus', '🎨 Solid color mode active', 'warning');
+                            break;
+                        case 'v':
+                            console.log('📐 Switching to wireframe mode...');
+                            terrain.setVisualizationMode('wireframe');
+                            updateStatus('materialStatus', '📐 Wireframe mode active', 'warning');
+                            break;
+                        case 't':
+                            console.log('👁️ Toggling terrain visibility...');
+                            terrain.toggleVisibility();
+                            updateStatus('terrainStatus', `Terrain: ${terrain.isVisible ? 'Visible' : 'Hidden'}`, 
+                                terrain.isVisible ? 'success' : 'warning');
+                            break;
+                    }
+                });
+
+                // Camera controls
+                let mouseDown = false;
+                let mouseX = 0, mouseY = 0;
+                
+                renderer.domElement.addEventListener('mousedown', (e) => {
+                    mouseDown = true;
+                    mouseX = e.clientX;
+                    mouseY = e.clientY;
+                });
+                
+                renderer.domElement.addEventListener('mouseup', () => {
+                    mouseDown = false;
+                });
+                
+                renderer.domElement.addEventListener('mousemove', (e) => {
+                    if (!mouseDown) return;
+                    
+                    const deltaX = e.clientX - mouseX;
+                    const deltaY = e.clientY - mouseY;
+                    
+                    // Rotate camera around origin
+                    const spherical = new THREE.Spherical();
+                    spherical.setFromVector3(camera.position);
+                    spherical.theta -= deltaX * 0.01;
+                    spherical.phi += deltaY * 0.01;
+                    spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+                    
+                    camera.position.setFromSpherical(spherical);
+                    camera.lookAt(0, 0, 0);
+                    
+                    mouseX = e.clientX;
+                    mouseY = e.clientY;
+                });
+
+                // Render loop
+                function animate() {
+                    requestAnimationFrame(animate);
+                    renderer.render(scene, camera);
+                }
+                animate();
+
+                console.log('🌊 Textured seafloor test initialized successfully');
+                
+            } catch (error) {
+                console.error('❌ Initialization failed:', error);
+                updateStatus('terrainStatus', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

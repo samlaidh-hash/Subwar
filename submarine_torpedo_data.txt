@@ -1,0 +1,551 @@
+SUB WAR 2060 - COMPLETE SUBMARINE & TORPEDO DATA REFERENCE
+===============================================================
+Generated: 2025-09-10
+Status: All submarine speeds reduced by 25% from original values
+
+SUBMARINE CLASSES - COMPLETE SPECIFICATIONS
+============================================
+
+┌─────────────┬──────────┬──────────┬──────────┬──────────┬──────────┐
+│             │ TORNADO  │ LIGHTNING│ TYPHOON  │ HURRICANE│ TEMPEST  │
+│             │ (Entry)  │ (Fast)   │ (Heavy)  │ (Deep)   │ (Command)│
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ PERFORMANCE │          │          │          │          │          │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ Max Speed   │ 64 knots │ 75 knots │ 68 knots │ 68 knots │ 50 knots │
+│ (Fwd/Rev)   │ (64/64)  │ (75/75)  │ (68/68)  │ (68/68)  │ (50/50)  │
+│ Acceleration│ 0.8      │ 1.0      │ 0.6      │ 0.7      │ 0.5      │
+│ Crush Depth │ 1402m    │ 610m     │ 1280m    │ 5486m    │ 1615m    │
+│ Emerg Depth │ 1463m    │ 671m     │ 1341m    │ 5639m    │ 1677m    │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ DIMENSIONS  │          │          │          │          │          │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ Length      │ 86 ft    │ 65 ft    │ 92 ft    │ 69 ft    │ 220 ft   │
+│ Width       │ 12 ft    │ 10 ft    │ 14 ft    │ 11 ft    │ 24 ft    │
+│ Height      │ 8 ft     │ 6 ft     │ 10 ft    │ 7 ft     │ 16 ft    │
+│ Displacement│ 220 ton  │ 120 ton  │ 210 ton  │ 140 ton  │ 1200 ton │
+│ Crew        │ 3        │ 2        │ 4        │ 3        │ 5        │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ MANEUVER    │          │          │          │          │          │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ Turn Rate   │ 0.008    │ 0.010    │ 0.006    │ 0.007    │ 0.005    │
+│ Pitch Rate  │ 0.004    │ 0.005    │ 0.003    │ 0.0035   │ 0.002    │
+│ Roll Rate   │ 0.003    │ 0.004    │ 0.002    │ 0.0025   │ 0.002    │
+│ Turn Decay  │ 0.7      │ 0.6      │ 0.8      │ 0.7      │ 0.9      │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ HULL ARMOR  │          │          │          │          │          │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ Hull Armor  │ 100 HP   │ 75 HP    │ 150 HP   │ 120 HP   │ 200 HP   │
+│ Pen Thresh  │ 50       │ 38       │ 40       │ 30       │ 45       │
+│ Oobleck     │ 50 HP    │ 38 HP    │ 75 HP    │ 60 HP    │ 100 HP   │
+│ Meta-Mat    │ 50 HP    │ 37 HP    │ 75 HP    │ 60 HP    │ 100 HP   │
+│ Shield HP   │ 0        │ 0        │ 0        │ 0        │ 0        │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ SYSTEMS HP  │          │          │          │          │          │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ Hull        │ 100      │ 75       │ 150      │ 120      │ 200      │
+│ Engine      │ 50       │ 60       │ 80       │ 60       │ 100      │
+│ Weapons     │ 40       │ 30       │ 70       │ 55       │ 60       │
+│ Sensors     │ 30       │ 35       │ 40       │ 35       │ 80       │
+│ Life Sup    │ 25       │ 20       │ 35       │ 30       │ 50       │
+│ Navigation  │ 35       │ 40       │ 30       │ 40       │ 60       │
+│ Command Sys │ N/A      │ N/A      │ N/A      │ N/A      │ 40       │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ SONAR SIG   │          │          │          │          │          │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ Base Sig    │ 6 dB     │ 4 dB     │ 12 dB    │ 8 dB     │ 15 dB    │
+│ Min Sig     │ 1 dB     │ 0.5 dB   │ 2 dB     │ 1.5 dB   │ 3 dB     │
+│ Speed Mult  │ 0.10     │ 0.08     │ 0.15     │ 0.12     │ 0.20     │
+│ Cavit Thresh│ 80 kts   │ 90 kts   │ 65 kts   │ 75 kts   │ 60 kts   │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ NOISE PENALTIES (dB)   │          │          │          │          │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ Acceleration│ 2.0      │ 1.5      │ 3.0      │ 2.5      │ 4.0      │
+│ Maneuvering │ 3.0      │ 2.0      │ 4.0      │ 3.5      │ 5.0      │
+│ Drag Turn   │ 8.0      │ 6.0      │ 10.0     │ 9.0      │ 12.0     │
+│ Weapons Fire│ 5.0      │ 4.0      │ 6.0      │ 5.5      │ 7.0      │
+│ Torpedo Lnch│ 10.0     │ 8.0      │ 12.0     │ 11.0     │ 15.0     │
+│ Sonar Ping  │ 15.0     │ 12.0     │ 18.0     │ 16.0     │ 20.0     │
+│ Depth Change│ 2.0      │ 1.5      │ 3.0      │ 2.5      │ 4.0      │
+│ Emerg Surf  │ 20.0     │ 15.0     │ 25.0     │ 22.0     │ 30.0     │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ WEAPONS     │          │          │          │          │          │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ Torpedo Tubs│ 4        │ 2        │ 4        │ 3        │ 4        │
+│ Heavy Torps │ NO       │ NO       │ YES      │ YES      │ YES      │
+│ Noisemakers │ 3        │ 3        │ 3        │ 3        │ 3        │
+│ Mine Layer  │ YES (6)  │ NO       │ NO       │ NO       │ NO       │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ SPECIAL     │          │          │          │          │          │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ Role        │ Training │ Stealth  │ Assault  │ Deep Ops │ Command  │
+│             │ Mine War │ Scout    │ Tank     │ Balanced │ Control  │
+│ Unique      │ Only     │ Highest  │ Heaviest │ Deepest  │ Command  │
+│             │ Mine     │ Agility  │ Armor    │ Diving   │ Systems  │
+│             │ Layer    │ Stealth  │          │ 5486m    │          │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ 3D MODEL    │          │          │          │          │          │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ Geometry    │ Custom submarine geometry with elongated diamond fuselage│
+│             │ Scaled by dimensions, animated with bubbles and effects  │
+└─────────────┴──────────┴──────────┴──────────┴──────────┴──────────┘
+
+TORPEDO TYPES - COMPLETE SPECIFICATIONS
+========================================
+
+┌─────────────────────┬──────────────┬──────────────┬──────────────┐
+│                     │ LIGHT        │ MEDIUM       │ HEAVY        │
+│                     │ TORPEDO      │ TORPEDO      │ TORPEDO      │
+├─────────────────────┼──────────────┼──────────────┼──────────────┤
+│ PERFORMANCE         │              │              │              │
+├─────────────────────┼──────────────┼──────────────┼──────────────┤
+│ Damage              │ 50           │ 100          │ 150          │
+│ Max Speed           │ 200 knots    │ 160 knots    │ 130 knots    │
+│ SCAV Speed          │ 100 knots    │ 80 knots     │ 60 knots     │
+│ Maneuverability     │ 0.9 (High)   │ 0.6 (Med)    │ 0.3 (Low)    │
+├─────────────────────┼──────────────┼──────────────┼──────────────┤
+│ TARGETING           │              │              │              │
+├─────────────────────┼──────────────┼──────────────┼──────────────┤
+│ Active Lock Time    │ 2000ms       │ 5000ms       │ 8000ms       │
+│ Passive Lock Time   │ 4000ms       │ 10000ms      │ 15000ms      │
+│ Terminal Range      │ 300m         │ 400m         │ 500m         │
+│ Maximum Range       │ 4000m        │ 6000m        │ 8000m        │
+├─────────────────────┼──────────────┼──────────────┼──────────────┤
+│ LOGISTICS           │              │              │              │
+├─────────────────────┼──────────────┼──────────────┼──────────────┤
+│ Load Time           │ 30 seconds   │ 30 seconds   │ 30 seconds   │
+│ Fuel Consumption    │ Low          │ Medium       │ High         │
+├─────────────────────┼──────────────┼──────────────┼──────────────┤
+│ SPECIAL FEATURES    │              │              │              │
+├─────────────────────┼──────────────┼──────────────┼──────────────┤
+│ Anti-Torpedo        │ YES          │ NO           │ NO           │
+│ Capability          │              │              │              │
+│ Best Use            │ ASW          │ General      │ Capital      │
+│                     │ Intercept    │ Combat       │ Ships        │
+├─────────────────────┼──────────────┼──────────────┼──────────────┤
+│ 3D MODEL           │              │              │              │
+├─────────────────────┼──────────────┼──────────────┼──────────────┤
+│ Geometry            │ Standard torpedo geometry with propellers    │
+│                     │ Size varies by type, bubble trail effects   │
+└─────────────────────┴──────────────┴──────────────┴──────────────┘
+
+STANDARD WEAPON LOADOUTS
+=========================
+
+TORPEDO ONLY SUBMARINES:
+┌──────────┬─────────────────────────────────────────────────────────┐
+│ Class    │ Standard Loadout                                        │
+├──────────┼─────────────────────────────────────────────────────────┤
+│ TORNADO  │ 4 Light Torpedoes + 6 Mines + 3 Noisemakers           │
+│ LIGHTNING│ 2 Light Torpedoes + 3 Noisemakers                      │
+│ TYPHOON  │ 2 Heavy + 2 Medium Torpedoes + 3 Noisemakers          │
+│ HURRICANE│ 1 Heavy + 2 Light Torpedoes + 3 Noisemakers           │
+│ TEMPEST  │ 2 Heavy + 2 Medium Torpedoes + 3 Noisemakers          │
+└──────────┴─────────────────────────────────────────────────────────┘
+
+COMBAT EFFECTIVENESS MATRIX
+============================
+
+┌─────────────┬─────────┬─────────┬─────────┬─────────┬──────────┐
+│ VS TARGET   │ TORNADO │LIGHTNING│ TYPHOON │HURRICANE│ TEMPEST  │
+├─────────────┼─────────┼─────────┼─────────┼─────────┼──────────┤
+│ Fast Subs   │ Poor    │ Excellent│ Fair    │ Good    │ Poor     │
+│ Heavy Subs  │ Fair    │ Poor    │ Excellent│ Good    │ Good     │
+│ Deep Targets│ N/A     │ Limited │ Limited │ Excellent│ Fair     │
+│ Stealth Ops │ Good    │ Excellent│ Poor    │ Fair    │ Poor     │
+│ Mine War    │Excellent│ N/A     │ N/A     │ N/A     │ N/A      │
+│ Command Ops │ Poor    │ Poor    │ Fair    │ Fair    │ Excellent│
+└─────────────┴─────────┴─────────┴─────────┴─────────┴──────────┘
+
+PASSIVE SONAR SENSITIVITY
+==========================
+Note: Specific values not defined in current code implementation.
+Base sensitivity appears to be class-dependent with towed array multipliers.
+
+ADDITIONAL SYSTEMS
+==================
+- Towed Array: 1.0x sensitivity multiplier, 0.7x speed penalty when deployed
+- SCAV Mode: 2.0x speed multiplier, 10.0x noise penalty, 0.3x maneuverability
+- Emergency Repairs: Available on all classes
+- Knuckle Creation: Sharp turns at speed >3 knots with turn rate >50
+
+DESIGN NOTES
+=============
+- All speeds reduced by 25% from original specifications (completed 2025-09-10)
+- Tornado is the only mine-laying capable submarine
+- Lightning has anti-torpedo light torpedoes for defensive operations
+- Heavy torpedoes only available on Typhoon, Hurricane, and Tempest classes
+- Command systems unique to Tempest class for fleet coordination
+- All classes use the same 3D model geometry scaled by dimensions
+
+OOLITE SHIPS - COMPLETE SPECIFICATIONS (CONVERTED FOR SUBMARINE WARFARE)
+=====================================================================================
+
+All Oolite ships are converted from space combat to submarine warfare with underwater capabilities.
+Speeds shown are current values - NO reduction applied (only player submarines were reduced by 25%).
+
+┌─────────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┐
+│ LIGHT FIGHTERS - Fast, Agile Interceptors (REBALANCED)                       │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ Ship        │ VIPER    │SIDEWINDER│ GECKO    │ MAMBA    │          │          │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ Length      │ 22m      │ 18m      │ 20m      │ 24m      │          │          │
+│ Displacement│ 45 ton   │ 28 ton   │ 35 ton   │ 48 ton   │          │          │
+│ Crew        │ 1        │ 1        │ 1        │ 1        │          │          │
+│ Max Speed   │ 100 kts  │ 115 kts  │ 110 kts  │ 105 kts  │          │          │
+│ Acceleration│ 1.2      │ 1.5      │ 1.4      │ 1.3      │          │          │
+│ Crush Depth │ 732m     │ 549m     │ 671m     │ 793m     │          │          │
+│ Turn Rate   │ 0.012    │ 0.015    │ 0.016    │ 0.013    │          │          │
+│ Turn Decay  │ 0.6      │ 0.5      │ 0.5      │ 0.5      │          │          │
+│ Hull HP     │ 30 ⬇️    │ 14 ⬇️    │ 18 ⬇️    │ 24 ⬇️    │          │          │
+│ Sonar Sig   │ 4 dB     │ 3 dB     │ 3 dB     │ 4 dB     │          │          │
+│ Torpedo Tubs│ 2        │ 1        │ 1        │ 2        │          │          │
+│ Heavy Torps │ NO       │ NO       │ NO       │ NO       │          │          │
+│ Noisemakers │ 6        │ 4        │ 8        │ 6        │          │          │
+│ Role        │ Intercpt │ Scout    │ FastScout│ Intercpt │          │          │
+└─────────────┴──────────┴──────────┴──────────┴──────────┴──────────┴──────────┘
+
+┌─────────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┐
+│ MEDIUM FIGHTERS - Multi-Role Combat Vessels (REBALANCED)                     │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ Ship        │ COBRA3   │ KRAIT    │ FERDELANCE│ CONSTRCT│ MORAY    │          │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ Length      │ 35m      │ 28m      │ 32m      │ 26m      │ 30m      │          │
+│ Displacement│ 85 ton   │ 65 ton   │ 75 ton   │ 55 ton   │ 70 ton   │          │
+│ Crew        │ 2        │ 2        │ 2        │ 2        │ 2        │          │
+│ Max Speed   │ 88 kts   │ 92 kts   │ 98 kts   │ 85 kts   │ 90 kts   │          │
+│ Acceleration│ 0.9      │ 1.0      │ 1.1      │ 0.8      │ 0.9      │          │
+│ Crush Depth │ 975m     │ 853m     │ 914m     │ 1097m    │ 1036m    │          │
+│ Turn Rate   │ 0.009    │ 0.010    │ 0.011    │ 0.010    │ 0.009    │          │
+│ Turn Decay  │ 0.7      │ 0.7      │ 0.5      │ 0.7      │ 0.7      │          │
+│ Hull HP     │ 51 ⬇️    │ 39 ⬇️    │ 45 ⬇️    │ 33 ⬇️    │ 42 ⬇️    │          │
+│ Sonar Sig   │ 6 dB     │ 5 dB     │ 5 dB     │ 4 dB     │ 6 dB     │          │
+│ Torpedo Tubs│ 3        │ 2        │ 3        │ 2        │ 3        │          │
+│ Heavy Torps │ YES      │ NO       │ NO       │ NO       │ NO       │          │
+│ Mines       │ 0        │ 8        │ 0        │ 0        │ 10       │          │
+│ Noisemakers │ 8        │ 10       │ 8        │ 12       │ 10       │          │
+│ Role        │ MultiRole│ MineLyr  │ FastAtak │ Stealth  │ Raider   │          │
+└─────────────┴──────────┴──────────┴──────────┴──────────┴──────────┴──────────┘
+
+┌─────────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┐
+│ HEAVY VESSELS - Capital Ships and Transports (REBALANCED)                    │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ Ship        │ ANACONDA │ PYTHON   │ ASP      │ BOA      │ BOA2     │ ADDER    │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ Length      │ 68m      │ 48m      │ 42m      │ 52m      │ 58m      │ 38m      │
+│ Displacement│ 280 ton  │ 180 ton  │ 120 ton  │ 220 ton  │ 320 ton  │ 95 ton   │
+│ Crew        │ 8        │ 5        │ 3        │ 6        │ 10       │ 3        │
+│ Max Speed   │ 75 kts   │ 78 kts   │ 82 kts   │ 68 kts   │ 65 kts   │ 72 kts   │
+│ Acceleration│ 0.5      │ 0.6      │ 0.7      │ 0.4      │ 0.35     │ 0.6      │
+│ Crush Depth │ 1524m    │ 1280m    │ 1219m    │ 1463m    │ 1585m    │ 1158m    │
+│ Turn Rate   │ 0.005    │ 0.006    │ 0.007    │ 0.004    │ 0.003    │ 0.006    │
+│ Turn Decay  │ 0.9      │ 0.8      │ 0.8      │ 0.8      │ 0.9      │ 0.8      │
+│ Hull HP     │ 140      │ 108 ⬇️   │ 72 ⬇️    │ 120      │ 160 ⬆️   │ 57 ⬇️    │
+│ Sonar Sig   │ 10 dB    │ 8 dB     │ 7 dB     │ 9 dB     │ 12 dB    │ 7 dB     │
+│ Torpedo Tubs│ 6        │ 4        │ 4        │ 2        │ 8        │ 2        │
+│ Heavy Torps │ YES      │ YES      │ YES      │ NO       │ YES      │ NO       │
+│ Mines       │ 20       │ 0        │ 12       │ 25       │ 30       │ 15       │
+│ Noisemakers │ 20       │ 12       │ 15       │ 18       │ 25       │ 14       │
+│ Role        │ HvyCrusr │ Gunboat  │ Recon    │ MineLayer│ Command  │ Utility  │
+└─────────────┴──────────┴──────────┴──────────┴──────────┴──────────┴──────────┘
+
+┌─────────────┬──────────┬──────────┬──────────┬──────────┬──────────┬──────────┐
+│ SPECIALIST VESSEL - Escape Pod (REBALANCED)                                  │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ Ship        │ ESCPOD   │          │          │          │          │          │
+├─────────────┼──────────┼──────────┼──────────┼──────────┼──────────┼──────────┤
+│ Length      │ 8m       │          │          │          │          │          │
+│ Displacement│ 5 ton    │          │          │          │          │          │
+│ Crew        │ 4        │          │          │          │          │          │
+│ Max Speed   │ 25 kts   │          │          │          │          │          │
+│ Acceleration│ 0.3      │          │          │          │          │          │
+│ Crush Depth │ 305m     │          │          │          │          │          │
+│ Turn Rate   │ 0.002    │          │          │          │          │          │
+│ Turn Decay  │ 0.9      │          │          │          │          │          │
+│ Hull HP     │ 8 ⬇️     │          │          │          │          │          │
+│ Sonar Sig   │ 1 dB     │          │          │          │          │          │
+│ Torpedo Tubs│ 0        │          │          │          │          │          │
+│ Heavy Torps │ NO       │          │          │          │          │          │
+│ Mines       │ 0        │          │          │          │          │          │
+│ Noisemakers │ 2        │          │          │          │          │          │
+│ Role        │ Emergency│          │          │          │          │          │
+└─────────────┴──────────┴──────────┴──────────┴──────────┴──────────┴──────────┘
+
+REBALANCING SUMMARY
+===================
+
+**MAJOR BALANCE CHANGES APPLIED:**
+
+🔧 **Turn Decay Added**: All Oolite ships now have turn decay values
+   • Light fighters (0.5-0.6): More rotational drift, agile handling
+   • Medium vessels (0.6-0.7): Balanced response  
+   • Heavy ships (0.8-0.9): Quick stop, stable control
+
+⚖️ **HP Rebalanced**: Unrealistic tonnage ratios corrected
+   • **Light fighters**: ~0.5 HP/ton (was 1.6 HP/ton)
+   • **Medium vessels**: ~0.6 HP/ton (was 1.1 HP/ton)  
+   • **Heavy vessels**: ~0.5 HP/ton (maintained reasonable ratios)
+
+📊 **HP Changes Summary:**
+   • **SIDEWINDER**: 45→14 HP (-69% to match 28-ton displacement)
+   • **GECKO**: 55→18 HP (-67% to match 35-ton displacement)  
+   • **MAMBA**: 68→24 HP (-65% to match 48-ton displacement)
+   • **VIPER**: 65→30 HP (-54% to match 45-ton displacement)
+   • **CONSTRICTOR**: 75→33 HP (-56% to match 55-ton displacement)
+   • **KRAIT**: 70→39 HP (-44% to match 65-ton displacement)
+   • **MORAY**: 70→42 HP (-40% to match 70-ton displacement) 
+   • **FERDELANCE**: 80→45 HP (-44% to match 75-ton displacement)
+   • **COBRA3**: 85→51 HP (-40% to match 85-ton displacement)
+   • **ADDER**: 90→57 HP (-37% to match 95-ton displacement)
+   • **ASP**: 95→72 HP (-24% to match 120-ton displacement)
+   • **PYTHON**: 110→108 HP (-2% to match 180-ton displacement)
+   • **ANACONDA**: 140 HP (kept - reasonable for 280-ton heavy cruiser)
+   • **BOA**: 120 HP (kept - reasonable for 220-ton transport)
+   • **BOA2**: 160 HP (increased from 145 - command cruiser buff)
+   • **ESCPOD**: 15→8 HP (-47% to match 5-ton emergency pod)
+
+🎯 **Balance Impact:**
+   • Light enemy fighters no longer tank-like vs player submarines
+   • Proper weight class progression restored
+   • Heavy ships retain appropriate durability advantage
+   • Turn handling now matches ship class and mass characteristics
+
+OOLITE SHIP DETAILED SPECIFICATIONS
+====================================
+
+**LIGHT INTERCEPTORS:**
+
+**VIPER** - Compact Interceptor
+• **Dimensions**: 22m x 8m x 5m, 45 tonnes, 1 crew
+• **Performance**: 100 knots max, 1.2 accel, 732m crush depth
+• **Maneuverability**: 0.012 turn, 0.006 pitch, 0.005 roll
+• **Armament**: 2 torpedo tubes, 4 light torpedoes, 6 noisemakers
+• **Defensive**: 65 HP hull, 4 dB signature, 30 armor threshold
+• **Systems**: Engine 35, Weapons 25, Sensors 20, Life Support 15, Nav 20
+• **Role**: Fast interception, patrol operations
+
+**SIDEWINDER** - Ultra-Compact Scout
+• **Dimensions**: 18m x 6m x 4m, 28 tonnes, 1 crew  
+• **Performance**: 115 knots max (fastest), 1.5 accel, 549m crush depth
+• **Maneuverability**: 0.015 turn (most agile), 0.008 pitch, 0.006 roll
+• **Armament**: 1 torpedo tube, 2 light torpedoes, 4 noisemakers
+• **Defensive**: 45 HP hull, 3 dB signature (stealthiest), 25 armor threshold
+• **Systems**: Engine 30, Weapons 15, Sensors 25, Life Support 10, Nav 18
+• **Role**: High-speed reconnaissance, hit-and-run attacks
+
+**GECKO** - Fast Scout
+• **Dimensions**: 20m x 7m x 5m, 35 tonnes, 1 crew
+• **Performance**: 110 knots max, 1.4 accel, 671m crush depth  
+• **Maneuverability**: 0.016 turn, 0.010 pitch, 0.008 roll
+• **Armament**: 1 torpedo tube, 3 light torpedoes, 8 noisemakers
+• **Defensive**: 55 HP hull, 3 dB signature, 20 armor threshold
+• **Systems**: Engine 35, Weapons 20, Sensors 40 (scout), Life Support 12, Nav 22
+• **Role**: Forward reconnaissance, early warning
+
+**MAMBA** - Fast Interceptor  
+• **Dimensions**: 24m x 8m x 6m, 48 tonnes, 1 crew
+• **Performance**: 105 knots max, 1.3 accel, 793m crush depth
+• **Maneuverability**: 0.013 turn, 0.007 pitch, 0.006 roll
+• **Armament**: 2 torpedo tubes, 5 light torpedoes, 6 noisemakers
+• **Defensive**: 68 HP hull, 4 dB signature, 28 armor threshold  
+• **Systems**: Engine 38, Weapons 25, Sensors 30, Life Support 15, Nav 25
+• **Role**: Interception, close combat
+
+**MEDIUM MULTI-ROLE:**
+
+**COBRA MK3** - Multi-Role Fighter
+• **Dimensions**: 35m x 12m x 8m, 85 tonnes, 2 crew
+• **Performance**: 88 knots max, 0.9 accel, 975m crush depth
+• **Maneuverability**: 0.009 turn, 0.005 pitch, 0.004 roll
+• **Armament**: 3 torpedo tubes, 4 light + 2 heavy torpedoes, 8 noisemakers
+• **Defensive**: 85 HP hull, 6 dB signature, 40 armor threshold
+• **Systems**: Engine 45, Weapons 35, Sensors 30, Life Support 20, Nav 28
+• **Role**: Multi-role combat, balanced capabilities
+
+**KRAIT** - Stealth Mine Layer
+• **Dimensions**: 28m x 10m x 7m, 65 tonnes, 2 crew
+• **Performance**: 92 knots max, 1.0 accel, 853m crush depth
+• **Maneuverability**: 0.010 turn, 0.005 pitch, 0.004 roll
+• **Armament**: 2 torpedo tubes, 6 light torpedoes, 4 mines, 10 noisemakers
+• **Defensive**: 70 HP hull, 5 dB signature, 35 armor threshold
+• **Systems**: Engine 40, Weapons 30, Sensors 35, Life Support 18, Nav 25
+• **Special**: Mine laying capability (8 max)
+• **Role**: Stealth operations, mine warfare
+
+**FER-DE-LANCE** - Fast Attack Craft
+• **Dimensions**: 32m x 11m x 8m, 75 tonnes, 2 crew
+• **Performance**: 98 knots max, 1.1 accel, 914m crush depth
+• **Maneuverability**: 0.011 turn, 0.006 pitch, 0.005 roll
+• **Armament**: 3 torpedo tubes, 8 light torpedoes, 8 noisemakers
+• **Defensive**: 80 HP hull, 5 dB signature, 35 armor threshold
+• **Systems**: Engine 45, Weapons 35, Sensors 25, Life Support 20, Nav 30
+• **Role**: Fast attack, close-range combat
+
+**CONSTRICTOR** - Stealth Hunter
+• **Dimensions**: 26m x 9m x 6m, 55 tonnes, 2 crew
+• **Performance**: 85 knots max, 0.8 accel, 1097m crush depth
+• **Maneuverability**: 0.010 turn, 0.005 pitch, 0.004 roll
+• **Armament**: 2 torpedo tubes, 6 light torpedoes, 12 noisemakers
+• **Defensive**: 75 HP hull, 4 dB signature (very quiet), 35 armor threshold
+• **Systems**: Engine 40, Weapons 30, Sensors 45 (enhanced), Life Support 18, Nav 25
+• **Role**: Stealth reconnaissance, covert operations
+
+**MORAY** - Pirate Raider  
+• **Dimensions**: 30m x 10m x 7m, 70 tonnes, 2 crew
+• **Performance**: 90 knots max, 0.9 accel, 1036m crush depth
+• **Maneuverability**: 0.009 turn, 0.005 pitch, 0.004 roll
+• **Armament**: 3 torpedo tubes, 7 light torpedoes, 5 mines, 10 noisemakers
+• **Defensive**: 70 HP hull, 6 dB signature, 32 armor threshold
+• **Systems**: Engine 42, Weapons 32, Sensors 28, Life Support 18, Nav 26
+• **Special**: Mine laying (10 max)
+• **Role**: Raiding, piracy operations
+
+**HEAVY VESSELS:**
+
+**ANACONDA** - Heavy Cruiser (Flagship Class)
+• **Dimensions**: 68m x 20m x 15m, 280 tonnes, 8 crew
+• **Performance**: 75 knots max, 0.5 accel, 1524m crush depth
+• **Maneuverability**: 0.005 turn, 0.003 pitch, 0.002 roll  
+• **Armament**: 6 torpedo tubes, 8 light + 6 heavy torpedoes, 12 mines, 20 noisemakers
+• **Defensive**: 140 HP hull (heaviest), 10 dB signature, 60 armor threshold
+• **Systems**: Engine 70, Weapons 60, Sensors 45, Life Support 40, Nav 50
+• **Special**: Mine laying (20 max), heavy torpedo capable
+• **Role**: Fleet flagship, heavy assault
+
+**PYTHON** - Heavy Gunboat
+• **Dimensions**: 48m x 16m x 12m, 180 tonnes, 5 crew
+• **Performance**: 78 knots max, 0.6 accel, 1280m crush depth
+• **Maneuverability**: 0.006 turn, 0.003 pitch, 0.003 roll
+• **Armament**: 4 torpedo tubes, 8 light + 4 heavy torpedoes, 12 noisemakers
+• **Defensive**: 110 HP hull, 8 dB signature, 50 armor threshold
+• **Systems**: Engine 55, Weapons 45, Sensors 35, Life Support 30, Nav 40
+• **Role**: Heavy combat, fire support
+
+**ASP EXPLORER** - Long-Range Reconnaissance  
+• **Dimensions**: 42m x 14m x 10m, 120 tonnes, 3 crew
+• **Performance**: 82 knots max, 0.7 accel, 1219m crush depth
+• **Maneuverability**: 0.007 turn, 0.004 pitch, 0.003 roll
+• **Armament**: 4 torpedo tubes, 6 light + 2 heavy torpedoes, 6 mines, 15 noisemakers
+• **Defensive**: 95 HP hull, 7 dB signature, 45 armor threshold
+• **Systems**: Engine 50, Weapons 40, Sensors 60 (enhanced), Life Support 25, Nav 35
+• **Special**: Mine laying (12 max), enhanced sensors for recon
+• **Role**: Deep reconnaissance, exploration
+
+**BOA** - Heavy Mine Layer
+• **Dimensions**: 52m x 18m x 14m, 220 tonnes, 6 crew
+• **Performance**: 68 knots max, 0.4 accel, 1463m crush depth
+• **Maneuverability**: 0.004 turn, 0.002 pitch, 0.002 roll
+• **Armament**: 2 torpedo tubes, 4 light torpedoes, 15 mines, 18 noisemakers
+• **Defensive**: 105 HP hull, 9 dB signature, 55 armor threshold
+• **Systems**: Engine 50, Weapons 25, Sensors 40, Life Support 35, Nav 45
+• **Special**: Dedicated mine layer (25 max capacity)
+• **Role**: Mine warfare, area denial
+
+**BOA CLASS 2** - Command Cruiser (Ultimate Vessel)
+• **Dimensions**: 58m x 20m x 16m, 320 tonnes, 10 crew
+• **Performance**: 65 knots max, 0.35 accel, 1585m crush depth
+• **Maneuverability**: 0.003 turn, 0.002 pitch, 0.001 roll
+• **Armament**: 8 torpedo tubes (maximum), 12 light + 8 heavy torpedoes, 18 mines, 25 noisemakers
+• **Defensive**: 145 HP hull (ultimate armor), 12 dB signature (massive), 70 armor threshold
+• **Systems**: Engine 80, Weapons 75, Sensors 55, Life Support 50, Nav 65
+• **Special**: Maximum firepower, mine laying (30 max), command systems
+• **Role**: Fleet command, ultimate combat vessel
+
+**ADDER** - Utility Transport
+• **Dimensions**: 38m x 13m x 9m, 95 tonnes, 3 crew
+• **Performance**: 72 knots max, 0.6 accel, 1158m crush depth  
+• **Maneuverability**: 0.006 turn, 0.003 pitch, 0.003 roll
+• **Armament**: 2 torpedo tubes, 6 light torpedoes, 8 mines, 14 noisemakers
+• **Defensive**: 80 HP hull, 7 dB signature, 40 armor threshold
+• **Systems**: Engine 45, Weapons 30, Sensors 32, Life Support 25, Nav 35
+• **Special**: Mine laying (15 max)
+• **Role**: Transport, utility operations
+
+**ESCAPE POD** - Emergency Vessel
+• **Dimensions**: 8m x 3m x 3m, 5 tonnes, 4 crew (survivors)
+• **Performance**: 25 knots max, 0.3 accel, 305m crush depth
+• **Maneuverability**: 0.002 turn, 0.001 pitch, 0.001 roll
+• **Armament**: No torpedoes, 2 emergency noisemakers
+• **Defensive**: 15 HP hull, 1 dB signature (minimal), 8 armor threshold
+• **Systems**: Engine 8, Weapons 0, Sensors 5, Life Support 20 (priority), Nav 10
+• **Role**: Emergency evacuation, survivor rescue
+
+OOLITE FLEET CONFIGURATIONS
+============================
+
+**Pre-defined enemy fleet encounters using Oolite ships:**
+
+**LIGHT PATROL** - Fast Response
+• Viper (Patrol Leader) + Sidewinder (Scout)  
+• Total: 2 ships, moderate threat
+
+**MEDIUM ENGAGEMENT** - Balanced Force
+• Cobra Mk3 (Leader) + Krait (Wingman) + Asp (Recon)
+• Total: 3 ships, significant threat
+
+**HEAVY ASSAULT** - Major Fleet Action
+• Anaconda (Flagship) + Python (Escort) + 2x Fer-de-Lance (Fighters)
+• Total: 4 ships, extreme threat
+
+**MIXED FLEET** - Diverse Operations  
+• Boa (Transport) + Constrictor (Hunter) + Gecko (Scout) + Mamba (Interceptor)
+• Total: 4 ships, varied capabilities
+
+**PIRATE RAIDERS** - Criminal Operations
+• Cobra Mk3 (Pirate Leader) + Moray (Raider) + Adder (Transport)
+• Total: 3 ships, aggressive tactics  
+
+**BOSS ENCOUNTER** - Ultimate Challenge
+• Boa Class 2 (Command Cruiser) + 2x Viper (Elite Escorts)
+• Total: 3 ships, maximum threat level
+
+**RECON SQUADRON** - Enhanced Detection
+• Asp (Recon Leader, 2.0x sensors) + Constrictor (Scout, 1.5x sensors) + Gecko (Fast Scout, 1.8x sensors)
+• Total: 3 ships, superior detection capabilities
+
+TACTICAL ANALYSIS
+==================
+
+**Ship Classification by Role:**
+
+**INTERCEPTORS**: Viper, Sidewinder, Mamba, Gecko
+- **Strengths**: Speed (100-115 kts), Agility, Low signatures  
+- **Weaknesses**: Light armor, limited armament
+- **Tactics**: Hit-and-run, early warning, pursuit
+
+**MULTI-ROLE**: Cobra Mk3, Krait, Fer-de-Lance, Constrictor, Moray
+- **Strengths**: Balanced capabilities, versatile armament
+- **Weaknesses**: Average in all areas
+- **Tactics**: General combat, patrol operations
+
+**HEAVY UNITS**: Anaconda, Python, Boa, Boa Class 2, Asp, Adder  
+- **Strengths**: Heavy armor, multiple torpedo tubes, mine capacity
+- **Weaknesses**: Slow speed (65-82 kts), poor maneuverability
+- **Tactics**: Line combat, area control, command operations
+
+**SPECIALISTS**: Constrictor (stealth), Gecko (scout), Escape Pod (rescue)
+- **Strengths**: Specialized systems and capabilities
+- **Weaknesses**: Limited combat effectiveness
+- **Tactics**: Support roles, specialized missions
+
+**Speed Rankings** (Current Game Values):
+1. **SIDEWINDER**: 115 knots (Ultra-fast)
+2. **GECKO**: 110 knots (Very fast)  
+3. **MAMBA**: 105 knots (Fast)
+4. **VIPER**: 100 knots (Fast)
+5. **FER-DE-LANCE**: 98 knots (Fast)
+6. **KRAIT**: 92 knots (Medium-fast)
+7. **MORAY**: 90 knots (Medium)
+8. **COBRA MK3**: 88 knots (Medium)
+9. **CONSTRICTOR**: 85 knots (Medium)
+10. **ASP**: 82 knots (Medium-slow)
+...continuing to ESCAPE POD at 25 knots
+
+**NOTE**: Oolite ship speeds are balanced against reduced player submarine speeds.
+Player subs were reduced 25%, but enemy Oolite ships maintain original values for challenge balance.
+
+===============================================================
+End of Complete Submarine & Torpedo Data Reference v3.0
+Generated from: D:\Dropbox\Free Games\2025 RPG\CLAUDE GAMES\SW\js\submarine.js
+              D:\Dropbox\Free Games\2025 RPG\CLAUDE GAMES\SW\js\oolite_fleet_configs.js
+===============================================================

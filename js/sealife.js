@@ -1,0 +1,1769 @@
+// Sub War 2060 - Sealife Module
+
+// Sealife class for fish schools, whales, and marine life
+class Sealife {
+    constructor(scene) {
+        this.scene = scene;
+        this.fishSchools = [];
+        this.whales = [];
+        this.dolphins = [];
+        this.sonarContacts = [];
+        this.ghostContacts = []; // Lost contacts that continue on last known course
+
+        // Ambient ocean features
+        this.ambientBubbles = [];
+        this.jellyfish = [];
+        this.driftingSediment = [];
+        this.thermalVents = [];
+
+        this.init();
+    }
+
+    init() {
+        this.createFishSchools();
+        this.createWhales();
+        this.createDolphins();
+        this.createAmbientBubbles();
+        this.createJellyfish();
+        this.createDriftingSediment();
+        this.createThermalVents();
+        this.setupSonarSystem();
+        console.log('Sealife ecosystem with ambient features initialized');
+    }
+
+    createFishSchools() {
+        // Create multiple schools of fish
+        for (let schoolId = 0; schoolId < 8; schoolId++) {
+            const school = {
+                id: `fishSchool_${schoolId}`,
+                type: 'fishSchool',
+                fish: [],
+                center: new THREE.Vector3(
+                    (Math.random() - 0.5) * 120,
+                    -5 - Math.random() * 15,
+                    (Math.random() - 0.5) * 120
+                ),
+                direction: new THREE.Vector3(
+                    (Math.random() - 0.5) * 2,
+                    0,
+                    (Math.random() - 0.5) * 2
+                ).normalize(),
+                speed: 0.3 + Math.random() * 0.5, // Much slower fish schools
+                schoolSize: 15 + Math.floor(Math.random() * 20),
+                species: this.getRandomFishSpecies(),
+                identified: false,
+                lastSonarPing: 0,
+                sonarSignature: 2 + Math.random() * 2, // Fish schools: 2-4
+                lastKnownPosition: null,
+                lastKnownSpeed: null,
+                contactLost: false
+            };
+
+            // Create individual fish in the school
+            const fishGroup = new THREE.Group();
+            for (let i = 0; i < school.schoolSize; i++) {
+                const fish = this.createFish(school.species);
+
+                // Position fish within school formation
+                const angle = (i / school.schoolSize) * Math.PI * 2;
+                const radius = 2 + Math.random() * 3;
+                fish.position.set(
+                    Math.cos(angle) * radius,
+                    (Math.random() - 0.5) * 1,
+                    Math.sin(angle) * radius
+                );
+
+                fishGroup.add(fish);
+                school.fish.push(fish);
+            }
+
+            fishGroup.position.copy(school.center);
+            fishGroup.name = school.id;
+            this.scene.add(fishGroup);
+
+            school.mesh = fishGroup;
+            this.fishSchools.push(school);
+        }
+    }
+
+    createWhales() {
+        // Create whales that move slowly and create large sonar signatures
+        for (let i = 0; i < 3; i++) {
+            const whale = {
+                id: `whale_${i}`,
+                type: 'whale',
+                position: new THREE.Vector3(
+                    (Math.random() - 0.5) * 150,
+                    -8 - Math.random() * 10,
+                    (Math.random() - 0.5) * 150
+                ),
+                direction: new THREE.Vector3(
+                    (Math.random() - 0.5) * 2,
+                    0,
+                    (Math.random() - 0.5) * 2
+                ).normalize(),
+                speed: 0.1 + Math.random() * 0.2, // Much slower whales
+                species: this.getRandomWhaleSpecies(),
+                identified: false,
+                lastSonarPing: 0,
+                sonarSignature: 6 + Math.random() * 4, // Whales: 6-10 (can be confused for subs)
+                lastKnownPosition: null,
+                lastKnownSpeed: null,
+                contactLost: false
+            };
+
+            whale.mesh = this.createWhale(whale.species);
+            whale.mesh.position.copy(whale.position);
+            whale.mesh.name = whale.id;
+            this.scene.add(whale.mesh);
+
+            this.whales.push(whale);
+        }
+    }
+
+    createDolphins() {
+        // Create dolphin pods that move quickly
+        for (let i = 0; i < 2; i++) {
+            const podSize = 3 + Math.floor(Math.random() * 4);
+            const pod = {
+                id: `dolphinPod_${i}`,
+                type: 'dolphinPod',
+                dolphins: [],
+                center: new THREE.Vector3(
+                    (Math.random() - 0.5) * 100,
+                    -2 - Math.random() * 8,
+                    (Math.random() - 0.5) * 100
+                ),
+                direction: new THREE.Vector3(
+                    (Math.random() - 0.5) * 2,
+                    0,
+                    (Math.random() - 0.5) * 2
+                ).normalize(),
+                speed: 0.5 + Math.random() * 1.0, // Much slower dolphins
+                identified: false,
+                lastSonarPing: 0,
+                sonarSignature: 3 + Math.random() * 2, // Dolphins: 3-5
+                lastKnownPosition: null,
+                lastKnownSpeed: null,
+                contactLost: false
+            };
+
+            const podGroup = new THREE.Group();
+            for (let j = 0; j < podSize; j++) {
+                const dolphin = this.createDolphin();
+                dolphin.position.set(
+                    (Math.random() - 0.5) * 8,
+                    (Math.random() - 0.5) * 2,
+                    (Math.random() - 0.5) * 8
+                );
+                podGroup.add(dolphin);
+                pod.dolphins.push(dolphin);
+            }
+
+            podGroup.position.copy(pod.center);
+            podGroup.name = pod.id;
+            this.scene.add(podGroup);
+
+            pod.mesh = podGroup;
+            this.dolphins.push(pod);
+        }
+    }
+
+    createFish(species) {
+        const fishGroup = new THREE.Group();
+
+        // Vector wireframe material
+        const vectorMaterial = new THREE.LineBasicMaterial({
+            color: 0xffffff,
+            linewidth: 1,
+            transparent: true,
+            opacity: 0.7
+        });
+
+        // Create 3D fish body with proper depth
+        // Top profile
+        const topGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0.15, 0.04, 0),    // nose top
+            new THREE.Vector3(-0.15, 0.04, 0)    // tail top
+        ]);
+        const topLine = new THREE.Line(topGeometry, vectorMaterial);
+        fishGroup.add(topLine);
+
+        // Bottom profile
+        const bottomGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0.15, -0.04, 0),   // nose bottom
+            new THREE.Vector3(-0.15, -0.04, 0)   // tail bottom
+        ]);
+        const bottomLine = new THREE.Line(bottomGeometry, vectorMaterial);
+        fishGroup.add(bottomLine);
+
+        // Side profiles (left and right)
+        const leftGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0.15, 0, -0.02),   // nose left
+            new THREE.Vector3(0, 0.08, -0.02),   // top left
+            new THREE.Vector3(-0.15, 0, -0.02),  // tail left
+            new THREE.Vector3(0, -0.08, -0.02),  // bottom left
+            new THREE.Vector3(0.15, 0, -0.02)    // back to nose left
+        ]);
+        const leftSide = new THREE.Line(leftGeometry, vectorMaterial);
+        fishGroup.add(leftSide);
+
+        const rightGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0.15, 0, 0.02),    // nose right
+            new THREE.Vector3(0, 0.08, 0.02),    // top right
+            new THREE.Vector3(-0.15, 0, 0.02),   // tail right
+            new THREE.Vector3(0, -0.08, 0.02),   // bottom right
+            new THREE.Vector3(0.15, 0, 0.02)     // back to nose right
+        ]);
+        const rightSide = new THREE.Line(rightGeometry, vectorMaterial);
+        fishGroup.add(rightSide);
+
+        // Cross-sections to show depth
+        const crossGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, 0.08, -0.02),   // top left
+            new THREE.Vector3(0, 0.08, 0.02),    // top right
+            new THREE.Vector3(0, -0.08, 0.02),   // bottom right
+            new THREE.Vector3(0, -0.08, -0.02),  // bottom left
+            new THREE.Vector3(0, 0.08, -0.02)    // back to top left
+        ]);
+        const cross = new THREE.Line(crossGeometry, vectorMaterial);
+        fishGroup.add(cross);
+
+        // 3D Tail fin
+        const tailGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(-0.15, 0, -0.02),  // tail center left
+            new THREE.Vector3(-0.25, 0.06, 0),   // tail top center
+            new THREE.Vector3(-0.15, 0, 0.02),   // tail center right
+            new THREE.Vector3(-0.25, -0.06, 0),  // tail bottom center
+            new THREE.Vector3(-0.15, 0, -0.02)   // back to start
+        ]);
+        const tail = new THREE.Line(tailGeometry, vectorMaterial);
+        fishGroup.add(tail);
+
+        return fishGroup;
+    }
+
+    createWhale(species) {
+        const whaleGroup = new THREE.Group();
+
+        // Vector wireframe material
+        const vectorMaterial = new THREE.LineBasicMaterial({
+            color: 0xffffff,
+            linewidth: 1,
+            transparent: true,
+            opacity: 0.8
+        });
+
+        // Create 3D whale body with proper depth
+        // Left side profile
+        const leftSideGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(3, 0, -0.3),       // nose left
+            new THREE.Vector3(2, 0.8, -0.3),     // top front left
+            new THREE.Vector3(-1, 1.2, -0.3),    // top back left
+            new THREE.Vector3(-3, 0, -0.3),      // tail left
+            new THREE.Vector3(-1, -1.2, -0.3),   // bottom back left
+            new THREE.Vector3(2, -0.8, -0.3),    // bottom front left
+            new THREE.Vector3(3, 0, -0.3)        // back to nose left
+        ]);
+        const leftSide = new THREE.Line(leftSideGeometry, vectorMaterial);
+        whaleGroup.add(leftSide);
+
+        // Right side profile
+        const rightSideGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(3, 0, 0.3),        // nose right
+            new THREE.Vector3(2, 0.8, 0.3),      // top front right
+            new THREE.Vector3(-1, 1.2, 0.3),     // top back right
+            new THREE.Vector3(-3, 0, 0.3),       // tail right
+            new THREE.Vector3(-1, -1.2, 0.3),    // bottom back right
+            new THREE.Vector3(2, -0.8, 0.3),     // bottom front right
+            new THREE.Vector3(3, 0, 0.3)         // back to nose right
+        ]);
+        const rightSide = new THREE.Line(rightSideGeometry, vectorMaterial);
+        whaleGroup.add(rightSide);
+
+        // Cross-sections to show depth
+        const frontCrossGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(2, 0.8, -0.3),     // top front left
+            new THREE.Vector3(2, 0.8, 0.3),      // top front right
+            new THREE.Vector3(2, -0.8, 0.3),     // bottom front right
+            new THREE.Vector3(2, -0.8, -0.3),    // bottom front left
+            new THREE.Vector3(2, 0.8, -0.3)      // back to start
+        ]);
+        const frontCross = new THREE.Line(frontCrossGeometry, vectorMaterial);
+        whaleGroup.add(frontCross);
+
+        const backCrossGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(-1, 1.2, -0.3),    // top back left
+            new THREE.Vector3(-1, 1.2, 0.3),     // top back right
+            new THREE.Vector3(-1, -1.2, 0.3),    // bottom back right
+            new THREE.Vector3(-1, -1.2, -0.3),   // bottom back left
+            new THREE.Vector3(-1, 1.2, -0.3)     // back to start
+        ]);
+        const backCross = new THREE.Line(backCrossGeometry, vectorMaterial);
+        whaleGroup.add(backCross);
+
+        // 3D Tail fluke
+        const tailGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(-3, 0, -0.3),      // tail center left
+            new THREE.Vector3(-4, 0.8, 0),       // tail top center
+            new THREE.Vector3(-3, 0, 0.3),       // tail center right
+            new THREE.Vector3(-4, -0.8, 0),      // tail bottom center
+            new THREE.Vector3(-3, 0, -0.3)       // back to start
+        ]);
+        const tail = new THREE.Line(tailGeometry, vectorMaterial);
+        whaleGroup.add(tail);
+
+        // 3D Dorsal fin
+        const finGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, 1.2, -0.2),     // base left
+            new THREE.Vector3(-0.5, 2, 0),       // tip
+            new THREE.Vector3(0, 1.2, 0.2),      // base right
+            new THREE.Vector3(0, 1.2, -0.2)      // back to start
+        ]);
+        const fin = new THREE.Line(finGeometry, vectorMaterial);
+        whaleGroup.add(fin);
+
+        return whaleGroup;
+    }
+
+    createDolphin() {
+        const dolphinGroup = new THREE.Group();
+
+        // Vector wireframe material
+        const vectorMaterial = new THREE.LineBasicMaterial({
+            color: 0xffffff,
+            linewidth: 1,
+            transparent: true,
+            opacity: 0.8
+        });
+
+        // Create 3D dolphin body with proper depth
+        // Left side profile
+        const leftSideGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0.6, 0, -0.1),     // nose left
+            new THREE.Vector3(0.4, 0.3, -0.1),   // top front left
+            new THREE.Vector3(-0.3, 0.3, -0.1),  // top back left
+            new THREE.Vector3(-0.6, 0, -0.1),    // tail left
+            new THREE.Vector3(-0.3, -0.3, -0.1), // bottom back left
+            new THREE.Vector3(0.4, -0.3, -0.1),  // bottom front left
+            new THREE.Vector3(0.6, 0, -0.1)      // back to nose left
+        ]);
+        const leftSide = new THREE.Line(leftSideGeometry, vectorMaterial);
+        dolphinGroup.add(leftSide);
+
+        // Right side profile
+        const rightSideGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0.6, 0, 0.1),      // nose right
+            new THREE.Vector3(0.4, 0.3, 0.1),    // top front right
+            new THREE.Vector3(-0.3, 0.3, 0.1),   // top back right
+            new THREE.Vector3(-0.6, 0, 0.1),     // tail right
+            new THREE.Vector3(-0.3, -0.3, 0.1),  // bottom back right
+            new THREE.Vector3(0.4, -0.3, 0.1),   // bottom front right
+            new THREE.Vector3(0.6, 0, 0.1)       // back to nose right
+        ]);
+        const rightSide = new THREE.Line(rightSideGeometry, vectorMaterial);
+        dolphinGroup.add(rightSide);
+
+        // Cross-section to show depth
+        const crossGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0.1, 0.2, -0.1),   // mid top left
+            new THREE.Vector3(0.1, 0.2, 0.1),    // mid top right
+            new THREE.Vector3(0.1, -0.2, 0.1),   // mid bottom right
+            new THREE.Vector3(0.1, -0.2, -0.1),  // mid bottom left
+            new THREE.Vector3(0.1, 0.2, -0.1)    // back to start
+        ]);
+        const cross = new THREE.Line(crossGeometry, vectorMaterial);
+        dolphinGroup.add(cross);
+
+        // 3D Tail fluke
+        const tailGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(-0.6, 0, -0.1),    // tail center left
+            new THREE.Vector3(-0.8, 0.2, 0),     // tail top center
+            new THREE.Vector3(-0.6, 0, 0.1),     // tail center right
+            new THREE.Vector3(-0.8, -0.2, 0),    // tail bottom center
+            new THREE.Vector3(-0.6, 0, -0.1)     // back to start
+        ]);
+        const tail = new THREE.Line(tailGeometry, vectorMaterial);
+        dolphinGroup.add(tail);
+
+        // 3D Dorsal fin
+        const finGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, 0.3, -0.05),    // base left
+            new THREE.Vector3(-0.1, 0.6, 0),     // tip
+            new THREE.Vector3(0, 0.3, 0.05),     // base right
+            new THREE.Vector3(0, 0.3, -0.05)     // back to start
+        ]);
+        const fin = new THREE.Line(finGeometry, vectorMaterial);
+        dolphinGroup.add(fin);
+
+        return dolphinGroup;
+    }
+
+    getRandomFishSpecies() {
+        const species = [
+            { name: 'Tuna', color: 0x4A4A4A, finColor: 0x333333 },
+            { name: 'Mackerel', color: 0x5A5A8A, finColor: 0x4A4A7A },
+            { name: 'Herring', color: 0x6A6A6A, finColor: 0x5A5A5A },
+            { name: 'Sardine', color: 0x7A7A9A, finColor: 0x6A6A8A }
+        ];
+        return species[Math.floor(Math.random() * species.length)];
+    }
+
+    getRandomWhaleSpecies() {
+        const species = [
+            { name: 'Humpback Whale', color: 0x2F2F2F },
+            { name: 'Blue Whale', color: 0x1F1F3F },
+            { name: 'Sperm Whale', color: 0x3F3F3F }
+        ];
+        return species[Math.floor(Math.random() * species.length)];
+    }
+
+    // Create ambient bubble streams (thermal vents, escaping gases)
+    createAmbientBubbles() {
+        // Create several bubble streams around the area
+        for (let i = 0; i < 6; i++) {
+            const bubbleStream = {
+                id: `bubbleStream_${i}`,
+                position: new THREE.Vector3(
+                    (Math.random() - 0.5) * 200,
+                    -80 - Math.random() * 40, // Deep bubble sources
+                    (Math.random() - 0.5) * 200
+                ),
+                bubbles: [],
+                spawnRate: 0.5 + Math.random() * 1.0, // Bubbles per second
+                lastSpawn: 0,
+                active: true
+            };
+
+            // Create initial bubbles for this stream
+            for (let j = 0; j < 10; j++) {
+                this.createBubble(bubbleStream);
+            }
+
+            this.ambientBubbles.push(bubbleStream);
+        }
+        console.log(`Created ${this.ambientBubbles.length} ambient bubble streams`);
+    }
+
+    createBubble(stream) {
+        const bubble = {
+            mesh: null,
+            position: stream.position.clone(),
+            velocity: new THREE.Vector3(
+                (Math.random() - 0.5) * 0.2,
+                0.8 + Math.random() * 0.4, // Rising speed
+                (Math.random() - 0.5) * 0.2
+            ),
+            life: 0,
+            maxLife: 15 + Math.random() * 10,
+            size: 0.05 + Math.random() * 0.1
+        };
+
+        // Create bubble geometry
+        const geometry = new THREE.SphereGeometry(bubble.size, 8, 6);
+        const material = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.3,
+            wireframe: true
+        });
+        bubble.mesh = new THREE.Mesh(geometry, material);
+        bubble.mesh.position.copy(bubble.position);
+        this.scene.add(bubble.mesh);
+
+        stream.bubbles.push(bubble);
+    }
+
+    // Create jellyfish that drift with currents
+    createJellyfish() {
+        for (let i = 0; i < 4; i++) {
+            const jellyfish = {
+                id: `jellyfish_${i}`,
+                mesh: null,
+                position: new THREE.Vector3(
+                    (Math.random() - 0.5) * 150,
+                    -10 - Math.random() * 30,
+                    (Math.random() - 0.5) * 150
+                ),
+                direction: new THREE.Vector3(
+                    (Math.random() - 0.5) * 2,
+                    Math.random() * 0.3 - 0.1, // Slight vertical drift
+                    (Math.random() - 0.5) * 2
+                ).normalize(),
+                speed: 0.1 + Math.random() * 0.2,
+                pulseTime: 0,
+                pulseRate: 1 + Math.random() * 2,
+                size: 0.5 + Math.random() * 1.0
+            };
+
+            // Create jellyfish geometry (bell shape)
+            const group = new THREE.Group();
+
+            // Bell (dome)
+            const bellGeometry = new THREE.SphereGeometry(jellyfish.size, 12, 8, 0, Math.PI * 2, 0, Math.PI * 0.6);
+            const bellMaterial = new THREE.LineBasicMaterial({
+                color: 0x88aaff,
+                transparent: true,
+                opacity: 0.4
+            });
+            const bellMesh = new THREE.LineSegments(
+                new THREE.WireframeGeometry(bellGeometry),
+                bellMaterial
+            );
+            group.add(bellMesh);
+
+            // Tentacles
+            for (let t = 0; t < 6; t++) {
+                const angle = (t / 6) * Math.PI * 2;
+                const points = [
+                    new THREE.Vector3(
+                        Math.cos(angle) * jellyfish.size * 0.8,
+                        0,
+                        Math.sin(angle) * jellyfish.size * 0.8
+                    ),
+                    new THREE.Vector3(
+                        Math.cos(angle) * jellyfish.size * 0.6,
+                        -jellyfish.size * 2,
+                        Math.sin(angle) * jellyfish.size * 0.6
+                    )
+                ];
+                const tentacleGeometry = new THREE.BufferGeometry().setFromPoints(points);
+                const tentacleLine = new THREE.Line(tentacleGeometry, bellMaterial);
+                group.add(tentacleLine);
+            }
+
+            group.position.copy(jellyfish.position);
+            jellyfish.mesh = group;
+            this.scene.add(group);
+            this.jellyfish.push(jellyfish);
+        }
+        console.log(`Created ${this.jellyfish.length} jellyfish`);
+    }
+
+    // Create drifting sediment particles
+    createDriftingSediment() {
+        for (let i = 0; i < 20; i++) {
+            const particle = {
+                id: `sediment_${i}`,
+                mesh: null,
+                position: new THREE.Vector3(
+                    (Math.random() - 0.5) * 300,
+                    Math.random() * 60 - 30, // Various depths
+                    (Math.random() - 0.5) * 300
+                ),
+                velocity: new THREE.Vector3(
+                    (Math.random() - 0.5) * 0.1,
+                    -0.05 - Math.random() * 0.1, // Slowly sinking
+                    (Math.random() - 0.5) * 0.1
+                ),
+                rotation: new THREE.Vector3(
+                    Math.random() * 0.02,
+                    Math.random() * 0.02,
+                    Math.random() * 0.02
+                ),
+                size: 0.02 + Math.random() * 0.05,
+                resetHeight: 20 // Reset to this height when it falls too far
+            };
+
+            // Create sediment particle (small irregular shape)
+            const geometry = new THREE.SphereGeometry(particle.size, 6, 4);
+            const material = new THREE.MeshBasicMaterial({
+                color: 0x8B4513,
+                transparent: true,
+                opacity: 0.3,
+                wireframe: true
+            });
+            particle.mesh = new THREE.Mesh(geometry, material);
+            particle.mesh.position.copy(particle.position);
+            this.scene.add(particle.mesh);
+
+            this.driftingSediment.push(particle);
+        }
+        console.log(`Created ${this.driftingSediment.length} drifting sediment particles`);
+    }
+
+    // Create thermal vents with heat distortion effect
+    createThermalVents() {
+        for (let i = 0; i < 3; i++) {
+            const vent = {
+                id: `thermalVent_${i}`,
+                mesh: null,
+                position: new THREE.Vector3(
+                    (Math.random() - 0.5) * 100,
+                    -50 - Math.random() * 30, // Deep on seafloor
+                    (Math.random() - 0.5) * 100
+                ),
+                heatParticles: [],
+                spawnRate: 2.0, // Heat particles per second
+                lastSpawn: 0,
+                intensity: 0.5 + Math.random() * 0.5
+            };
+
+            // Create vent structure (rocky outcrop)
+            const group = new THREE.Group();
+
+            // Main vent opening
+            const ventGeometry = new THREE.CylinderGeometry(0.5, 1.0, 2.0, 8);
+            const ventMaterial = new THREE.LineBasicMaterial({
+                color: 0x654321,
+                transparent: true,
+                opacity: 0.6
+            });
+            const ventMesh = new THREE.LineSegments(
+                new THREE.WireframeGeometry(ventGeometry),
+                ventMaterial
+            );
+            group.add(ventMesh);
+
+            // Heat shimmer particles
+            for (let p = 0; p < 5; p++) {
+                this.createHeatParticle(vent);
+            }
+
+            group.position.copy(vent.position);
+            vent.mesh = group;
+            this.scene.add(group);
+            this.thermalVents.push(vent);
+        }
+        console.log(`Created ${this.thermalVents.length} thermal vents`);
+    }
+
+    createHeatParticle(vent) {
+        const particle = {
+            mesh: null,
+            position: vent.position.clone(),
+            velocity: new THREE.Vector3(
+                (Math.random() - 0.5) * 0.3,
+                1.0 + Math.random() * 0.5, // Rising heat
+                (Math.random() - 0.5) * 0.3
+            ),
+            life: 0,
+            maxLife: 8 + Math.random() * 4,
+            size: 0.1 + Math.random() * 0.1
+        };
+
+        // Create heat distortion effect (small transparent sphere)
+        const geometry = new THREE.SphereGeometry(particle.size, 6, 4);
+        const material = new THREE.MeshBasicMaterial({
+            color: 0xff6600,
+            transparent: true,
+            opacity: 0.2,
+            wireframe: true
+        });
+        particle.mesh = new THREE.Mesh(geometry, material);
+        particle.mesh.position.copy(particle.position);
+        this.scene.add(particle.mesh);
+
+        vent.heatParticles.push(particle);
+    }
+
+    setupSonarSystem() {
+        // Initialize sonar contact tracking (default values)
+        this.sonarRange = 150; // DOUBLED: Default detection range (was 75)
+        this.identificationRange = 20; // DOUBLED: Range for positive ID (was 10)
+        this.lastSonarPulse = 0;
+        this.sonarCooldown = 2000; // Default cooldown between pulses
+    }
+
+    performSonarSweep(submarinePosition, range = 150, cooldown = 2000) {
+        console.log(`🔍 performSonarSweep called - range: ${range}m`);
+        const currentTime = Date.now();
+
+        // Use dynamic sonar settings
+        this.sonarRange = range;
+        this.sonarCooldown = cooldown;
+
+        if (currentTime - this.lastSonarPulse < this.sonarCooldown) {
+            return [];
+        }
+
+        this.lastSonarPulse = currentTime;
+        const contacts = [];
+
+        // Higher power sonar provides better resolution (more precise distance/bearing)
+        const resolutionMultiplier = Math.max(0.5, range / 100); // Better resolution with higher range
+
+        // Check fish schools
+        this.fishSchools.forEach(school => {
+            const distance = submarinePosition.distanceTo(school.center);
+            if (distance <= this.sonarRange) {
+                const contact = this.createSonarContact(school, submarinePosition, distance);
+                contacts.push(contact);
+            }
+        });
+
+        // Check whales
+        this.whales.forEach(whale => {
+            const distance = submarinePosition.distanceTo(whale.position);
+            if (distance <= this.sonarRange) {
+                const contact = this.createSonarContact(whale, submarinePosition, distance);
+                contacts.push(contact);
+            }
+        });
+
+        // Check dolphin pods
+        this.dolphins.forEach(pod => {
+            const distance = submarinePosition.distanceTo(pod.center);
+            if (distance <= this.sonarRange) {
+                const contact = this.createSonarContact(pod, submarinePosition, distance);
+                contacts.push(contact);
+            }
+        });
+
+        // Add knuckles from player submarine for passive sonar detection
+        if (window.playerSubmarine && window.playerSubmarine().knuckles) {
+            const knuckles = window.playerSubmarine().knuckles;
+            console.log(`🌊 Passive sonar: Found ${knuckles.length} knuckles to check`);
+            knuckles.forEach(knuckle => {
+                const distance = submarinePosition.distanceTo(knuckle.position);
+                if (distance <= range && knuckle.lifetime > 0) {
+                    const noiseContact = {
+                        id: `knuckle_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`,
+                        distance: Math.round(distance),
+                        bearing: this.calculateBearing(submarinePosition, knuckle.position),
+                        strength: knuckle.noiseSignature || knuckle.decoyStrength,
+                        classification: 'TURBULENCE',
+                        isDecoy: true,
+                        isNoisemaker: knuckle.isNoisemaker || false,
+                        timeRemaining: Math.round(knuckle.lifetime),
+                        lastUpdate: currentTime
+                    };
+                    contacts.push(noiseContact);
+                    console.log(`🌊 Added knuckle to contacts: ${distance}m bearing ${noiseContact.bearing}°, lifetime: ${knuckle.lifetime}s`);
+                } else {
+                    console.log(`🌊 Knuckle filtered: distance=${distance}m range=${range}m lifetime=${knuckle.lifetime}s`);
+                }
+            });
+        }
+
+        this.sonarContacts = contacts;
+        return contacts;
+    }
+
+    // Advanced sonar sweep with warfare mechanics
+    performAdvancedSonarSweep(submarinePosition, range, sensitivity, knuckles = [], sonarMode = 'Active') {
+        const currentTime = Date.now();
+
+        // Silent mode: no detection at all
+        if (sonarMode === 'Silent') {
+            return [];
+        }
+
+        if (currentTime - this.lastSonarPulse < this.sonarCooldown) {
+            return this.sonarContacts;
+        }
+
+        this.lastSonarPulse = currentTime;
+        const contacts = [];
+
+        // Passive mode has reduced detection capability (70% of Active)
+        const modeMultiplier = sonarMode === 'Passive' ? 0.7 : 1.0;
+
+        // Get ocean instance for terrain blocking
+        const oceanInstance = window.oceanInstance;
+
+        // Check all entities
+        const allEntities = [...this.fishSchools, ...this.whales, ...this.dolphins];
+
+        allEntities.forEach(entity => {
+            const entityPos = this.getEntityPosition(entity);
+            const distance = submarinePosition.distanceTo(entityPos);
+
+            if (distance <= range) {
+                // Check for sonar blocking by terrain and thermoclines
+                if (this.isSonarBlocked(submarinePosition, entityPos, oceanInstance, knuckles)) {
+                    // Contact lost - create ghost if we had it before
+                    if (entity.lastKnownPosition && !entity.contactLost) {
+                        this.createGhostContact(entity);
+                        entity.contactLost = true;
+                    }
+                    return;
+                }
+
+                // Calculate detection probability based on signature and conditions
+                const baseDetectionChance = this.calculateDetectionChance(entity, distance, sensitivity);
+                const detectionChance = baseDetectionChance * modeMultiplier;
+
+                if (Math.random() < detectionChance) {
+                    const contact = this.createAdvancedSonarContact(entity, submarinePosition, distance);
+                    contacts.push(contact);
+
+                    // Update entity tracking
+                    entity.lastKnownPosition = entityPos.clone();
+                    entity.lastKnownSpeed = entity.speed;
+                    entity.contactLost = false;
+
+                    // Remove ghost if we reacquired contact
+                    this.removeGhostContact(entity.id);
+                } else {
+                    // Contact lost
+                    if (entity.lastKnownPosition && !entity.contactLost) {
+                        this.createGhostContact(entity);
+                        entity.contactLost = true;
+                    }
+                }
+            }
+        });
+
+        // Add knuckles as noisy contacts (8-second duration)
+        knuckles.forEach(knuckle => {
+            const distance = submarinePosition.distanceTo(knuckle.position);
+            if (distance <= range && knuckle.lifetime > 0) {
+                const noiseContact = {
+                    id: `knuckle_${Date.now()}`,
+                    distance: Math.round(distance),
+                    bearing: this.calculateBearing(submarinePosition, knuckle.position),
+                    strength: knuckle.noiseSignature || knuckle.decoyStrength, // Use noise signature if available
+                    classification: 'TURBULENCE',
+                    isDecoy: true,
+                    isNoisemaker: knuckle.isNoisemaker || false,
+                    timeRemaining: Math.round(knuckle.lifetime),
+                    lastUpdate: currentTime
+                };
+                contacts.push(noiseContact);
+            }
+        });
+
+        // Update ghost contacts
+        this.updateGhostContacts();
+
+        this.sonarContacts = contacts;
+        return contacts;
+    }
+
+    calculateDetectionChance(entity, distance, sensitivity) {
+        let baseChance = entity.sonarSignature / 10; // Base detection from signature
+
+        // Distance factor
+        const distanceFactor = 1 - (distance / 150); // Harder to detect at range
+
+        // Sensitivity factor
+        const sensitivityFactor = sensitivity;
+
+        // Entity speed factor (moving targets easier to detect)
+        const speedFactor = 1 + (entity.speed * 0.5);
+
+        // BOTTOM BOUNCE MASKING - Active sonar degradation near seabed
+        let bottomBounceReduction = 1.0;
+        const entityPos = this.getEntityPosition(entity);
+        const oceanInstance = window.oceanInstance;
+        
+        if (oceanInstance && oceanInstance.getSeabedHeight && entityPos) {
+            const seabedHeight = oceanInstance.getSeabedHeight(entityPos.x, entityPos.z);
+            const entityDepth = Math.max(0, 300 - entityPos.y); // Convert Y position to depth
+            const distanceFromSeabed = Math.abs(entityDepth - Math.abs(seabedHeight));
+            
+            // Bottom bounce masking threshold: 50m from seabed
+            const bottomBounceRange = 50;
+            
+            if (distanceFromSeabed < bottomBounceRange) {
+                // Severe active sonar degradation when target is close to bottom
+                // Sonar returns bounce off seabed, masking the actual target
+                const maskingFactor = distanceFromSeabed / bottomBounceRange; // 0-1 scale
+                bottomBounceReduction = 0.2 + (maskingFactor * 0.6); // 20-80% detection chance based on distance from bottom
+                
+                // Additional penalty for very close to bottom (within 20m)
+                if (distanceFromSeabed < 20) {
+                    bottomBounceReduction *= 0.3; // Severe masking very close to seabed
+                }
+                
+                // Debug logging for bottom bounce effects
+                if (Math.random() < 0.05) { // 5% chance to log
+                    console.log(`🪨 Bottom bounce masking: Target ${distanceFromSeabed.toFixed(1)}m from seabed - Detection reduced to ${(bottomBounceReduction * 100).toFixed(0)}%`);
+                }
+            }
+        }
+
+        const finalChance = baseChance * distanceFactor * sensitivityFactor * speedFactor * bottomBounceReduction;
+
+        return Math.max(0.05, Math.min(1.0, finalChance)); // Reduced minimum detection chance
+    }
+
+    isSonarBlocked(fromPos, toPos, oceanInstance, knuckles) {
+        // Check terrain blocking
+        if (oceanInstance && oceanInstance.getSeabedHeight) {
+            const midPoint = fromPos.clone().add(toPos).multiplyScalar(0.5);
+            const terrainHeight = oceanInstance.getSeabedHeight(midPoint.x, midPoint.z);
+
+            // If terrain is higher than both positions, it blocks sonar
+            if (terrainHeight > Math.min(fromPos.y, toPos.y) - 5) {
+                return true;
+            }
+        }
+
+        // Check thermocline blocking (simple implementation)
+        const thermoDepth = 50; // Thermocline at 50m depth
+        if ((fromPos.y > thermoDepth && toPos.y < thermoDepth) ||
+            (fromPos.y < thermoDepth && toPos.y > thermoDepth)) {
+            return Math.random() < 0.3; // 30% chance thermocline blocks
+        }
+
+        // Check knuckle blocking
+        for (const knuckle of knuckles) {
+            const distanceToKnuckle = knuckle.position.distanceTo(fromPos.clone().add(toPos).multiplyScalar(0.5));
+            if (distanceToKnuckle < 10) { // Knuckle blocks sonar in 10m radius
+                return Math.random() < 0.7; // 70% chance knuckle blocks
+            }
+        }
+
+        return false;
+    }
+
+    createGhostContact(entity) {
+        const ghost = {
+            id: entity.id,
+            position: entity.lastKnownPosition.clone(),
+            velocity: entity.direction.clone().multiplyScalar(entity.lastKnownSpeed),
+            startTime: Date.now(),
+            mesh: this.createGhostMesh()
+        };
+
+        ghost.mesh.position.copy(ghost.position);
+        this.scene.add(ghost.mesh);
+        this.ghostContacts.push(ghost);
+
+        console.log(`Ghost contact created for ${entity.id}`);
+    }
+
+    createGhostMesh() {
+        const ghostGeometry = new THREE.SphereGeometry(1, 8, 6);
+        const ghostMaterial = new THREE.MeshBasicMaterial({
+            color: 0x00ff00,
+            transparent: true,
+            opacity: 0.3,
+            wireframe: true
+        });
+        return new THREE.Mesh(ghostGeometry, ghostMaterial);
+    }
+
+    updateGhostContacts() {
+        const currentTime = Date.now();
+
+        this.ghostContacts = this.ghostContacts.filter(ghost => {
+            const age = currentTime - ghost.startTime;
+
+            // Remove ghosts after 30 seconds
+            if (age > 30000) {
+                this.scene.remove(ghost.mesh);
+                ghost.mesh.geometry.dispose();
+                ghost.mesh.material.dispose();
+                return false;
+            }
+
+            // Update ghost position based on last known course and speed
+            const deltaTime = age / 1000;
+            const newPos = ghost.position.clone().add(
+                ghost.velocity.clone().multiplyScalar(deltaTime)
+            );
+
+            ghost.mesh.position.copy(newPos);
+
+            // Fade ghost over time
+            ghost.mesh.material.opacity = 0.3 * (1 - age / 30000);
+
+            return true;
+        });
+    }
+
+    removeGhostContact(entityId) {
+        const ghostIndex = this.ghostContacts.findIndex(ghost => ghost.id === entityId);
+        if (ghostIndex !== -1) {
+            const ghost = this.ghostContacts[ghostIndex];
+            this.scene.remove(ghost.mesh);
+            ghost.mesh.geometry.dispose();
+            ghost.mesh.material.dispose();
+            this.ghostContacts.splice(ghostIndex, 1);
+        }
+    }
+
+    createAdvancedSonarContact(entity, submarinePos, distance) {
+        const canIdentify = distance <= this.identificationRange;
+
+        // Add uncertainty to readings
+        const distanceAccuracy = Math.max(1, distance * 0.1);
+        const bearingAccuracy = Math.max(2, 10 / this.sonarRange * 50);
+
+        const measuredDistance = distance + (Math.random() - 0.5) * distanceAccuracy;
+        const trueBearing = this.calculateBearing(submarinePos, this.getEntityPosition(entity));
+        const measuredBearing = trueBearing + (Math.random() - 0.5) * bearingAccuracy;
+
+        let classification = 'UNIDENTIFIED';
+        if (canIdentify) {
+            classification = this.getEntityClassification(entity);
+        } else {
+            // Chance of misidentification
+            if (entity.sonarSignature > 5 && Math.random() < 0.3) {
+                classification = 'POSSIBLE SUBMARINE';
+            }
+        }
+
+        return {
+            id: entity.id,
+            distance: Math.round(Math.max(0, measuredDistance) * 10) / 10,
+            bearing: Math.round(((measuredBearing % 360) + 360) % 360),
+            strength: Math.min(10, entity.sonarSignature),
+            classification: classification,
+            entity: entity,
+            lastUpdate: Date.now(),
+            confidence: canIdentify ? 0.9 : Math.max(0.3, entity.sonarSignature / 10)
+        };
+    }
+
+    createSonarContact(entity, submarinePos, distance) {
+        const canIdentify = distance <= this.identificationRange;
+
+        // Higher power sonar provides better resolution
+        const resolutionMultiplier = Math.max(0.5, this.sonarRange / 100);
+        const distanceAccuracy = Math.max(0.1, 1 / resolutionMultiplier);
+        const bearingAccuracy = Math.max(1, 5 / resolutionMultiplier);
+
+        // Add slight inaccuracy to simulate sonar limitations
+        const measuredDistance = distance + (Math.random() - 0.5) * distanceAccuracy;
+        const trueBearing = this.calculateBearing(submarinePos, this.getEntityPosition(entity));
+        const measuredBearing = trueBearing + (Math.random() - 0.5) * bearingAccuracy;
+
+        let contact = {
+            id: entity.id,
+            distance: Math.round(Math.max(0, measuredDistance) * 10) / 10,
+            bearing: Math.round(((measuredBearing % 360) + 360) % 360),
+            strength: this.calculateSignalStrength(entity, distance),
+            classification: canIdentify ? this.getEntityClassification(entity) : 'UNKNOWN',
+            entity: entity,
+            lastUpdate: Date.now(),
+            resolution: resolutionMultiplier
+        };
+
+        // Update entity identification status
+        if (canIdentify) {
+            entity.identified = true;
+            entity.lastSonarPing = Date.now();
+        }
+
+        return contact;
+    }
+
+    getEntityPosition(entity) {
+        if (entity.center) return entity.center;
+        if (entity.position) return entity.position;
+        if (entity.mesh) return entity.mesh.position;
+        return new THREE.Vector3(0, 0, 0);
+    }
+
+    getEntityClassification(entity) {
+        switch (entity.type) {
+        case 'fishSchool':
+            return `${entity.species.name} School (${entity.schoolSize} fish)`;
+        case 'whale':
+            return entity.species.name;
+        case 'dolphinPod':
+            return `Dolphin Pod (${entity.dolphins.length} dolphins)`;
+        default:
+            return 'UNKNOWN';
+        }
+    }
+
+    calculateBearing(from, to) {
+        const dx = to.x - from.x;
+        const dz = to.z - from.z;
+        let bearing = Math.atan2(dx, dz) * 180 / Math.PI;
+        if (bearing < 0) bearing += 360;
+        return Math.round(bearing);
+    }
+
+    calculateSignalStrength(entity, distance) {
+        let baseStrength = 0;
+
+        switch (entity.type) {
+        case 'whale':
+            baseStrength = 8; // Large signature
+            break;
+        case 'dolphinPod':
+            baseStrength = 5; // Medium signature
+            break;
+        case 'fishSchool':
+            baseStrength = 3; // Small signature
+            break;
+        }
+
+        // Reduce strength by distance
+        const strength = Math.max(1, baseStrength - (distance / 10));
+        return Math.round(strength * 10) / 10;
+    }
+
+    update(deltaTime, submarinePosition) {
+        // Update fish school movements
+        this.fishSchools.forEach(school => {
+            this.updateSchoolMovement(school, deltaTime);
+        });
+
+        // Update whale movements
+        this.whales.forEach(whale => {
+            this.updateWhaleMovement(whale, deltaTime);
+        });
+
+        // Update dolphin pod movements
+        this.dolphins.forEach(pod => {
+            this.updateDolphinMovement(pod, deltaTime);
+        });
+
+        // Update ambient features
+        this.updateAmbientBubbles(deltaTime);
+        this.updateJellyfish(deltaTime);
+        this.updateDriftingSediment(deltaTime);
+        this.updateThermalVents(deltaTime);
+
+        // Update sonar contacts if submarine position available
+        if (submarinePosition) {
+            this.updateSonarContacts(submarinePosition);
+        }
+    }
+
+    checkSeabedCollision(school, oldPosition) {
+        // Get ocean instance to check seabed height
+        const oceanInstance = window.oceanInstance;
+        if (!oceanInstance || !oceanInstance.getSeabedHeight) return;
+
+        const seabedHeight = oceanInstance.getSeabedHeight(school.center.x, school.center.z);
+        const schoolBottom = school.center.y - 1; // Fish swim 1 unit above their center
+
+        if (schoolBottom <= seabedHeight) {
+            // Prevent fish from going below seabed
+            school.center.y = seabedHeight + 1;
+
+            // Change direction to swim away from seabed (upward bias)
+            school.direction.y = Math.abs(school.direction.y) + 0.3; // Add upward component
+            school.direction.normalize();
+
+            // Reduce speed briefly after collision
+            school.speed *= 0.8;
+        }
+    }
+
+    checkWhaleSeabedCollision(whale, oldPosition) {
+        // Get ocean instance to check seabed height
+        const oceanInstance = window.oceanInstance;
+        if (!oceanInstance || !oceanInstance.getSeabedHeight) return;
+
+        const seabedHeight = oceanInstance.getSeabedHeight(whale.position.x, whale.position.z);
+        const whaleBottom = whale.position.y - 2; // Whales are larger, need more clearance
+
+        if (whaleBottom <= seabedHeight) {
+            // Prevent whale from going below seabed
+            whale.position.y = seabedHeight + 2;
+
+            // Change direction to swim away from seabed
+            whale.direction.y = Math.abs(whale.direction.y) + 0.2;
+            whale.direction.normalize();
+
+            // Reduce speed after collision
+            whale.speed *= 0.9;
+        }
+    }
+
+    checkDolphinSeabedCollision(pod, oldPosition) {
+        // Get ocean instance to check seabed height
+        const oceanInstance = window.oceanInstance;
+        if (!oceanInstance || !oceanInstance.getSeabedHeight) return;
+
+        const seabedHeight = oceanInstance.getSeabedHeight(pod.center.x, pod.center.z);
+        const podBottom = pod.center.y - 1; // Dolphins need 1 unit clearance
+
+        if (podBottom <= seabedHeight) {
+            // Prevent dolphins from going below seabed
+            pod.center.y = seabedHeight + 1;
+
+            // Change direction to swim away from seabed
+            pod.direction.y = Math.abs(pod.direction.y) + 0.4; // Dolphins are more agile
+            pod.direction.normalize();
+
+            // Dolphins maintain speed better after collision
+            pod.speed *= 0.95;
+        }
+    }
+
+    updateSchoolMovement(school, deltaTime) {
+        // Move school center
+        const movement = school.direction.clone().multiplyScalar(school.speed * deltaTime * 10);
+        const oldPosition = school.center.clone();
+        school.center.add(movement);
+
+        // Check seabed collision for fish schools
+        this.checkSeabedCollision(school, oldPosition);
+
+        school.mesh.position.copy(school.center);
+
+        // Orient the school in movement direction
+        const forward = school.direction.clone().normalize();
+        const angle = Math.atan2(forward.x, forward.z);
+        school.mesh.rotation.y = angle;
+
+        // Randomly change direction occasionally
+        if (Math.random() < 0.001) {
+            school.direction = new THREE.Vector3(
+                (Math.random() - 0.5) * 2,
+                0,
+                (Math.random() - 0.5) * 2
+            ).normalize();
+        }
+
+        // Keep within bounds
+        if (Math.abs(school.center.x) > 75 || Math.abs(school.center.z) > 75) {
+            school.direction.multiplyScalar(-1);
+        }
+
+        // Animate individual fish within school with swimming motion
+        school.fish.forEach((fish, index) => {
+            const time = Date.now() * 0.001;
+            // Swimming tail motion
+            fish.rotation.z = Math.sin(time * 3 + index) * 0.15;
+            // Vertical bobbing
+            fish.position.y += Math.sin(time * 2 + index) * 0.02;
+        });
+    }
+
+    updateWhaleMovement(whale, deltaTime) {
+        // Move whale
+        const movement = whale.direction.clone().multiplyScalar(whale.speed * deltaTime * 10);
+        const oldPosition = whale.position.clone();
+        whale.position.add(movement);
+
+        // Check seabed collision for whales
+        this.checkWhaleSeabedCollision(whale, oldPosition);
+
+        whale.mesh.position.copy(whale.position);
+
+        // Orient whale in movement direction
+        const forward = whale.direction.clone().normalize();
+        const angle = Math.atan2(forward.x, forward.z);
+        whale.mesh.rotation.y = angle;
+
+        // Whales change direction less frequently
+        if (Math.random() < 0.0005) {
+            whale.direction = new THREE.Vector3(
+                (Math.random() - 0.5) * 2,
+                0,
+                (Math.random() - 0.5) * 2
+            ).normalize();
+        }
+
+        // Keep within bounds
+        if (Math.abs(whale.position.x) > 80 || Math.abs(whale.position.z) > 80) {
+            whale.direction.multiplyScalar(-1);
+        }
+
+        // Gentle swimming animation with tail movement
+        const time = Date.now() * 0.0005;
+        whale.mesh.rotation.z = Math.sin(time) * 0.05;
+    }
+
+    updateDolphinMovement(pod, deltaTime) {
+        // Move pod center
+        const movement = pod.direction.clone().multiplyScalar(pod.speed * deltaTime * 10);
+        const oldPosition = pod.center.clone();
+        pod.center.add(movement);
+
+        // Check seabed collision for dolphin pods
+        this.checkDolphinSeabedCollision(pod, oldPosition);
+
+        pod.mesh.position.copy(pod.center);
+
+        // Orient pod in movement direction
+        const forward = pod.direction.clone().normalize();
+        const angle = Math.atan2(forward.x, forward.z);
+        pod.mesh.rotation.y = angle;
+
+        // Dolphins change direction more frequently
+        if (Math.random() < 0.002) {
+            pod.direction = new THREE.Vector3(
+                (Math.random() - 0.5) * 2,
+                0,
+                (Math.random() - 0.5) * 2
+            ).normalize();
+        }
+
+        // Keep within bounds
+        if (Math.abs(pod.center.x) > 70 || Math.abs(pod.center.z) > 70) {
+            pod.direction.multiplyScalar(-1);
+        }
+
+        // Animate individual dolphins with playful movement
+        pod.dolphins.forEach((dolphin, index) => {
+            const time = Date.now() * 0.002;
+            dolphin.rotation.z = Math.sin(time + index * 2) * 0.15;
+            dolphin.position.y += Math.sin(time * 3 + index) * 0.05;
+        });
+    }
+
+    // Update ambient bubble streams
+    updateAmbientBubbles(deltaTime) {
+        this.ambientBubbles.forEach(stream => {
+            if (!stream.active) return;
+
+            // Spawn new bubbles
+            stream.lastSpawn += deltaTime;
+            if (stream.lastSpawn >= (1.0 / stream.spawnRate)) {
+                this.createBubble(stream);
+                stream.lastSpawn = 0;
+            }
+
+            // Update existing bubbles
+            stream.bubbles.forEach((bubble, index) => {
+                bubble.life += deltaTime;
+                bubble.position.add(bubble.velocity.clone().multiplyScalar(deltaTime));
+
+                // Add slight wobble
+                bubble.position.x += Math.sin(bubble.life * 3) * 0.02;
+                bubble.position.z += Math.cos(bubble.life * 2.5) * 0.02;
+
+                bubble.mesh.position.copy(bubble.position);
+
+                // Fade out as bubble ages
+                const lifeRatio = bubble.life / bubble.maxLife;
+                bubble.mesh.material.opacity = 0.3 * (1 - lifeRatio);
+
+                // Remove old bubbles
+                if (bubble.life >= bubble.maxLife || bubble.position.y > 10) {
+                    this.scene.remove(bubble.mesh);
+                    stream.bubbles.splice(index, 1);
+                }
+            });
+        });
+    }
+
+    // Update jellyfish movement and pulsing
+    updateJellyfish(deltaTime) {
+        this.jellyfish.forEach(jelly => {
+            // Update position
+            jelly.position.add(jelly.direction.clone().multiplyScalar(jelly.speed * deltaTime));
+
+            // Add gentle pulsing motion
+            jelly.pulseTime += deltaTime * jelly.pulseRate;
+            const pulse = Math.sin(jelly.pulseTime) * 0.1;
+            jelly.mesh.scale.setScalar(1 + pulse);
+
+            // Gentle direction changes
+            if (Math.random() < 0.001) {
+                jelly.direction = new THREE.Vector3(
+                    (Math.random() - 0.5) * 2,
+                    Math.random() * 0.3 - 0.1,
+                    (Math.random() - 0.5) * 2
+                ).normalize();
+            }
+
+            // Keep within bounds
+            if (Math.abs(jelly.position.x) > 100 || Math.abs(jelly.position.z) > 100) {
+                jelly.direction.multiplyScalar(-1);
+            }
+
+            jelly.mesh.position.copy(jelly.position);
+        });
+    }
+
+    // Update drifting sediment particles
+    updateDriftingSediment(deltaTime) {
+        this.driftingSediment.forEach(particle => {
+            // Update position
+            particle.position.add(particle.velocity.clone().multiplyScalar(deltaTime));
+
+            // Apply rotation
+            particle.mesh.rotation.x += particle.rotation.x;
+            particle.mesh.rotation.y += particle.rotation.y;
+            particle.mesh.rotation.z += particle.rotation.z;
+
+            // Reset particles that fall too far
+            if (particle.position.y < -100) {
+                particle.position.y = particle.resetHeight;
+                particle.position.x = (Math.random() - 0.5) * 300;
+                particle.position.z = (Math.random() - 0.5) * 300;
+            }
+
+            particle.mesh.position.copy(particle.position);
+        });
+    }
+
+    // Update thermal vents and heat particles
+    updateThermalVents(deltaTime) {
+        this.thermalVents.forEach(vent => {
+            // Spawn new heat particles
+            vent.lastSpawn += deltaTime;
+            if (vent.lastSpawn >= (1.0 / vent.spawnRate)) {
+                this.createHeatParticle(vent);
+                vent.lastSpawn = 0;
+            }
+
+            // Update heat particles
+            vent.heatParticles.forEach((particle, index) => {
+                particle.life += deltaTime;
+                particle.position.add(particle.velocity.clone().multiplyScalar(deltaTime));
+
+                // Add heat shimmer effect
+                particle.position.x += Math.sin(particle.life * 5) * 0.05;
+                particle.position.z += Math.cos(particle.life * 4) * 0.05;
+
+                particle.mesh.position.copy(particle.position);
+
+                // Fade out as particle ages
+                const lifeRatio = particle.life / particle.maxLife;
+                particle.mesh.material.opacity = 0.2 * (1 - lifeRatio);
+
+                // Remove old particles
+                if (particle.life >= particle.maxLife) {
+                    this.scene.remove(particle.mesh);
+                    vent.heatParticles.splice(index, 1);
+                }
+            });
+        });
+    }
+
+    updateSonarContacts(submarinePosition) {
+        // Remove old contacts
+        this.sonarContacts = this.sonarContacts.filter(contact => {
+            return Date.now() - contact.lastUpdate < 30000; // 30 second timeout
+        });
+        
+        // Check mine collision detection
+        this.checkMineCollisions(submarinePosition);
+    }
+    
+    checkMineCollisions(submarinePosition) {
+        if (!submarinePosition) return;
+        
+        const currentTime = Date.now();
+        const playerSubmarine = window.playerSubmarine && window.playerSubmarine();
+        
+        // Find all active mines in sonar contacts
+        const mines = this.sonarContacts.filter(contact => contact.isMine && contact.isActive);
+        
+        mines.forEach(mine => {
+            // Check activation delay
+            if (currentTime - mine.deployTime < mine.activationDelay) {
+                return; // Mine not yet active
+            }
+            
+            // Calculate distance to submarine
+            const distance = mine.position.distanceTo(submarinePosition);
+            mine.distance = distance; // Update distance for sonar display
+            
+            // Check if submarine is within detection radius
+            if (distance <= mine.detectionRadius) {
+                console.log(`⚠️ MINE PROXIMITY WARNING: ${distance.toFixed(1)}m from ${mine.classification}`);
+                
+                // Check if submarine is within explosion radius
+                if (distance <= mine.explosionRadius) {
+                    this.triggerMineExplosion(mine, submarinePosition, playerSubmarine);
+                }
+            }
+        });
+        
+        // Also check enemy submarine collisions with mines
+        this.checkEnemyMineCollisions();
+    }
+    
+    checkEnemyMineCollisions() {
+        const currentTime = Date.now();
+        const enemySystem = window.enemySystem && window.enemySystem();
+        if (!enemySystem) return;
+        
+        const activeEnemies = enemySystem.getActiveEnemies();
+        const mines = this.sonarContacts.filter(contact => contact.isMine && contact.isActive);
+        
+        activeEnemies.forEach(enemy => {
+            if (!enemy.mesh) return;
+            
+            mines.forEach(mine => {
+                // Skip mines that belong to this enemy
+                if (mine.ownerClass === enemy.submarineClass) return;
+                
+                // Check activation delay
+                if (currentTime - mine.deployTime < mine.activationDelay) return;
+                
+                const distance = mine.position.distanceTo(enemy.mesh.position);
+                
+                if (distance <= mine.explosionRadius) {
+                    console.log(`💥 ENEMY HIT MINE: ${enemy.submarineClass} triggered ${mine.classification}`);
+                    this.triggerMineExplosion(mine, enemy.mesh.position, enemy);
+                }
+            });
+        });
+    }
+    
+    triggerMineExplosion(mine, impactPosition, targetSubmarine) {
+        console.log(`💥 MINE EXPLOSION: ${mine.id} at distance ${mine.distance.toFixed(1)}m`);
+        
+        // Calculate damage based on distance from explosion center
+        const distance = mine.position.distanceTo(impactPosition);
+        const damageMultiplier = Math.max(0, 1 - (distance / mine.explosionRadius));
+        const finalDamage = Math.floor(mine.damage * damageMultiplier);
+        
+        console.log(`💥 Explosion damage: ${finalDamage} (${(damageMultiplier * 100).toFixed(0)}% of ${mine.damage})`);
+        
+        // Apply damage to target submarine
+        if (targetSubmarine && targetSubmarine.takeDamage) {
+            targetSubmarine.takeDamage(finalDamage);
+            
+            // Apply mine explosion effects
+            if (targetSubmarine.triggerDamageEffect) {
+                targetSubmarine.triggerDamageEffect();
+            }
+            
+            // Knockback effect based on explosion proximity
+            if (targetSubmarine.mesh && damageMultiplier > 0.5) {
+                const knockbackDirection = impactPosition.clone().sub(mine.position).normalize();
+                const knockbackStrength = damageMultiplier * 20; // Up to 20m knockback
+                
+                targetSubmarine.mesh.position.add(knockbackDirection.multiplyScalar(knockbackStrength));
+                console.log(`💥 Knockback applied: ${knockbackStrength.toFixed(1)}m`);
+            }
+        }
+        
+        // Create explosion visual effect
+        this.createMineExplosionEffect(mine.position);
+        
+        // Remove the exploded mine from sonar contacts
+        this.sonarContacts = this.sonarContacts.filter(contact => contact.id !== mine.id);
+        
+        console.log(`💥 Mine ${mine.id} detonated and removed from sonar`);
+    }
+    
+    createMineExplosionEffect(position) {
+        // Create a temporary explosion effect in the scene
+        if (!this.scene) return;
+        
+        try {
+            // Create explosion sphere
+            const explosionGeometry = new THREE.SphereGeometry(5, 16, 16);
+            const explosionMaterial = new THREE.MeshBasicMaterial({
+                color: 0xff4400,
+                transparent: true,
+                opacity: 0.8
+            });
+            
+            const explosionMesh = new THREE.Mesh(explosionGeometry, explosionMaterial);
+            explosionMesh.position.copy(position);
+            this.scene.add(explosionMesh);
+            
+            // Animate explosion (expand and fade)
+            let explosionScale = 1;
+            let explosionOpacity = 0.8;
+            
+            const animateExplosion = () => {
+                explosionScale += 0.5; // Expand rapidly
+                explosionOpacity -= 0.05; // Fade out
+                
+                explosionMesh.scale.set(explosionScale, explosionScale, explosionScale);
+                explosionMaterial.opacity = explosionOpacity;
+                
+                if (explosionOpacity > 0) {
+                    requestAnimationFrame(animateExplosion);
+                } else {
+                    // Clean up explosion effect
+                    this.scene.remove(explosionMesh);
+                    explosionGeometry.dispose();
+                    explosionMaterial.dispose();
+                }
+            };
+            
+            animateExplosion();
+            console.log(`💥 Explosion visual effect created at (${position.x.toFixed(1)}, ${position.y.toFixed(1)}, ${position.z.toFixed(1)})`);
+            
+        } catch (error) {
+            console.warn('Failed to create mine explosion effect:', error);
+        }
+    }
+
+    getSonarContacts() {
+        console.log(`🔍 SealifeSystem.getSonarContacts() called`);
+        // Get submarine position for knuckle detection
+        const submarinePosition = window.playerSubmarine && window.playerSubmarine() ? 
+            window.playerSubmarine().getPosition() : null;
+        
+        if (!submarinePosition) {
+            console.log(`🔍 No submarine position, returning ${this.sonarContacts.length} cached contacts`);
+            return this.sonarContacts;
+        }
+
+        const currentTime = Date.now();
+        
+        // First, clean up old knuckle contacts from cached list
+        this.sonarContacts = this.sonarContacts.filter(contact => {
+            if (contact.id && contact.id.startsWith('knuckle_')) {
+                // Remove knuckle contacts older than 30 seconds or with expired lifetime
+                const age = currentTime - contact.lastUpdate;
+                return age < 30000 && contact.timeRemaining > 0;
+            }
+            return true; // Keep non-knuckle contacts
+        });
+
+        // Start with cleaned cached contacts
+        const contacts = [...this.sonarContacts];
+
+        // Add current knuckles from player submarine
+        if (window.playerSubmarine && window.playerSubmarine().knuckles) {
+            const knuckles = window.playerSubmarine().knuckles;
+            console.log(`🌊 Passive sonar: Found ${knuckles.length} knuckles to check`);
+            knuckles.forEach(knuckle => {
+                const distance = submarinePosition.distanceTo(knuckle.position);
+                const range = 150; // Default passive sonar range
+                if (distance <= range && knuckle.lifetime > 0) {
+                    // Use knuckle position as stable ID to prevent duplicates
+                    const stableId = `knuckle_${Math.round(knuckle.position.x)}_${Math.round(knuckle.position.z)}`;
+                    
+                    // Check if we already have this knuckle contact in cached list
+                    const existingContactIndex = this.sonarContacts.findIndex(c => c.id === stableId);
+                    if (existingContactIndex >= 0) {
+                        // Update existing knuckle contact
+                        this.sonarContacts[existingContactIndex].timeRemaining = Math.round(knuckle.lifetime);
+                        this.sonarContacts[existingContactIndex].distance = Math.round(distance);
+                        this.sonarContacts[existingContactIndex].lastUpdate = currentTime;
+                        console.log(`🔄 Updated knuckle contact: ${distance}m, lifetime: ${knuckle.lifetime}s`);
+                    } else {
+                        // Add new knuckle contact
+                        const noiseContact = {
+                            id: stableId,
+                            distance: Math.round(distance),
+                            bearing: this.calculateBearing(submarinePosition, knuckle.position),
+                            strength: knuckle.noiseSignature || knuckle.decoyStrength,
+                            classification: 'TURBULENCE',
+                            isDecoy: true,
+                            isNoisemaker: knuckle.isNoisemaker || false,
+                            timeRemaining: Math.round(knuckle.lifetime),
+                            lastUpdate: currentTime
+                        };
+                        this.sonarContacts.push(noiseContact);
+                        contacts.push(noiseContact);
+                        console.log(`🌊 Added knuckle to contacts: ${distance}m bearing ${noiseContact.bearing}°, lifetime: ${knuckle.lifetime}s`);
+                    }
+                } else {
+                    console.log(`🌊 Knuckle filtered: distance=${distance}m range=${range}m lifetime=${knuckle.lifetime}s`);
+                }
+            });
+        }
+
+        // Add structure contacts from underwater structures system
+        if (window.gameState && window.gameState.structuresManager) {
+            const structuresManager = window.gameState.structuresManager;
+            const activeStructures = structuresManager.getAllActiveStructures();
+            
+            activeStructures.forEach(structure => {
+                const distance = submarinePosition.distanceTo(
+                    new THREE.Vector3(structure.position.x, 0, structure.position.z)
+                );
+                
+                // Check if structure is within sonar range
+                const sonarRange = 500; // Structures are large and detectable from further away
+                if (distance <= sonarRange) {
+                    // Create structure contact
+                    const structureContact = {
+                        id: structure.id,
+                        type: 'STRUCTURE',
+                        classification: structure.classification,
+                        name: structure.name,
+                        distance: Math.round(distance),
+                        bearing: Math.atan2(structure.position.z - submarinePosition.z, structure.position.x - submarinePosition.x),
+                        sonarSignature: structure.sonarSignature,
+                        hp: structure.hp,
+                        maxHp: structure.maxHp,
+                        isStationary: true,
+                        lastDetected: currentTime,
+                        structure: structure
+                    };
+                    
+                    // Check if we already have this structure contact
+                    const existingIndex = this.sonarContacts.findIndex(c => c.id === structure.id);
+                    if (existingIndex >= 0) {
+                        // Update existing contact
+                        this.sonarContacts[existingIndex] = structureContact;
+                    } else {
+                        // Add new structure contact
+                        this.sonarContacts.push(structureContact);
+                    }
+                }
+            });
+        }
+        
+        console.log(`🔍 SealifeSystem.getSonarContacts() returning ${this.sonarContacts.length} total contacts`);
+        return this.sonarContacts;
+    }
+
+    cleanup() {
+        // Clean up all sealife objects
+        [...this.fishSchools, ...this.whales, ...this.dolphins].forEach(entity => {
+            if (entity.mesh && entity.mesh.parent) {
+                entity.mesh.parent.remove(entity.mesh);
+            }
+            if (entity.mesh) {
+                entity.mesh.traverse((child) => {
+                    if (child.geometry) child.geometry.dispose();
+                    if (child.material) {
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(mat => mat.dispose());
+                        } else {
+                            child.material.dispose();
+                        }
+                    }
+                });
+            }
+        });
+
+        this.fishSchools = [];
+        this.whales = [];
+        this.dolphins = [];
+        this.sonarContacts = [];
+    }
+}
+
+// Global sealife instance
+let sealifeSystem = null;
+
+// Initialize sealife system
+function initSealife(scene) {
+    if (sealifeSystem) {
+        sealifeSystem.cleanup();
+    }
+    sealifeSystem = new Sealife(scene);
+    console.log('Sealife module loaded and initialized');
+    return sealifeSystem;
+}
+
+// Update sealife system
+function updateSealife(deltaTime, submarinePosition) {
+    if (sealifeSystem) {
+        sealifeSystem.update(deltaTime, submarinePosition);
+    }
+}
+
+// Perform sonar sweep
+function performSonarSweep(submarinePosition, range = 150, cooldown = 2000) {
+    if (sealifeSystem) {
+        return sealifeSystem.performSonarSweep(submarinePosition, range, cooldown);
+    }
+    return [];
+}
+
+// Perform advanced sonar sweep with warfare mechanics
+function performAdvancedSonarSweep(submarinePosition, range, sensitivity, knuckles, sonarMode = 'Active') {
+    if (sealifeSystem) {
+        return sealifeSystem.performAdvancedSonarSweep(submarinePosition, range, sensitivity, knuckles, sonarMode);
+    }
+    return [];
+}
+
+// Get current sonar contacts
+function getSonarContacts() {
+    console.log(`🔍 getSonarContacts() called`);
+    if (sealifeSystem) {
+        const contacts = sealifeSystem.getSonarContacts();
+        console.log(`🔍 getSonarContacts() returning ${contacts.length} contacts`);
+        return contacts;
+    }
+    console.log(`🔍 getSonarContacts() - no sealifeSystem, returning empty array`);
+    return [];
+}
+
+// Export functions
+window.initSealife = initSealife;
+window.updateSealife = updateSealife;
+window.performSonarSweep = performSonarSweep;
+window.performAdvancedSonarSweep = performAdvancedSonarSweep;
+window.getSonarContacts = getSonarContacts;
+window.sealifeSystem = () => sealifeSystem;

@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seafloor Terrain Visualization</title>
+    <style>
+        body { 
+            background: #000; 
+            color: #00ff00; 
+            font-family: 'Courier New', monospace; 
+            padding: 20px;
+            text-align: center;
+        }
+        h1 { color: #00ffff; }
+        #terrainCanvas {
+            border: 2px solid #00ffff;
+            margin: 20px;
+            box-shadow: 0 0 20px rgba(0, 255, 255, 0.5);
+        }
+        .info {
+            background: #001122;
+            border: 1px solid #006699;
+            padding: 15px;
+            margin: 20px auto;
+            max-width: 600px;
+            text-align: left;
+        }
+        .depth-scale {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            font-size: 12px;
+        }
+        .depth-colors {
+            height: 20px;
+            background: linear-gradient(to right, #000040, #000080, #0000ff, #0088ff, #00ffff);
+            margin: 5px 0;
+        }
+        button {
+            background: #003366;
+            color: #00ffff;
+            border: 1px solid #006699;
+            padding: 10px 20px;
+            margin: 10px;
+            cursor: pointer;
+            font-family: 'Courier New', monospace;
+        }
+        button:hover { background: #004477; }
+    </style>
+</head>
+<body>
+    <h1>🌊 Seafloor Terrain Map</h1>
+    <p>Current bathymetry data visualization showing underwater terrain depths</p>
+    
+    <div class="info">
+        <h3>📊 Depth Scale</h3>
+        <div class="depth-colors"></div>
+        <div class="depth-scale">
+            <span>Shallow (400m)</span>
+            <span>Medium (2000m)</span>
+            <span>Deep (4000m)</span>
+            <span>Deepest (6000m)</span>
+        </div>
+        <p><strong>Coverage:</strong> 100km × 100km ocean floor area</p>
+        <p><strong>Resolution:</strong> 400×400 pixel sampling</p>
+    </div>
+    
+    <canvas id="terrainCanvas" width="600" height="500"></canvas>
+    
+    <div class="info">
+        <h3>🎮 Game Integration</h3>
+        <p>This terrain map represents the actual seafloor that your submarine navigates over.</p>
+        <p>Darker blue areas = deeper ocean trenches</p>
+        <p>Lighter blue areas = underwater ridges and hills</p>
+        <p>The terrain affects sonar readings, navigation, and tactical positioning.</p>
+    </div>
+    
+    <button onclick="generateTerrain()">🔄 Regenerate Map</button>
+    <button onclick="downloadMap()">💾 Download PNG</button>
+    
+    <div id="status"></div>
+
+    <!-- Load required modules -->
+    <script src="js/bathymetry_data.js"></script>
+    <script src="js/real_bathymetry_terrain.js"></script>
+    
+    <script>
+        let terrainSystem = null;
+        
+        function addStatus(message, type = 'info') {
+            const status = document.getElementById('status');
+            const color = type === 'success' ? '#00ff88' : 
+                         type === 'error' ? '#ff6666' : 
+                         type === 'warning' ? '#ffaa00' : '#00ff00';
+            status.innerHTML += `<div style="color: ${color}; margin: 5px 0;">${message}</div>`;
+        }
+        
+        async function generateTerrain() {
+            try {
+                addStatus('🚀 Initializing terrain system...', 'warning');
+                
+                // Create terrain system
+                terrainSystem = new RealBathymetryTerrain();
+                
+                // Load bathymetry data
+                addStatus('📡 Loading bathymetry data...', 'info');
+                await terrainSystem.loadBathymetryData();
+                
+                // Generate visualization
+                addStatus('🗺️ Generating 3D isometric terrain visualization...', 'info');
+                generateIsometricTerrain(terrainSystem);
+                
+                addStatus('✅ Isometric terrain map generated successfully!', 'success');
+                addStatus(`📏 Terrain size: ${terrainSystem.terrainSize/1000}km × ${terrainSystem.terrainSize/1000}km`, 'info');
+                
+                // Sample a few points for depth info
+                const centerDepth = terrainSystem.getTerrainHeight(0, 0);
+                const nwDepth = terrainSystem.getTerrainHeight(-25000, -25000);
+                const seDepth = terrainSystem.getTerrainHeight(25000, 25000);
+                
+                addStatus(`🌊 Sample depths: Center: ${Math.round(centerDepth)}m, NW: ${Math.round(nwDepth)}m, SE: ${Math.round(seDepth)}m`, 'info');
+                
+            } catch (error) {
+                addStatus(`❌ Error: ${error.message}`, 'error');
+                console.error('Terrain generation error:', error);
+            }
+        }
+        
+        function generateIsometricTerrain(terrainSystem) {
+            const canvas = document.getElementById('terrainCanvas');
+            const ctx = canvas.getContext('2d');
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            // Clear canvas
+            ctx.fillStyle = '#000011';
+            ctx.fillRect(0, 0, width, height);
+            
+            // Isometric projection parameters
+            const gridSize = 100; // Number of grid points per axis
+            const cellSize = 3; // Visual size of each cell
+            const depthScale = 0.02; // Scale factor for depth visualization
+            const isoAngle = 30 * Math.PI / 180; // 30-degree isometric angle
+            
+            // Transform from world coordinates to isometric screen coordinates
+            function worldToIso(x, z, y = 0) {
+                const isoX = (x - z) * Math.cos(isoAngle);
+                const isoY = (x + z) * Math.sin(isoAngle) - y;
+                return {
+                    x: width/2 + isoX * cellSize/100,
+                    y: height/2 + isoY * cellSize/100
+                };
+            }
+            
+            // Sample terrain data in a grid
+            const terrainGrid = [];
+            const terrainSize = terrainSystem.terrainSize;
+            const step = terrainSize / gridSize;
+            
+            for (let i = 0; i < gridSize; i++) {
+                terrainGrid[i] = [];
+                for (let j = 0; j < gridSize; j++) {
+                    const worldX = (i - gridSize/2) * step;
+                    const worldZ = (j - gridSize/2) * step;
+                    const depth = terrainSystem.getTerrainHeight(worldX, worldZ);
+                    terrainGrid[i][j] = depth;
+                }
+            }
+            
+            // Draw terrain in back-to-front order for proper 3D effect
+            for (let i = gridSize-1; i >= 0; i--) {
+                for (let j = gridSize-1; j >= 0; j--) {
+                    const worldX = (i - gridSize/2) * step;
+                    const worldZ = (j - gridSize/2) * step;
+                    const depth = terrainGrid[i][j];
+                    const heightOffset = depth * depthScale;
+                    
+                    // Color based on depth
+                    const normalizedDepth = Math.max(0, Math.min(1, (-depth - 500) / 5000));
+                    const blue = Math.floor(50 + normalizedDepth * 150);
+                    const green = Math.floor(normalizedDepth * 100);
+                    const red = Math.floor(normalizedDepth * 50);
+                    
+                    // Get isometric position
+                    const isoPos = worldToIso(worldX/100, worldZ/100, heightOffset);
+                    
+                    // Draw filled quad for this terrain cell
+                    if (i < gridSize-1 && j < gridSize-1) {
+                        const pos1 = worldToIso(worldX/100, worldZ/100, heightOffset);
+                        const pos2 = worldToIso((worldX + step)/100, worldZ/100, terrainGrid[i+1][j] * depthScale);
+                        const pos3 = worldToIso((worldX + step)/100, (worldZ + step)/100, terrainGrid[i+1][j+1] * depthScale);
+                        const pos4 = worldToIso(worldX/100, (worldZ + step)/100, terrainGrid[i][j+1] * depthScale);
+                        
+                        // Draw quad
+                        ctx.fillStyle = `rgb(${red}, ${green}, ${blue})`;
+                        ctx.beginPath();
+                        ctx.moveTo(pos1.x, pos1.y);
+                        ctx.lineTo(pos2.x, pos2.y);
+                        ctx.lineTo(pos3.x, pos3.y);
+                        ctx.lineTo(pos4.x, pos4.y);
+                        ctx.closePath();
+                        ctx.fill();
+                        
+                        // Add subtle outline for 3D effect
+                        ctx.strokeStyle = `rgba(${red+20}, ${green+20}, ${blue+20}, 0.3)`;
+                        ctx.lineWidth = 0.5;
+                        ctx.stroke();
+                    }
+                }
+            }
+            
+            // Add depth legend
+            ctx.fillStyle = '#00ffff';
+            ctx.font = '12px Courier New';
+            ctx.fillText('Isometric 3D Seafloor Terrain', 10, 20);
+            ctx.fillText('100km × 100km Ocean Floor', 10, 35);
+            ctx.fillText('Deeper blue = greater depths', 10, height - 30);
+            ctx.fillText('Viewing angle: 30° isometric projection', 10, height - 15);
+        }
+        
+        function downloadMap() {
+            const canvas = document.getElementById('terrainCanvas');
+            const link = document.createElement('a');
+            link.download = 'seafloor_terrain_3d_isometric.png';
+            link.href = canvas.toDataURL();
+            link.click();
+            addStatus('💾 3D Isometric terrain map downloaded as PNG', 'success');
+        }
+        
+        // Auto-generate when page loads
+        window.addEventListener('load', () => {
+            setTimeout(generateTerrain, 500);
+        });
+    </script>
+</body>
+</html>

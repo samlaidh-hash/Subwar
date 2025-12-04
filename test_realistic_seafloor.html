@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Realistic Seafloor Test</title>
+    <style>
+        body { margin: 0; background: #001122; color: #00aa88; font-family: monospace; }
+        #info { 
+            position: absolute; top: 10px; left: 10px; z-index: 1000; 
+            background: rgba(0,0,0,0.9); padding: 15px; border: 2px solid #00aa88;
+            max-width: 400px;
+        }
+        .success { color: #00ff88; }
+        .feature { margin: 3px 0; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <div class="success"><strong>🌊 REALISTIC SEAFLOOR TEST</strong></div>
+        <div>Should see brown sandy ocean bottom with realistic features</div>
+        <div class="feature">• Sandy brown main seafloor with gentle hills</div>
+        <div class="feature">• Dark gray rocky outcrops</div>
+        <div class="feature">• Light brown sandy mounds</div>
+        <div class="feature">• Dark muddy trenches</div>
+        <div>B = Seafloor | V = Wireframe | Mouse = Rotate Camera</div>
+        <div id="status">Loading...</div>
+    </div>
+
+    <script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
+    <script src="js/simple_terrain_fix.js"></script>
+
+    <script>
+        let scene, camera, renderer, terrain;
+        const status = document.getElementById('status');
+
+        function init() {
+            // Underwater scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x001122);
+
+            // Camera positioned like submarine view
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 10000);
+            camera.position.set(200, 400, 600);
+            camera.lookAt(0, 0, 0);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // Underwater lighting
+            const ambientLight = new THREE.AmbientLight(0x336699, 0.4);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0x66aaff, 0.8);
+            directionalLight.position.set(500, 1000, 300);
+            scene.add(directionalLight);
+
+            // Create realistic seafloor
+            if (window.SimpleTerrain) {
+                terrain = new window.SimpleTerrain(scene);
+                terrain.wireframeMode = false; // Start with realistic seafloor
+                terrain.createTerrain();
+                
+                status.textContent = `Realistic seafloor created! Objects: ${terrain.terrainGroup.children.length}`;
+                
+                console.log('🌊 Seafloor features created:');
+                terrain.terrainGroup.children.forEach((child, i) => {
+                    console.log(`Feature ${i}:`, {
+                        type: child.type,
+                        geometry: child.geometry?.type,
+                        material: child.material?.color?.getHexString(),
+                        position: child.position
+                    });
+                });
+                
+            } else {
+                status.textContent = 'ERROR: SimpleTerrain not found';
+            }
+
+            // Controls
+            document.addEventListener('keydown', (e) => {
+                switch(e.key.toLowerCase()) {
+                    case 'b':
+                        if (terrain) {
+                            terrain.wireframeMode = false;
+                            terrain.createTerrain();
+                            status.textContent = 'Realistic seafloor mode - Brown sandy ocean bottom';
+                        }
+                        break;
+                    case 'v':
+                        if (terrain) {
+                            terrain.wireframeMode = true;
+                            terrain.createTerrain();
+                            status.textContent = 'Wireframe mode - Cyan grid structure';
+                        }
+                        break;
+                }
+            });
+
+            // Mouse camera controls
+            let isDragging = false;
+            let previousMouse = { x: 0, y: 0 };
+            
+            renderer.domElement.addEventListener('mousedown', (e) => {
+                isDragging = true;
+                previousMouse = { x: e.clientX, y: e.clientY };
+            });
+            
+            renderer.domElement.addEventListener('mouseup', () => {
+                isDragging = false;
+            });
+            
+            renderer.domElement.addEventListener('mousemove', (e) => {
+                if (!isDragging) return;
+                
+                const deltaMove = {
+                    x: e.clientX - previousMouse.x,
+                    y: e.clientY - previousMouse.y
+                };
+                
+                // Orbit camera around seafloor
+                const spherical = new THREE.Spherical();
+                spherical.setFromVector3(camera.position);
+                spherical.theta -= deltaMove.x * 0.01;
+                spherical.phi += deltaMove.y * 0.01;
+                spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+                
+                camera.position.setFromSpherical(spherical);
+                camera.lookAt(0, 0, 0);
+                
+                previousMouse = { x: e.clientX, y: e.clientY };
+            });
+
+            // Render loop
+            function animate() {
+                requestAnimationFrame(animate);
+                renderer.render(scene, camera);
+            }
+            animate();
+
+            console.log('🌊 Realistic seafloor test initialized');
+        }
+
+        init();
+    </script>
+</body>
+</html>

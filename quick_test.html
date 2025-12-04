@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Quick Terrain & Submarine Test</title>
+    <style>
+        body { margin: 0; background: #000; color: #0f0; font-family: monospace; }
+        #info { position: absolute; top: 10px; left: 10px; z-index: 1000; background: rgba(0,0,0,0.8); padding: 10px; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <div>QUICK TEST - Terrain should be visible immediately</div>
+        <div>Press B = Shader Mode, V = Wireframe, T = Toggle, N = Solid</div>
+        <div id="status">Loading...</div>
+    </div>
+
+    <script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
+    <script src="js/simple_terrain_fix.js"></script>
+    <script src="js/submarine.js"></script>
+
+    <script>
+        let scene, camera, renderer, terrain, submarine;
+        const status = document.getElementById('status');
+
+        function init() {
+            // Scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000011);
+
+            // Camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 100000);
+            camera.position.set(0, 1000, 2000);
+            camera.lookAt(0, 0, 0);
+
+            // Renderer
+            renderer = new THREE.WebGLRenderer();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+            scene.add(ambientLight);
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.7);
+            directionalLight.position.set(10, 10, 5);
+            scene.add(directionalLight);
+
+            // Create terrain - should be in shader mode by default now
+            if (window.SimpleTerrain) {
+                terrain = new window.SimpleTerrain(scene);
+                terrain.createTerrain();
+                status.textContent = `Terrain: ${terrain.wireframeMode ? 'Wireframe' : 'Shaded'} mode`;
+            } else {
+                status.textContent = 'ERROR: SimpleTerrain not found';
+            }
+
+            // Create COBRA submarine
+            if (window.Submarine) {
+                submarine = new window.Submarine(scene, 'COBRA');
+                submarine.initializeSystemsForClass('COBRA');
+                if (submarine.mesh) {
+                    submarine.mesh.scale.set(20, 20, 20); // Scale for visibility
+                    submarine.mesh.position.set(0, 500, 0);
+                    status.textContent += ` | Submarine: COBRA (scaled)`;
+                }
+            }
+
+            // Controls
+            document.addEventListener('keydown', (e) => {
+                switch(e.key.toLowerCase()) {
+                    case 'b':
+                        if (terrain) {
+                            terrain.setVisualizationMode('shader');
+                            status.textContent = 'Terrain: Shader mode';
+                        }
+                        break;
+                    case 'v':
+                        if (terrain) {
+                            terrain.setVisualizationMode('wireframe');
+                            status.textContent = 'Terrain: Wireframe mode';
+                        }
+                        break;
+                    case 'n':
+                        if (terrain) {
+                            terrain.setVisualizationMode('solid');
+                            status.textContent = 'Terrain: Solid mode';
+                        }
+                        break;
+                    case 't':
+                        if (terrain) {
+                            terrain.toggleVisibility();
+                            status.textContent = `Terrain: ${terrain.isVisible ? 'Visible' : 'Hidden'}`;
+                        }
+                        break;
+                }
+            });
+
+            // Render loop
+            function animate() {
+                requestAnimationFrame(animate);
+                
+                if (terrain && terrain.shaderMaterial) {
+                    terrain.update(0.016);
+                }
+                
+                renderer.render(scene, camera);
+            }
+            animate();
+        }
+
+        init();
+    </script>
+</body>
+</html>

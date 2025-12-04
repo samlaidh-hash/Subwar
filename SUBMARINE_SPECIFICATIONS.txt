@@ -1,0 +1,1095 @@
+# SUB WAR 2060 - COMPREHENSIVE SPECIFICATIONS
+# Edit values in this document and provide to Claude for game updates
+# All values are editable - modify as needed for game balance
+
+================================================================================
+                           SUBMARINE CLASSES - DETAILED SPECIFICATIONS
+================================================================================
+
+## COMPLETE SUBMARINE FLEET ROSTER
+
+### PLAYER-AVAILABLE SUBMARINES (4 Classes):
+1. **TORNADO** (Medium Fighter Sub) - Balanced combat platform
+2. **TYPHOON** (Heavy Fighter Sub) - Tank/assault submarine
+3. **WHIRLWIND** (Deep Sub) - Deep sea operations specialist
+4. **CYCLONE** (Ultra Deep Sub) - Extreme depth strategic submarine
+
+### NPC-ONLY SUBMARINES (11 Classes):
+5. **LIGHTNING** (Light Fighter Sub) - Fast attack fighter
+6. **THUNDER** (Light Fighter Sub) - Light patrol submarine
+7. **SQUALL** (Medium Fighter Sub) - Standard medium fighter
+8. **TEMPEST** (Command Sub) - Fleet coordination vessel
+9. **FURY** (Troop Transport) - Personnel deployment submarine
+10. **HAILSTORM** (Light Trader Sub) - Small cargo transport
+11. **JUMBO** (Bulk Cargo Sub) - Heavy cargo transport
+12. **TSUNAMI** (Strategic Carrier Sub) - Mobile base platform
+13. **QUEST** (Ultra Deep Strategic Sub) - Deep strategic operations
+14. **ADVENTURE** (Deep Strategic Sub) - Extended deep missions
+15. **MISSION** (Deep Tactical Sub) - Specialized deep operations
+16. **HURRICANE** (Medium Fighter Sub) - Medium patrol sub
+
+**Total Fleet: 15 Submarine Classes** (4 Player-Accessible, 11 NPC-Only)
+
+================================================================================
+
+## PLAYER-AVAILABLE SUBMARINES (4 Classes) - DETAILED SPECIFICATIONS
+
+### TORNADO CLASS (Medium Fighter Sub) - PLAYER AVAILABLE ✅
+ROLE: Medium Fighter, Balanced Combat Platform
+DESCRIPTION: Sleek and angular like Elite Viper, fast and maneuverable
+
+### PHYSICAL CHARACTERISTICS
+Hull_Length: 22.0 meters
+Hull_Width: 8 meters  
+Hull_Height: 6 meters
+Displacement: 1200 tons
+Crew: 3 (Pilot, Weapons Officer, Engineer)
+LAUNCHERS: 3
+NOISEMAKERS: 4
+
+### PERFORMANCE SPECIFICATIONS
+Max_Speed_Forward: 100 knots
+Max_Speed_Reverse: 100 knots (MHD Drive - symmetric)
+Acceleration_Rate: 0.8 units/second (same forward/reverse)
+Crush_Depth: 1500 meters
+Emergency_Depth: 1600 meters
+Minimum_Depth: 0 meters (can surface - tactical risk/reward)
+
+### MANEUVERABILITY
+Base_Turn_Rate: 0.008 radians/frame
+Pitch_Rate: 0.004 radians/frame  
+Roll_Rate: 0.003 radians/frame
+Turn_Rate_Decay: 0.7 (speed penalty factor)
+Drag_Turn_Multiplier: 1.3 (emergency turning)
+Drag_Turn_Damage_Rate: 5 HP/second
+
+### DEFENSIVE SYSTEMS
+Hull_Armor_HP: 100 (per facing - 6 facings total)
+Hull_Armor_PEN_Threshold: 50 (50% of starting Hull HP)
+Oobleck_Polymer_Layer: 50% of armor HP per facing
+Meta_Material_Layer: 50% of armor HP per facing
+Shield_HP: 0 (no shields)
+Sonar_Signature_Base: 6 (lower = stealthier)
+
+### SONAR SIGNATURE MODIFIERS
+Base_Signature: 6
+Speed_Multiplier: +0.1 per 10 knots above 20 knots
+Acceleration_Penalty: +2 while accelerating/decelerating
+Maneuvering_Penalty: +3 during turns (yaw/pitch/roll)
+Drag_Turn_Penalty: +8 during emergency drag turns
+Weapons_Fire_Penalty: +5 for 3 seconds after firing kinetic weapons
+Torpedo_Launch_Penalty: +10 for 5 seconds after torpedo launch
+Sonar_Ping_Penalty: +15 for 2 seconds after active sonar ping
+Depth_Change_Penalty: +2 while changing depth rapidly
+Emergency_Surface_Penalty: +20 when at depth 0-50m
+Cavitation_Threshold: Speed >80 knots adds exponential noise
+Minimum_Signature: 1 (cannot go below this when silent running)
+
+### SYSTEMS HP (Individual Subsystems)
+Hull_HP: 100 (PEN Threshold: 10% - structural backbone, implosion at 0 HP)
+Engine_HP: 50 (PEN Threshold: 70%)
+Weapons_HP: 40 (PEN Threshold: 30%)
+Sensors_HP: 30 (PEN Threshold: 30%)
+Life_Support_HP: 25 (PEN Threshold: 30% - GAME OVER at 0 HP)
+Navigation_HP: 35 (PEN Threshold: 50%)
+
+### SPECIAL ABILITIES
+MHD_Drive: Symmetric speed/acceleration, silent running
+Drag_Turn: 30% extra turn rate, causes hull damage
+Speed_Dependent_Turning: Turn rate decreases with speed
+
+================================================================================
+
+### TYPHOON CLASS (Heavy Fighter Sub) - PLAYER AVAILABLE ✅
+ROLE: Heavy Fighter, Tank/Assault
+DESCRIPTION: Broader, bulkier design for maximum firepower
+
+### PHYSICAL CHARACTERISTICS
+Hull_Length: 24 meters
+Hull_Width: 10 meters
+Hull_Height: 4 meters
+Displacement: 1800 tons
+Crew: 4 (Pilot, 2x Weapons Officers, Engineer)
+LAUNCHERS: 4
+NOISEMAKERS: 6
+
+### PERFORMANCE SPECIFICATIONS
+Max_Speed_Forward: 80 knots (slowest)
+Max_Speed_Reverse: 80 knots (MHD Drive - symmetric)
+Acceleration_Rate: 0.6 units/second (heaviest)
+Crush_Depth: 1600 meters (deepest rated)
+Emergency_Depth: 1750 meters
+Minimum_Depth: 0 meters (can surface - tactical risk/reward)
+
+### MANEUVERABILITY
+Base_Turn_Rate: 0.006 radians/frame (sluggish)
+Pitch_Rate: 0.003 radians/frame
+Roll_Rate: 0.002 radians/frame
+Turn_Rate_Decay: 0.8 (high speed penalty)
+Drag_Turn_Multiplier: 1.1 (limited emergency turning)
+Drag_Turn_Damage_Rate: 3 HP/second (robust hull)
+
+### DEFENSIVE SYSTEMS
+Hull_HP: 150 (heaviest armor)
+Hull_Armor: 35
+Hull_Armor_PEN_Threshold: 40
+Shield_HP: 0
+Stealth_Rating: 12 (very loud)
+
+### SYSTEMS HP
+Engine_HP: 80 (triple engine array)
+Weapons_HP: 70 (heavy weapons)
+Sensors_HP: 40
+Life_Support_HP: 35
+Navigation_HP: 30
+
+### SPECIAL ABILITIES
+Heavy_Armor: Highest HP and armor ratings
+Deep_Dive: Deepest crush depth rating
+Triple_Engine: Most robust propulsion system
+
+================================================================================
+
+### WHIRLWIND CLASS (Deep Sub) - PLAYER AVAILABLE ✅
+ROLE: Deep Sea Explorer, Specialized Deep Operations
+DESCRIPTION: Reinforced pressure hull design for extreme depth operations
+
+### PHYSICAL CHARACTERISTICS
+Hull_Length: 60.0 meters
+Hull_Width: 40.0 meters
+Hull_Height: 8.0 meters
+Displacement: 1600 tons
+Crew: 3 (Pilot, Engineer, Deep Systems Specialist)
+LAUNCHERS: 2
+NOISEMAKERS: 4
+
+### PERFORMANCE SPECIFICATIONS
+Max_Speed_Forward: 85 knots
+Max_Speed_Reverse: 85 knots (MHD Drive - symmetric)
+Acceleration_Rate: 0.65 units/second
+Crush_Depth: 10000 meters (deep diving specialist)
+Emergency_Depth: 10500 meters
+Minimum_Depth: 0 meters (can surface - tactical risk/reward)
+
+### MANEUVERABILITY
+Base_Turn_Rate: 0.0065 radians/frame
+Pitch_Rate: 0.0032 radians/frame
+Roll_Rate: 0.0025 radians/frame
+Turn_Rate_Decay: 0.75
+Drag_Turn_Multiplier: 1.15
+Drag_Turn_Damage_Rate: 4 HP/second
+
+### DEFENSIVE SYSTEMS
+Hull_HP: 130 (reinforced for pressure)
+Hull_Armor: 30
+Hull_Armor_PEN_Threshold: 35
+Shield_HP: 0
+Stealth_Rating: 9 (moderate stealth)
+
+### SYSTEMS HP
+Engine_HP: 65 (pressure-resistant engines)
+Weapons_HP: 45 (standard weapons)
+Sensors_HP: 50 (enhanced deep-sea sensors)
+Life_Support_HP: 40 (extended life support)
+Navigation_HP: 45 (deep navigation systems)
+
+### SPECIAL ABILITIES
+Deep_Diving: Can operate at extreme depths safely
+Pressure_Resistant: Reduced damage from depth-related hazards
+Enhanced_Sensors: Better detection at depth
+
+================================================================================
+
+### CYCLONE CLASS (Ultra Deep Sub) - PLAYER AVAILABLE ✅
+ROLE: Ultra Deep Strategic, Extreme Environment Operations
+DESCRIPTION: Ultimate depth submarine with experimental pressure systems
+
+### PHYSICAL CHARACTERISTICS
+Hull_Length: 50.2 meters
+Hull_Width: 21 meters
+Hull_Height: 6.0 meters
+Displacement: 1900 tons
+Crew: 4 (Commander, Pilot, Engineer, Deep Systems Officer)
+LAUNCHERS: 1
+NOISEMAKERS: 3
+
+### PERFORMANCE SPECIFICATIONS
+Max_Speed_Forward: 70 knots (slowest for stability)
+Max_Speed_Reverse: 70 knots (MHD Drive - symmetric)
+Acceleration_Rate: 0.55 units/second
+Crush_Depth: 12000 meters (ultra deep capability)
+Emergency_Depth: 12500 meters
+Minimum_Depth: 0 meters (can surface - tactical risk/reward)
+
+### MANEUVERABILITY
+Base_Turn_Rate: 0.0055 radians/frame (deliberate movements)
+Pitch_Rate: 0.0028 radians/frame
+Roll_Rate: 0.002 radians/frame
+Turn_Rate_Decay: 0.85
+Drag_Turn_Multiplier: 1.05
+Drag_Turn_Damage_Rate: 2 HP/second (ultra-reinforced hull)
+
+### DEFENSIVE SYSTEMS
+Hull_HP: 180 (ultra-reinforced)
+Hull_Armor: 45 (maximum armor)
+Hull_Armor_PEN_Threshold: 50
+Shield_HP: 0
+Stealth_Rating: 11 (large but well-designed)
+
+### SYSTEMS HP
+Engine_HP: 90 (ultra-reliable deep engines)
+Weapons_HP: 55 (specialized deep weapons)
+Sensors_HP: 70 (cutting-edge deep sensors)
+Life_Support_HP: 60 (extended deep operations)
+Navigation_HP: 65 (precision deep navigation)
+
+### SPECIAL ABILITIES
+Ultra_Deep: Can reach depths impossible for other submarines
+Maximum_Armor: Highest armor rating in fleet
+Strategic_Systems: Enhanced command and control capabilities
+
+================================================================================
+
+## NON-PLAYER SUBMARINES (NPC Fleet)
+
+### LIGHTNING CLASS (Light Fighter Sub) - NPC ONLY
+ROLE: Fast Attack Fighter, Pursuit/Intercept
+DESCRIPTION: Needle-like profile, maximum speed focus
+
+### PHYSICAL CHARACTERISTICS
+Hull_Length: 18.0 meters
+Hull_Width: 6.0 meters
+Hull_Height: 4.0 meters  
+Displacement: 900 tons
+Crew: 2 (Pilot, Weapons Officer)
+LAUNCHERS: 2
+NOISEMAKERS: 2
+
+### PERFORMANCE SPECIFICATIONS
+Max_Speed_Forward: 120 knots (fastest class)
+Max_Speed_Reverse: 120 knots (MHD Drive - symmetric)
+Acceleration_Rate: 1.0 units/second (fastest acceleration)
+Crush_Depth: 950 meters  
+Emergency_Depth: 1050 meters
+Minimum_Depth: 0 meters (can surface - tactical risk/reward)
+
+### MANEUVERABILITY  
+Base_Turn_Rate: 0.010 radians/frame (most agile)
+Pitch_Rate: 0.005 radians/frame
+Roll_Rate: 0.004 radians/frame
+Turn_Rate_Decay: 0.6 (less speed penalty)
+Drag_Turn_Multiplier: 1.4 (best emergency turning)
+Drag_Turn_Damage_Rate: 8 HP/second (fragile hull)
+
+### DEFENSIVE SYSTEMS
+Hull_Armor_HP: 75 (per facing - 6 facings total)
+Hull_Armor_PEN_Threshold: 38 (50% of starting Hull HP)
+Oobleck_Polymer_Layer: 38 HP per facing
+Meta_Material_Layer: 37 HP per facing
+Shield_HP: 0
+Sonar_Signature_Base: 4 (excellent stealth)
+
+### SONAR SIGNATURE MODIFIERS (Lightning Class)
+Base_Signature: 4 (stealthiest design)
+Speed_Multiplier: +0.08 per 10 knots above 20 knots (streamlined)
+Acceleration_Penalty: +1.5 while accelerating (efficient propulsion)
+Maneuvering_Penalty: +2 during turns (agile design)
+Drag_Turn_Penalty: +6 during emergency turns (lightweight hull)
+Weapons_Fire_Penalty: +4 for 3 seconds (light weapons)
+Torpedo_Launch_Penalty: +8 for 5 seconds (smaller tubes)
+Sonar_Ping_Penalty: +12 for 2 seconds (smaller array)
+Depth_Change_Penalty: +1.5 while changing depth (agile)
+Emergency_Surface_Penalty: +15 at surface (sleek profile)
+Cavitation_Threshold: Speed >90 knots (highest threshold)
+Minimum_Signature: 0.5 (best silent running capability)
+
+### SYSTEMS HP
+Engine_HP: 60 (robust engine)
+Weapons_HP: 30 (light weapons)
+Sensors_HP: 35
+Life_Support_HP: 20
+Navigation_HP: 40
+
+### SPECIAL ABILITIES
+Maximum_Speed: Fastest submarine class
+Enhanced_Stealth: Lowest sonar signature
+Fragile_Construction: Takes more drag turn damage
+
+================================================================================
+
+### THUNDER CLASS (Light Fighter Sub) - NPC ONLY
+ROLE: Light Fighter, Fast Patrol
+DESCRIPTION: Compact and agile patrol submarine
+
+### PHYSICAL CHARACTERISTICS
+Hull_Length: 16.0 meters
+Hull_Width: 5.0 meters
+Hull_Height: 3.5 meters
+Displacement: 700 tons
+Crew: 2 (Pilot, Weapons Officer)
+Launchers: 2
+Noisemakers: 2
+
+### PERFORMANCE SPECIFICATIONS
+Max_Speed_Forward: 110 knots
+Max_Speed_Reverse: 110 knots (MHD Drive - symmetric)
+Acceleration_Rate: 0.9 units/second
+Crush_Depth: 1000 meters
+Emergency_Depth: 1100 meters
+Minimum_Depth: 0 meters
+
+### MANEUVERABILITY
+Base_Turn_Rate: 0.009 radians/frame
+Torpedo_Tubes: 2
+Can_Carry_Heavy_Torpedoes: false
+
+### DEFENSIVE SYSTEMS
+Hull_Armor_HP: 80
+Sonar_Signature_Base: 5
+
+### SYSTEMS HP
+Hull_HP: 75
+Engine_HP: 45
+Weapons_HP: 35
+Sensors_HP: 30
+Life_Support_HP: 20
+Navigation_HP: 35
+
+================================================================================
+
+### SQUALL CLASS (Medium Fighter Sub) - NPC ONLY
+ROLE: Medium Fighter, Standard Combat
+DESCRIPTION: Balanced medium fighter platform
+
+### PHYSICAL CHARACTERISTICS
+Hull_Length: 20.0 meters
+Hull_Width: 7.0 meters
+Hull_Height: 5.0 meters
+Displacement: 1000 tons
+Crew: 3 (Pilot, Weapons Officer, Engineer)
+Launchers: 3
+Noisemakers: 4
+
+### PERFORMANCE SPECIFICATIONS
+Max_Speed_Forward: 90 knots
+Max_Speed_Reverse: 90 knots (MHD Drive - symmetric)
+Acceleration_Rate: 0.7 units/second
+Crush_Depth: 1100 meters
+Emergency_Depth: 1200 meters
+Minimum_Depth: 0 meters
+
+### MANEUVERABILITY
+Base_Turn_Rate: 0.007 radians/frame
+Torpedo_Tubes: 3
+Can_Carry_Heavy_Torpedoes: false
+
+### DEFENSIVE SYSTEMS
+Hull_Armor_HP: 110
+Sonar_Signature_Base: 8
+
+### SYSTEMS HP
+Hull_HP: 100
+Engine_HP: 55
+Weapons_HP: 45
+Sensors_HP: 35
+Life_Support_HP: 25
+Navigation_HP: 40
+
+================================================================================
+
+### FURY CLASS (Troop Transport) - NPC ONLY
+ROLE: Troop Transport, Personnel Deployment
+DESCRIPTION: Large transport submarine for troop deployment
+
+### PHYSICAL CHARACTERISTICS
+Hull_Length: 80.0 meters
+Hull_Width: 15.0 meters
+Hull_Height: 12.0 meters
+Displacement: 3500 tons
+Crew: 10 (Command crew and troop complement)
+Launchers: 0 (No weapons - transport role)
+Noisemakers: 3
+
+### PERFORMANCE SPECIFICATIONS
+Max_Speed_Forward: 40 knots
+Max_Speed_Reverse: 40 knots
+Acceleration_Rate: 0.3 units/second
+Crush_Depth: 5500 meters
+Emergency_Depth: 6000 meters
+Minimum_Depth: 0 meters
+
+### DEFENSIVE SYSTEMS
+Hull_Armor_HP: 200 (Heavy armor for personnel protection)
+Sonar_Signature_Base: 15
+
+### SYSTEMS HP (Transport - Heavy life support, no weapons)
+Hull_HP: 180
+Engine_HP: 90
+Weapons_HP: 0 (No weapons - transport role)
+Sensors_HP: 60
+Life_Support_HP: 120 (Enhanced for troop transport)
+Navigation_HP: 70
+
+================================================================================
+
+### HAILSTORM CLASS (Light Trader Sub) - NPC ONLY
+ROLE: Light Trader, Cargo Transport
+DESCRIPTION: Small cargo submarine for supply runs
+
+### PHYSICAL CHARACTERISTICS
+Hull_Length: 25.0 meters
+Hull_Width: 8.0 meters
+Hull_Height: 6.0 meters
+Displacement: 1200 tons
+Crew: 3 (Pilot, Engineer, Cargo Specialist)
+Launchers: 1
+Noisemakers: 2
+
+### PERFORMANCE SPECIFICATIONS
+Max_Speed_Forward: 70 knots
+Max_Speed_Reverse: 70 knots
+Acceleration_Rate: 0.6 units/second
+Crush_Depth: 1100 meters
+Emergency_Depth: 1200 meters
+Minimum_Depth: 0 meters
+
+### DEFENSIVE SYSTEMS
+Hull_Armor_HP: 90
+Sonar_Signature_Base: 9
+
+### SYSTEMS HP (Light Trader)
+Hull_HP: 85
+Engine_HP: 50
+Weapons_HP: 20
+Sensors_HP: 40
+Life_Support_HP: 30
+Navigation_HP: 45
+
+================================================================================
+
+### JUMBO CLASS (Bulk Cargo Sub) - NPC ONLY
+ROLE: Bulk Cargo, Heavy Transport
+DESCRIPTION: Massive cargo submarine for bulk transport
+
+### PHYSICAL CHARACTERISTICS
+Hull_Length: 120.0 meters
+Hull_Width: 25.0 meters
+Hull_Height: 18.0 meters
+Displacement: 8000 tons (Heaviest submarine)
+Crew: 8 (Cargo handling specialists)
+Launchers: 0 (No weapons - cargo role)
+Noisemakers: 2
+
+### PERFORMANCE SPECIFICATIONS
+Max_Speed_Forward: 30 knots (Slowest due to size)
+Max_Speed_Reverse: 30 knots
+Acceleration_Rate: 0.2 units/second
+Crush_Depth: 700 meters (Shallow depth limit)
+Emergency_Depth: 800 meters
+Minimum_Depth: 0 meters
+
+### DEFENSIVE SYSTEMS
+Hull_Armor_HP: 300 (Massive hull protection)
+Sonar_Signature_Base: 20 (Very loud)
+
+### SYSTEMS HP (Massive Cargo - No weapons, huge engines)
+Hull_HP: 250
+Engine_HP: 150 (Massive engines for heavy cargo)
+Weapons_HP: 0 (No weapons - cargo role)
+Sensors_HP: 40
+Life_Support_HP: 60
+Navigation_HP: 50
+
+================================================================================
+
+### TSUNAMI CLASS (Strategic Carrier Sub) - NPC ONLY
+ROLE: Strategic Carrier, Mobile Base
+DESCRIPTION: Ultra-large strategic submarine carrier
+
+### PHYSICAL CHARACTERISTICS
+Hull_Length: 150.0 meters (Largest submarine)
+Hull_Width: 35.0 meters
+Hull_Height: 20.0 meters
+Displacement: 12000 tons (Ultimate size)
+Crew: 25 (Full strategic command crew)
+Launchers: 10 (6 forward, 4 aft)
+Noisemakers: 20
+
+### PERFORMANCE SPECIFICATIONS
+Max_Speed_Forward: 60 knots
+Max_Speed_Reverse: 60 knots
+Acceleration_Rate: 0.4 units/second
+Crush_Depth: 4500 meters
+Emergency_Depth: 5000 meters
+Minimum_Depth: 0 meters
+
+### DEFENSIVE SYSTEMS
+Hull_Armor_HP: 500 (Maximum armor)
+Sonar_Signature_Base: 25 (Loudest submarine)
+
+### SYSTEMS HP (Strategic Carrier - Maximum systems)
+Hull_HP: 400
+Engine_HP: 200 (Massive propulsion systems)
+Weapons_HP: 150 (Heavy weapons complement)
+Sensors_HP: 120 (Advanced strategic sensors)
+Life_Support_HP: 100 (Extended crew support)
+Navigation_HP: 90 (Strategic navigation systems)
+
+================================================================================
+
+### QUEST CLASS (Ultra Deep Strategic Sub) - NPC ONLY
+ROLE: Ultra Deep Strategic, Deep Ocean Operations
+DESCRIPTION: Strategic submarine for deepest ocean missions
+
+### PHYSICAL CHARACTERISTICS
+Hull_Length: 100.0 meters
+Hull_Width: 30.0 meters
+Hull_Height: 15.0 meters
+Displacement: 6000 tons
+Crew: 15 (Deep operations specialists)
+Launchers: 6 (4 forward, 2 aft)
+Noisemakers: 20
+
+### PERFORMANCE SPECIFICATIONS
+Max_Speed_Forward: 50 knots
+Max_Speed_Reverse: 50 knots
+Acceleration_Rate: 0.4 units/second
+Crush_Depth: 12000 meters (Ultra deep capability)
+Emergency_Depth: 12500 meters
+Minimum_Depth: 0 meters
+
+### DEFENSIVE SYSTEMS
+Hull_Armor_HP: 400
+Sonar_Signature_Base: 18
+
+### SYSTEMS HP (Ultra Deep Strategic)
+Hull_HP: 320
+Engine_HP: 120 (Ultra-deep rated engines)
+Weapons_HP: 100 (Strategic weapons)
+Sensors_HP: 100 (Deep ocean sensors)
+Life_Support_HP: 80 (Extended deep operations)
+Navigation_HP: 85 (Precision deep navigation)
+
+================================================================================
+
+### ADVENTURE CLASS (Deep Strategic Sub) - NPC ONLY
+ROLE: Deep Strategic, Extended Operations
+DESCRIPTION: Strategic submarine for deep ocean missions
+
+### PHYSICAL CHARACTERISTICS
+Hull_Length: 85.0 meters
+Hull_Width: 25.0 meters
+Hull_Height: 12.0 meters
+Displacement: 4500 tons
+Crew: 12 (Extended operations crew)
+Launchers: 4
+Noisemakers: 10
+
+### PERFORMANCE SPECIFICATIONS
+Max_Speed_Forward: 60 knots
+Max_Speed_Reverse: 60 knots
+Acceleration_Rate: 0.5 units/second
+Crush_Depth: 9000 meters
+Emergency_Depth: 9500 meters
+Minimum_Depth: 0 meters
+
+### DEFENSIVE SYSTEMS
+Hull_Armor_HP: 350
+Sonar_Signature_Base: 15
+
+### SYSTEMS HP (Deep Strategic)
+Hull_HP: 280
+Engine_HP: 100 (Deep-rated propulsion)
+Weapons_HP: 80 (Standard strategic weapons)
+Sensors_HP: 85 (Deep operation sensors)
+Life_Support_HP: 70 (Extended mission support)
+Navigation_HP: 75 (Deep strategic navigation)
+
+================================================================================
+
+### MISSION CLASS (Deep Tactical Sub) - NPC ONLY
+ROLE: Deep Tactical, Specialized Operations
+DESCRIPTION: Tactical submarine optimized for deep operations
+
+### PHYSICAL CHARACTERISTICS
+Hull_Length: 70.0 meters
+Hull_Width: 20.0 meters
+Hull_Height: 10.0 meters
+Displacement: 3200 tons
+Crew: 8 (Tactical operations specialists)
+Launchers: 3
+Noisemakers: 6
+
+### PERFORMANCE SPECIFICATIONS
+Max_Speed_Forward: 65 knots
+Max_Speed_Reverse: 65 knots
+Acceleration_Rate: 0.6 units/second
+Crush_Depth: 8000 meters
+Emergency_Depth: 8500 meters
+Minimum_Depth: 0 meters
+
+### DEFENSIVE SYSTEMS
+Hull_Armor_HP: 280
+Sonar_Signature_Base: 12
+
+### SYSTEMS HP (Deep Tactical)
+Hull_HP: 220
+Engine_HP: 85 (Tactical-grade engines)
+Weapons_HP: 70 (Tactical weapons systems)
+Sensors_HP: 75 (Specialized tactical sensors)
+Life_Support_HP: 55 (Tactical mission support)
+Navigation_HP: 65 (Tactical navigation systems)
+
+================================================================================
+
+### HURRICANE CLASS (Medium Patrol Sub) - NPC ONLY
+ROLE: Patrol Operations, Long Duration Missions
+DESCRIPTION: Optimized for extended patrol missions
+
+### PHYSICAL CHARACTERISTICS
+Hull_Length: 60.0 meters
+Hull_Width: 18.0 meters
+Hull_Height: 9.0 meters
+Displacement: 2800 tons
+Crew: 6 (Extended patrol crew)
+Launchers: 3
+Noisemakers: 6
+
+### PERFORMANCE SPECIFICATIONS
+Max_Speed_Forward: 75 knots
+Max_Speed_Reverse: 75 knots
+Acceleration_Rate: 0.65 units/second
+Crush_Depth: 35000 meters (Extreme depth capability)
+Emergency_Depth: 35500 meters
+Minimum_Depth: 0 meters
+
+### DEFENSIVE SYSTEMS
+Hull_Armor_HP: 250
+Sonar_Signature_Base: 10
+
+### SYSTEMS HP (Medium Patrol Sub)
+Hull_HP: 200
+Engine_HP: 80 (Extended patrol engines)
+Weapons_HP: 60 (Patrol weapons systems)
+Sensors_HP: 70 (Long-range patrol sensors)
+Life_Support_HP: 50 (Extended patrol support)
+Navigation_HP: 60 (Patrol navigation systems)
+
+================================================================================
+
+### TEMPEST CLASS (Command Sub) - NPC ONLY
+ROLE: Command Submarine, Fleet Coordination
+DESCRIPTION: Large command vessel with advanced systems
+
+### PHYSICAL CHARACTERISTICS
+Hull_Length: 48 meters
+Hull_Width: 16 meters (widest)
+Hull_Height: 10 meters (tallest)
+Displacement: 2200 tons (heaviest)
+Crew: 5 (Commander, Pilot, 2x Officers, Specialist)
+LAUNCHERS: 4 forward, 4 aft
+NOISEMAKERS: 14
+
+### PERFORMANCE SPECIFICATIONS
+Max_Speed_Forward: 75 knots (command vessel)
+Max_Speed_Reverse: 75 knots (MHD Drive - symmetric)
+Acceleration_Rate: 0.5 units/second (heaviest acceleration)
+Crush_Depth: 6000 meters (command systems limit)
+Emergency_Depth: 6500 meters
+Minimum_Depth: 0 meters (can surface - tactical risk/reward)
+
+### MANEUVERABILITY  
+Base_Turn_Rate: 0.005 radians/frame (most sluggish)
+Pitch_Rate: 0.002 radians/frame
+Roll_Rate: 0.002 radians/frame
+Turn_Rate_Decay: 0.9 (highest speed penalty)
+Drag_Turn_Multiplier: 1.05 (minimal emergency turning)
+Drag_Turn_Damage_Rate: 2 HP/second (command hull)
+
+### DEFENSIVE SYSTEMS
+Hull_HP: 200 (command armor)
+Hull_Armor: 40 (best protection)
+Hull_Armor_PEN_Threshold: 45
+Shield_HP: 0  
+Stealth_Rating: 15 (loudest - command systems)
+
+### SYSTEMS HP
+Engine_HP: 100 (quad engine array)
+Weapons_HP: 60
+Sensors_HP: 80 (advanced sensors)
+Life_Support_HP: 50 (extended crew)
+Navigation_HP: 60 (command systems)
+Command_Systems_HP: 40 (unique subsystem)
+
+### SPECIAL ABILITIES
+Command_Systems: Enhanced tactical awareness
+Quad_Engine: Maximum redundancy and power
+Advanced_Sensors: Extended detection range
+Command_Bridge: Unique structural feature
+
+================================================================================
+                                   WEAPON SYSTEMS
+================================================================================
+
+## SCAV ROCKETS (Supercavitating Unguided)
+
+### SCAV ROCKETS
+Name: "SCAV Rockets"
+Type: Supercavitating Rocket
+Muzzle_Velocity: 400 knots (~206 m/s) - extremely fast
+Damage: 60 HP
+Penetration: 35 (moderate armor pen with high-speed impact)
+Reload_Time: 1000 milliseconds
+Effective_Range: 1000 meters
+Lock_Required: No (straight-firing, no guidance)
+Ammunition_Count: 50 rounds
+Projectile_Color: 0x00ffff (cyan)
+Trail_Effect: Yes
+Special_Rules: Supercavitating technology, travels in bubble, pure ballistic trajectory
+
+================================================================================
+
+## TORPEDOES (Guided)
+
+### HEAVY TORPEDOES
+Name: "Heavy Torpedoes"
+Type: Guided Torpedo
+Speed: 100 knots (~51 m/s)
+Damage: 150 HP
+Penetration: 60 (heavy armor pen)
+Reload_Time: 8000 milliseconds
+Lock_Time: 8000 milliseconds
+Effective_Range: 4000 meters
+Lock_Required: Yes
+Ammunition_Count: 6 rounds
+Maneuverability: 0.4 (poor turning)
+Projectile_Color: 0xff0000 (red)
+Trail_Effect: Yes
+Special_Rules: Slow but devastating, hard to evade once locked
+
+### MEDIUM TORPEDOES
+Name: "Medium Torpedoes"
+Type: Guided Torpedo
+Speed: 125 knots (~64 m/s)
+Damage: 100 HP
+Penetration: 45 (medium armor pen)
+Reload_Time: 6000 milliseconds
+Lock_Time: 6000 milliseconds
+Effective_Range: 3000 meters
+Lock_Required: Yes
+Ammunition_Count: 9 rounds
+Maneuverability: 0.6 (moderate turning)
+Projectile_Color: 0xff8800 (orange)
+Trail_Effect: Yes
+Special_Rules: Balanced torpedo between light and heavy variants
+
+### LIGHT TORPEDOES
+Name: "Light Torpedoes"
+Type: Guided Torpedo
+Speed: 150 knots (~77 m/s)
+Damage: 75 HP
+Penetration: 35
+Reload_Time: 4000 milliseconds
+Lock_Time: 4000 milliseconds
+Effective_Range: 2500 meters
+Lock_Required: Yes
+Ammunition_Count: 12 rounds
+Maneuverability: 0.7 (good turning)
+Projectile_Color: 0x00ff00 (green)
+Trail_Effect: Yes
+Special_Rules: Standard torpedo, balanced performance
+
+================================================================================
+
+## SCAV CANNONS (Supercavitating Ballistic)
+
+### SCAV AUTOCANNON
+Name: "SCAV Autocannon"
+Type: Supercavitating Ballistic Cannon
+Projectile_Speed: 1300 m/s (constant speed)
+Damage: 25 HP
+Penetration: 15
+Fire_Rate: 600 rounds per minute
+Magazine_Size: 300 rounds
+Effective_Range: 400 meters
+Accuracy: 85% baseline
+Convergence_Distance: 200 meters (for multiple cannons)
+Projectile_Color: 0x00aaff (blue-cyan)
+Muzzle_Flash: Yes
+Activation: Right-click to fire
+Weapon_Slot: Launcher replacement
+Special_Rules: Medium damage, balanced rate of fire, replaces launcher slots
+
+### SCAV GATLING GUN
+Name: "SCAV Gatling Gun"
+Type: Supercavitating Ballistic Cannon
+Projectile_Speed: 1300 m/s (constant speed)
+Damage: 8 HP (low damage, high volume)
+Penetration: 5
+Fire_Rate: 3000 rounds per minute (extremely high)
+Magazine_Size: 2000 rounds
+Effective_Range: 300 meters
+Accuracy: 65% baseline (least accurate)
+Convergence_Distance: 200 meters
+Projectile_Color: 0x0088ff (light blue)
+Muzzle_Flash: Yes
+Activation: Right-click to fire
+Weapon_Slot: Launcher replacement
+Special_Rules: Very high rate of fire, area saturation, suppressive fire
+
+### SCAV FIELD GUN
+Name: "SCAV Field Gun"
+Type: Supercavitating Ballistic Cannon
+Projectile_Speed: 1300 m/s (constant speed)
+Damage: 80 HP (high damage)
+Penetration: 40
+Fire_Rate: 100 rounds per minute (slow but powerful)
+Magazine_Size: 50 rounds
+Effective_Range: 500 meters (longest range)
+Accuracy: 95% baseline (most accurate)
+Convergence_Distance: 200 meters
+Projectile_Color: 0x0066ff (deep blue)
+Muzzle_Flash: Yes
+Activation: Right-click to fire
+Weapon_Slot: Launcher replacement
+Special_Rules: High damage per shot, precision weapon, longest range
+
+================================================================================
+
+## SCAV POINT DEFENSE (Auto-firing)
+
+### SCAV POINT DEFENSE TURRET
+Name: "SCAV Point Defense Turret"
+Type: Supercavitating Auto-firing System
+Projectile_Speed: 1200 m/s (constant speed)
+Damage: 2 HP (very low damage, but torpedo kill on hit)
+Penetration: 1
+Fire_Rate: 1200 rounds per minute
+Magazine_Size: 2400 rounds
+Effective_Range: 200 meters
+Accuracy: 75% (low-medium accuracy)
+Auto_Target: Yes (automatically engages torpedoes)
+Mount_Type: Dorsal/Ventral (can be mounted top or bottom)
+Priority_Targets: Torpedoes (primary), Submarines (secondary)
+Projectile_Color: 0x44aaff (light blue)
+Weapon_Slot: Launcher replacement
+Special_Rules: Automatic torpedo defense, prioritizes incoming torpedoes over submarines
+
+================================================================================
+                              SPECIAL MECHANICS EXPLAINED
+================================================================================
+
+## MHD DRIVE SYSTEM
+Description: Magnetohydrodynamic propulsion using seawater as reaction mass
+- Symmetric Performance: Same max speed forward and reverse
+- Symmetric Acceleration: Same acceleration rate in both directions  
+- Silent Operation: No cavitation or mechanical noise
+- Instant Direction Change: No need to "turn around" for reverse
+- Power Requirement: High electrical power consumption
+
+## BALLISTIC PHYSICS (Cannons)
+Description: Realistic projectile velocity degradation over distance
+- Initial Phase (0-90% range): Gradual velocity loss (10% total)
+- Final Phase (90-100% range): Rapid exponential decay to zero
+- Physics Formula: Cubic decay function in final 10%
+- Effectiveness: Projectiles lose damage potential near max range
+- Range Limit: Projectiles self-destruct when velocity drops below 10%
+
+## DRAG TURN SYSTEM  
+Description: Emergency high-G turning maneuver with consequences
+- Activation: Double-tap A or D keys  
+- Effect: 30% increase in turn rate
+- Consequence: Causes hull damage (5 HP/second default)
+- Risk/Reward: Better maneuverability vs. hull integrity
+- Class Variation: Different damage rates based on hull strength
+
+## SPEED-DEPENDENT TURNING
+Description: Realistic physics - harder to turn at high speed
+- Formula: Turn_Rate = Base_Turn_Rate * (1 - Speed_Factor * Turn_Rate_Decay)
+- Effect: Turn rate decreases as speed increases
+- Tactical Impact: Must balance speed vs. maneuverability
+- Class Variation: Different decay factors per submarine class
+
+## LOCK-ON SYSTEM
+Description: Target acquisition system for guided weapons  
+- Per-Weapon Memory: Each weapon maintains separate lock progress
+- Lock Preservation: Switching weapons preserves individual lock states
+- Lock Requirements: Some weapons require target lock before firing
+- Lock Decay: Lock progress decays when out of range
+- Sonar Dependency: Active sonar improves lock acquisition rate
+
+## ARMOR SYSTEM
+Description: Damage reduction and penetration mechanics
+- Armor Value: Reduces incoming damage by fixed amount
+- Penetration Threshold: Minimum damage needed to penetrate armor
+- Calculation: Final_Damage = max(0, Raw_Damage - Armor)
+- Threshold Check: Damage below PEN_Threshold has no effect
+- System-Specific: Different armor values for different subsystems
+
+================================================================================
+                           ADVANCED DIRECTIONAL DAMAGE SYSTEM
+================================================================================
+
+## ARMOR FACING SYSTEM
+Each submarine has 6 independent armor facings:
+1. **FORE** (Front) - Key 1 for emergency redistribution
+2. **PORT** (Left) - Key 2 for emergency redistribution  
+3. **STARBOARD** (Right) - Key 3 for emergency redistribution
+4. **AFT** (Rear) - Key 4 for emergency redistribution
+5. **TOP** (Upper) - Key 5 for emergency redistribution
+6. **BOTTOM** (Lower) - Key 6 for emergency redistribution
+
+## ARMOR COMPOSITION (Per Facing)
+### Oobleck Polymer Layer (Outer 50%)
+- **Properties**: Self-healing, redistributive nano-material
+- **Auto-Redistribution**: 1% of starting HP per second between facings
+- **Emergency Redistribution**: Double-tap keys 1-6 to double facing armor
+- **Redistribution Cost**: Extra points taken evenly from 4 adjacent facings
+- **Behavior**: Flows like liquid but hardens on impact
+
+### Meta-Material Composite Layer (Inner 50%)  
+- **Properties**: Advanced crystalline structure, static armor
+- **Behavior**: Does not redistribute, permanent protection
+- **Failure**: Catastrophic breach when depleted allows cascade damage
+
+## DAMAGE RESOLUTION PROCESS
+### Step 1: Hit Location Determination
+- Ray-casting or collision detection determines impact facing
+- Projectile angle affects which facing takes damage
+
+### Step 2: Penetration Check
+- **Formula**: If Damage <= PEN_Threshold, damage only affects armor
+- **PEN_Threshold**: 50% of starting Hull_Armor_HP for that facing
+- **Armor Damage**: Reduce armor HP by damage amount
+- **Penetration**: If Damage > PEN_Threshold, excess damage penetrates
+
+### Step 3: Internal Damage Cascade
+- **System Selection**: Hit location determines which system is struck first
+- **System PEN Values**:
+  - Engines: 70% of starting HP  
+  - Weapons: 30% of starting HP
+  - Sensors: 30% of starting HP
+  - Life Support: 30% of starting HP
+  - Navigation: 50% of starting HP
+- **Cascade Rule**: If damage exceeds system PEN, excess continues through hull
+- **Exit Damage**: Damage can punch through and hit opposite facing armor
+
+### Step 4: Performance Degradation
+- **Engine HP Loss**: Reduce max speed by % HP lost
+- **Sensor HP Loss**: Reduce sensitivity and range by % HP lost  
+- **Life Support HP Loss**: GAME OVER at 0% HP remaining
+- **Navigation HP Loss**: Reduce pitch/yaw rate, increase turn radius by % HP lost
+- **Weapons HP Loss**: Reduce reload speed, disable weapon types by % HP lost
+
+## OOBLECK ARMOR MECHANICS
+### Automatic Redistribution
+- **Rate**: 1% of starting armor HP per second per facing
+- **Direction**: Always flows from high HP facings to low HP facings
+- **Limitation**: Only affects oobleck layer, not meta-material layer
+- **Visual**: Armor readout shows real-time redistribution
+
+### Emergency Redistribution (Double-tap Keys)
+- **Activation**: Double-tap keys 1-6 within 300ms
+- **Effect**: Doubles oobleck armor HP on target facing
+- **Cost**: Extra HP removed evenly from 4 adjacent facings  
+- **Cooldown**: 5 second cooldown per facing
+- **Risk**: Weakens other facings significantly
+
+### Adjacent Facing Rules
+- **FORE**: Adjacent to PORT, STARBOARD, TOP, BOTTOM
+- **AFT**: Adjacent to PORT, STARBOARD, TOP, BOTTOM  
+- **PORT**: Adjacent to FORE, AFT, TOP, BOTTOM
+- **STARBOARD**: Adjacent to FORE, AFT, TOP, BOTTOM
+- **TOP**: Adjacent to FORE, AFT, PORT, STARBOARD
+- **BOTTOM**: Adjacent to FORE, AFT, PORT, STARBOARD
+
+## HITBOX SYSTEM MAPPING
+### Internal System Locations
+- **FORE hits**: Navigation (60%), Sensors (40%), Hull (cascade)
+- **AFT hits**: Engines (70%), Life Support (30%), Hull (cascade)
+- **PORT/STARBOARD hits**: Weapons (50%), Navigation (30%), Engines (20%), Hull (cascade)
+- **TOP hits**: Sensors (50%), Life Support (30%), Navigation (20%), Hull (cascade)
+- **BOTTOM hits**: Engines (40%), Weapons (40%), Life Support (20%), Hull (cascade)
+
+### Hull System (Internal)
+- **Hull HP**: Acts as internal system, can be hit from any direction
+- **PEN Threshold**: 10% of starting HP (very low - structural weakness)
+- **Damage Sources**: Drag turns, penetrating weapon hits, cascade damage
+- **Critical Failure**: Instant implosion at 0 HP (GAME OVER)
+- **No Performance Impact**: Hull damage has no effect until catastrophic failure
+
+## DAMAGE VISUALIZATION
+- **Armor Readout**: 6 facing bars showing oobleck/meta-material layers
+- **System Status**: Individual HP bars for each internal system
+- **Damage Indicators**: Visual effects on damaged facings
+- **Critical Warnings**: Alerts when systems approach failure
+- **Redistribution Display**: Real-time oobleck flow visualization
+
+## TACTICAL IMPLICATIONS
+### Armor Angling
+- **Optimal Angles**: Present strongest facings toward threats
+- **Emergency Positioning**: Use emergency redistribution before taking fire
+- **Damage Control**: Manual redistribution to maintain combat effectiveness
+
+### System Priority
+- **Life Support**: Critical - game over if lost
+- **Engines**: High priority - mobility is survival
+- **Navigation**: Medium priority - affects maneuverability  
+- **Weapons**: Medium priority - affects offensive capability
+- **Sensors**: Low priority - can fight partially blind
+
+================================================================================
+
+================================================================================
+                              FUTURE DEVELOPMENT CONCEPTS
+================================================================================
+
+## ICE SHEET SURFACE ENVIRONMENT (Future Implementation)
+Description: Replace simple surface boundary with dramatic ice mass
+- Solid Ice Sheet: Surface becomes solid sheet of sea ice instead of arbitrary ceiling
+- Jagged Ice Structures: Dramatic ice formations descending from surface
+- Vertical Terrain: Ice creates overhead terrain like inverted mountains
+- Cat and Mouse Gameplay: Hide-and-seek in surface ice formations
+- Dual Environment: Combat occurs both at sea floor AND in surface ice mass
+- 3D Complexity: Ice provides vertical cover and navigation challenges
+- Tactical Depth: Surface becomes dangerous but potentially advantageous terrain
+
+## DEPTH SYSTEM CLARIFICATION
+Current Implementation:
+- y=300: Surface level (depth 0 meters) - submarines can reach this
+- y=0: 300 meters depth 
+- y=-200: 500 meters depth (typical crush depth)
+- y=-300: 600 meters depth (emergency depth)
+
+Depth Formula: Actual_Depth = 300 - y_position
+- Higher y values = shallower depth
+- Lower y values = deeper depth  
+- No surface restrictions = tactical choice to expose at surface
+
+## SURFACE TACTICS
+Risk/Reward of Surfacing (depth 0):
+- RISKS: Maximum exposure, highest sonar signature, vulnerable to detection
+- REWARDS: Maximum speed potential, best sensor range, emergency escape route
+- TACTICAL: High-risk maneuver for specific situations
+
+================================================================================
+END OF SPECIFICATIONS DOCUMENT  
+================================================================================
+
+# MODIFICATION INSTRUCTIONS:
+# 1. Edit any values in this document as needed for game balance
+# 2. Provide the modified document to Claude
+# 3. Claude will update the corresponding game files automatically
+# 4. Test changes in-game and iterate as needed
+
+# NOTES FOR BALANCE:
+# - Higher numbers = better performance (except Stealth_Rating where lower is better)
+# - Reload times in milliseconds (lower = faster)  
+# - HP values stack (Hull + System HP for total durability)
+# - Penetration must exceed Armor + PEN_Threshold for full damage
+# - Speed values in knots (multiply by 0.514 for m/s)
+# - Angular rates in radians per frame (60fps assumed)
+
+# VERSION: 1.0
+# DATE: 2025-09-07
+# GAME: Sub War 2060

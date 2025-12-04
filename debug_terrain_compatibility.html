@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terrain Compatibility Debug</title>
+    <style>
+        body { 
+            background: #000; 
+            color: #00ff00; 
+            font-family: 'Courier New', monospace; 
+            padding: 20px;
+        }
+        .error { color: #ff0000; }
+        .success { color: #00ff00; }
+        .warning { color: #ffaa00; }
+        pre { background: #111; padding: 10px; border: 1px solid #333; }
+    </style>
+</head>
+<body>
+    <h1>THREE.Terrain Compatibility Debug</h1>
+    <div id="output"></div>
+
+    <!-- Load libraries -->
+    <script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
+    <script src="lib/THREE.Terrain.js"></script>
+    <script src="test_terrain_compatibility.js"></script>
+    
+    <script>
+        // Capture console output and display it
+        const output = document.getElementById('output');
+        const originalLog = console.log;
+        const originalError = console.error;
+        
+        console.log = function(...args) {
+            const message = args.join(' ');
+            output.innerHTML += `<div class="success">${message}</div>`;
+            originalLog.apply(console, args);
+        };
+        
+        console.error = function(...args) {
+            const message = args.join(' ');
+            output.innerHTML += `<div class="error">${message}</div>`;
+            originalError.apply(console, args);
+        };
+        
+        // Add a final status
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                output.innerHTML += '<div class="warning">Test completed - check console for details</div>';
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

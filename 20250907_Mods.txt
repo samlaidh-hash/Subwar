@@ -1,0 +1,53 @@
+Sub Types
+There are generally three types of submarine:
+Strategic
+Tactical
+Fighter
+
+Movement
+Mouse moves a “maneuver icon” around the screen. The sub automatically follows the icon, trying to line up the reticle (which is centre screen) with the icon. Mouse wheel controls throttle.
+The further the icon is from the centre of the screen the faster the sub turns, allowing fie control by keeping the icon near the centre and quick maneuvers near the outside, dragging it to near the edge of the screen triggers drag turns if speed is high enough (>50% of maximum speed). When super cavitation (SCAV) mode switches on, swathing the subs in a sheath of fine bubbles and allowing speeds up to submarine maximum. This makes a lot of noise and reduces maneuverability drastically but gives much faster speeds. SCAV mode does not activate in reverse.
+Only cannons and rockets can be fired in SCAV mode, not torpedoes.
+If the sub is near crush depth the normally white reticle flashes RED rapidly.
+
+Weapons
+When TAB is used to select an enemy a pipper appears to show where the reticle needs to be to “lead” the target for the subs cannon(s). The pipper is a stretched shape, one end is for cannons and the other for rockets (which typically need more lead as they are slower).
+The selected enemy is highlighted in the view and if off screen an arrow appears at the screen edge in the direction the sub needs to turn in to see it.
+Most subs have one or two cannons (two cannons are set to converge at 200m). These are fired by the left mouse button and fire continuously as long as button is held down.
+Rockets are handled the same way, but are fired with a right click.
+
+Torpedoes are Smart, select a torpedo by pressing the desired torpedo number. This initiates the lock-on system for that torpedo (if it has one).
+Note that torpedoes show up as sonar contacts.
+Torpedoes are all a standard size but come in a number of variants, When you tap a tubes key tap it again to cycle through available torpedo types, after a brief pause from the last tap the appropriate torpedo is selected and loaded (takes around 60 seconds before lock-on begins). If the torpedo was already loaded lock-on starts straight away.
+Standard loadout for a submarine is 6 torpedoes per tube, 1 HY, 1 HS, 4 ST
+High Yield (HY): hit deals 1 x 150 damage hit, max speed 130 knots (SCAV at 60+), low maneuverability
+Standard (ST): hits deals 1x 100 damage hit, max speed 160 knots, medium maneuverability
+High Speed (HS): hit deals 1x 50 damage hit, max speed 200 knots, high maneuverability
+
+Once it has locked-on (or immediately if it has no lock-on requirement) the space bar launches the torpedo.
+The torpedo takes time to lock-on to the selected target. Passive lock (if you aren’t using active sonar) takes longer to lock. Active sonar significantly speeds up lock time.
+You can fire without a lock-on, in which case the torpedo fires dead ahead and scans for targets within its forward 90 cone. If it detects no targets it reaches its maximum range and disables itself. If it detects a target it starts to follow that target. It is less sensitive than the submarines passive sonar. Torpedoes without a lock-on are much more easily decoyed or counter-measured. Unlocked torpedoes have wake following capacity and if the cross the recent wake of a sub they will turn into the wake, hunting for the sub at the end of the wake.
+Torpedoes normally stay below SCAV speed and are silent until they get within terminal attack range, at which point they accelerate to full speed and go active to get a better lock on the target.
+
+Torpedoes are stored internally and loaded into tubes before firing. Reloading a tube happens automatically and takes around 60 seconds.
+
+Only the Typhoon, Hurricane and Tempest can carry Heavy Torpedoes.
+Check displacement calculations, they seem insanely high for the dimensions given. Likewise, the dimensions are way to small.
+All subs have noisemakers which can be deployed to confuse torpedoes. These are basically canisters which react with water to produce clouds of high velocity bubbles, noisy and turbulent.
+Some subs have interceptors which are small SCAV rockets designed to be launched when under torpedo attack. Interceptors home on the nearest torpedo and try to intercept and destroy it. If there are no torpedoes nearby they automatically disarm and sink away harmlessly.
+Squall 15,000 tonnes 574ft 3500ft crush depth, 40 knots  SSN has point defense system, Cruise and Ballistic Missiles 8 torpedo tubes, interceptors
+Tempest 1200 tonnes, 220ft 5300ft crush depth, 67 knots  Command Sub has point defense system 4 torpedo tubes, interceptors
+Tsunami Sub Carrier 59,000 tonnes 560ft 4300ft crush depth, 37 knots has point defense system 6 torpedo tubes, interceptors
+Tornado 220 tonnes, 86ft, 4600ft crush depth, 85 knots Medium Fighter Sub 4 torpedo tubes, interceptors
+Lightning 120 tonnes, 65ft, 2000ft crush depth, 100 knots  Light Fighter Sub 2 torpedo tubes
+Typhoon 210 tonnes, 92ft, 4200ft crush depth, 90 knots   Medium Fighter Sub 4 torpedo tubes, interceptors
+Hurricane 140 tonnes, 69ft, 18000ft crush depth, 90 knots   Light Fighter Sub 3 torpedo tubes
+Trieste 1400 tonnes, 250ft 12500ft crush depth, 30 knots  DSV 2 torpedo tubes, interceptors
+Whirlwind 1200 tonnes, 287ft 11000ft crush depth, 20 knots  DSV 4 torpedo tubes, interceptors
+Thunderbolt 330 tonnes, 147ft 5200ft crush depth, 40 knots  Heavy Fighter Sub 4 torpedo tubes, interceptors
+Fury 150 tonnes, 101ft 4500ft crush depth, 25 knots  troop carrier
+Jumbo 32,000 tonnes 650ft 3000ft crush depth, 20 knots  Cargo sub
+Shrimp 12,000 tonnes 434ft 2800ft crush depth, 26 knots  Cargo sub
+
+Camera Modes
+Standard camera mode is following your sub.

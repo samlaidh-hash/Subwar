@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Submarine Control Test</title>
+</head>
+<body>
+    <h1>Submarine Control Test</h1>
+    <p>Open the game at <a href="http://localhost:8000" target="_blank">http://localhost:8000</a></p>
+    <p>Then open browser console (F12) and run these commands:</p>
+    
+    <h2>Test Initial Orientation:</h2>
+    <pre>
+// Check if submarine starts level
+if (window.playerSubmarine && window.playerSubmarine().mesh) {
+    const mesh = window.playerSubmarine().mesh;
+    console.log('Initial rotation:', {
+        pitch: (mesh.rotation.x * 180/Math.PI).toFixed(1) + '°',
+        yaw: (mesh.rotation.y * 180/Math.PI).toFixed(1) + '°', 
+        roll: (mesh.rotation.z * 180/Math.PI).toFixed(1) + '°'
+    });
+}
+    </pre>
+    
+    <h2>Test Roll Controls:</h2>
+    <p>Move your mouse left and right from center, then run:</p>
+    <pre>
+// Check roll after maneuvering
+if (window.playerSubmarine && window.playerSubmarine().mesh) {
+    const mesh = window.playerSubmarine().mesh;
+    console.log('Current rotation:', {
+        pitch: (mesh.rotation.x * 180/Math.PI).toFixed(1) + '°',
+        yaw: (mesh.rotation.y * 180/Math.PI).toFixed(1) + '°', 
+        roll: (mesh.rotation.z * 180/Math.PI).toFixed(1) + '°'
+    });
+}
+    </pre>
+</body>
+</html>

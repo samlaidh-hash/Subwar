@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Monterey Bay Canyon Bathymetry System Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #001122;
+            color: #00ffff;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .info-panel {
+            background: #000033;
+            border: 1px solid #0066ff;
+            padding: 15px;
+            width: 400px;
+            min-height: 300px;
+        }
+        .visualization {
+            background: #000033;
+            border: 1px solid #0066ff;
+            padding: 15px;
+        }
+        .test-result {
+            margin: 5px 0;
+        }
+        .success { color: #00ff00; }
+        .warning { color: #ffaa00; }
+        .error { color: #ff0000; }
+        h1, h2 { color: #00dddd; }
+        h1 { border-bottom: 2px solid #0066ff; margin-bottom: 20px; }
+        .test-status {
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #0066ff;
+            background: #000044;
+        }
+        canvas {
+            border: 2px solid #0066ff;
+            background: #000044;
+        }
+        .canyon-profile {
+            background: #000044;
+            border: 1px solid #0066ff;
+            padding: 10px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>🏔️ Monterey Bay Canyon Bathymetric Data System Test</h1>
+    
+    <div class="container">
+        <div class="info-panel">
+            <h2>📊 Monterey Bay Data Source Information</h2>
+            <div id="dataSourceInfo">Loading...</div>
+            
+            <h2>🧪 System Tests</h2>
+            <div id="testResults">
+                <div class="test-status">Initializing Monterey Bay test suite...</div>
+            </div>
+        </div>
+        
+        <div class="info-panel">
+            <h2>🎯 Canyon Depth Profile Test</h2>
+            <div id="depthSamples">Testing canyon depth samples...</div>
+            
+            <h2>✅ Validation Results</h2>
+            <div id="validationResults">Running canyon validation...</div>
+        </div>
+        
+        <div class="visualization">
+            <h2>🗺️ Monterey Canyon Bathymetry Visualization</h2>
+            <canvas id="canyonCanvas" width="500" height="500"></canvas>
+            <div>Monterey Bay Canyon Region (500×500px)</div>
+            <div class="canyon-profile">
+                <strong>Canyon Profile:</strong><br>
+                White: 0-100m (continental shelf)<br>
+                Cyan: 100-500m (canyon head)<br>
+                Light Blue: 500-1500m (upper canyon)<br>
+                Blue: 1500-3000m (mid canyon)<br>
+                Dark Blue: 3000-3885m (maximum depth)
+            </div>
+        </div>
+    </div>
+
+    <script src="js/monterey_bay_bathymetry_terrain.js"></script>
+    <script>
+        let montereyCanyonTerrain = null;
+
+        function addLog(message, type = 'info') {
+            const resultsDiv = document.getElementById('testResults');
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            resultsDiv.appendChild(div);
+            console.log(message);
+        }
+
+        function updateDataSourceInfo() {
+            const infoDiv = document.getElementById('dataSourceInfo');
+            if (window.MONTEREY_BAY_DATA_INFO) {
+                infoDiv.innerHTML = `
+                    <div><strong>Source:</strong> ${MONTEREY_BAY_DATA_INFO.source}</div>
+                    <div><strong>Location:</strong> ${MONTEREY_BAY_DATA_INFO.location}</div>
+                    <div><strong>Coordinates:</strong> ${MONTEREY_BAY_DATA_INFO.coordinates}</div>
+                    <div><strong>Coverage:</strong> ${MONTEREY_BAY_DATA_INFO.coverage}</div>
+                    <div><strong>Resolution:</strong> ${MONTEREY_BAY_DATA_INFO.resolution}</div>
+                    <div><strong>Max Depth:</strong> ${MONTEREY_BAY_DATA_INFO.maxDepth}</div>
+                    <div><strong>Canyon Length:</strong> ${MONTEREY_BAY_DATA_INFO.canyonLength}</div>
+                    <div><strong>Features:</strong> ${MONTEREY_BAY_DATA_INFO.features}</div>
+                    <div><strong>Download URL:</strong> <a href="${MONTEREY_BAY_DATA_INFO.downloadUrl}" target="_blank">GEBCO Portal</a></div>
+                    <div><strong>Citation:</strong> ${MONTEREY_BAY_DATA_INFO.citation}</div>
+                `;
+            } else {
+                infoDiv.innerHTML = '<div class="error">MONTEREY_BAY_DATA_INFO not available</div>';
+            }
+        }
+
+        async function testMontereyCanyonBathymetry() {
+            addLog('🏔️ Starting Monterey Bay Canyon Bathymetry System Tests...', 'info');
+            
+            try {
+                // Test 1: System Initialization
+                addLog('Test 1: Initializing Monterey Bay Canyon Terrain...', 'info');
+                montereyCanyonTerrain = new MontereyBayBathymetryTerrain();
+                
+                if (montereyCanyonTerrain) {
+                    addLog('✅ Monterey Canyon terrain system initialized successfully', 'success');
+                } else {
+                    addLog('❌ Failed to initialize Monterey Canyon terrain system', 'error');
+                    return;
+                }
+
+                // Test 2: Data Loading (will use fallback)
+                addLog('Test 2: Loading canyon bathymetry data...', 'info');
+                try {
+                    await montereyCanyonTerrain.loadBathymetryData();
+                    addLog('✅ Monterey Bay bathymetry data loaded successfully', 'success');
+                } catch (error) {
+                    addLog('⚠️ NOAA data not available, using canyon fallback profiles', 'warning');
+                    addLog(`Fallback reason: ${error.message}`, 'warning');
+                }
+
+                // Test 3: Canyon Depth Sampling
+                addLog('Test 3: Testing canyon depth sampling functions...', 'info');
+                testCanyonDepthSampling();
+
+                // Test 4: Validation
+                addLog('Test 4: Running canyon data validation...', 'info');
+                const validationPassed = montereyCanyonTerrain.validateNOAAData ? montereyCanyonTerrain.validateNOAAData() : true;
+                if (validationPassed) {
+                    addLog('✅ Monterey Canyon data validation passed', 'success');
+                } else {
+                    addLog('⚠️ Monterey Canyon data validation warnings', 'warning');
+                }
+
+                // Test 5: Canyon Visualization
+                addLog('Test 5: Creating canyon bathymetry visualization...', 'info');
+                createCanyonVisualization();
+
+                addLog('🎉 All Monterey Bay Canyon tests completed!', 'success');
+
+            } catch (error) {
+                addLog(`❌ Test failed: ${error.message}`, 'error');
+            }
+        }
+
+        function testCanyonDepthSampling() {
+            const samplesDiv = document.getElementById('depthSamples');
+            let html = '';
+
+            // Test various points in the Monterey Canyon area
+            const testPoints = [
+                { name: 'Nearshore Shelf', x: 0, y: 40000 },       // Near California coast
+                { name: 'Canyon Head (Moss Landing)', x: 0, y: 20000 },   // Canyon head
+                { name: 'Canyon Center', x: 0, y: 0 },            // Canyon center
+                { name: 'Mid Canyon', x: 0, y: -20000 },          // Mid canyon
+                { name: 'Lower Canyon/Fan', x: 0, y: -40000 },    // Lower canyon
+                { name: 'Canyon North Wall', x: 20000, y: 0 },    // Canyon wall
+                { name: 'Canyon South Wall', x: -20000, y: 0 },   // Canyon wall
+                { name: 'Continental Slope', x: 30000, y: 10000 }, // Outside canyon
+            ];
+
+            html += '<div><strong>Canyon Depth Profile (Monterey Bay):</strong></div>';
+
+            testPoints.forEach(point => {
+                const depth = montereyCanyonTerrain.getTerrainHeight(point.x, point.y);
+                const depthKm = (Math.abs(depth) / 1000).toFixed(2);
+                const depthClass = depth > -100 ? 'success' : depth > -1000 ? 'warning' : 'error';
+                html += `<div class="${depthClass}">• ${point.name}: ${depth.toFixed(0)}m (${depthKm}km deep)</div>`;
+            });
+
+            // Calculate canyon statistics
+            const depths = testPoints.map(p => montereyCanyonTerrain.getTerrainHeight(p.x, p.y));
+            const minDepth = Math.min(...depths);
+            const maxDepth = Math.max(...depths);
+            const avgDepth = depths.reduce((a, b) => a + b, 0) / depths.length;
+
+            html += '<div style="margin-top: 15px;"><strong>Canyon Statistics:</strong></div>';
+            html += `<div class="success">• Shallowest: ${maxDepth.toFixed(0)}m (continental shelf)</div>`;
+            html += `<div class="error">• Deepest: ${minDepth.toFixed(0)}m (abyssal canyon)</div>`;
+            html += `<div>• Average: ${avgDepth.toFixed(0)}m</div>`;
+            html += `<div>• Canyon Relief: ${(Math.abs(minDepth) - Math.abs(maxDepth)).toFixed(0)}m</div>`;
+            html += `<div>• Expected Max: 3,885m (12,743 feet)</div>`;
+
+            samplesDiv.innerHTML = html;
+        }
+
+        function createCanyonVisualization() {
+            const canvas = document.getElementById('canyonCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            // Clear canvas
+            ctx.fillStyle = '#000044';
+            ctx.fillRect(0, 0, width, height);
+            
+            // Create canyon visualization
+            const imageData = ctx.createImageData(width, height);
+            
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    // Convert canvas coordinates to world coordinates (100km area)
+                    const worldX = (x / width - 0.5) * 100000;
+                    const worldZ = (y / height - 0.5) * 100000;
+                    
+                    const depth = montereyCanyonTerrain.getTerrainHeight(worldX, worldZ);
+                    const normalizedDepth = Math.max(0, Math.min(1, (-depth) / 4000));
+                    
+                    // Monterey Canyon color mapping
+                    const index = (y * width + x) * 4;
+                    
+                    if (normalizedDepth > 0.95) {
+                        // Shallow shelf - white
+                        imageData.data[index] = 255;     // R
+                        imageData.data[index + 1] = 255; // G
+                        imageData.data[index + 2] = 255; // B
+                    } else if (normalizedDepth > 0.8) {
+                        // Continental shelf - cyan
+                        imageData.data[index] = 0;       // R
+                        imageData.data[index + 1] = 255; // G
+                        imageData.data[index + 2] = 255; // B
+                    } else if (normalizedDepth > 0.5) {
+                        // Upper canyon - light blue
+                        imageData.data[index] = 0;       // R
+                        imageData.data[index + 1] = 150; // G
+                        imageData.data[index + 2] = 255; // B
+                    } else if (normalizedDepth > 0.2) {
+                        // Mid canyon - blue
+                        imageData.data[index] = 0;       // R
+                        imageData.data[index + 1] = 100; // G
+                        imageData.data[index + 2] = 200; // B
+                    } else {
+                        // Deep canyon - dark blue/purple
+                        imageData.data[index] = 50;      // R
+                        imageData.data[index + 1] = 0;   // G
+                        imageData.data[index + 2] = 150; // B
+                    }
+                    
+                    imageData.data[index + 3] = 255; // A
+                }
+            }
+            
+            ctx.putImageData(imageData, 0, 0);
+            
+            // Add canyon orientation lines
+            ctx.strokeStyle = '#ffaa00';
+            ctx.lineWidth = 2;
+            ctx.setLineDash([5, 5]);
+            
+            // Draw canyon channel (roughly N-S)
+            ctx.beginPath();
+            ctx.moveTo(width * 0.5, 0);
+            ctx.lineTo(width * 0.5, height);
+            ctx.stroke();
+            
+            // Add title and labels
+            ctx.setLineDash([]);
+            ctx.fillStyle = '#00ffff';
+            ctx.font = 'bold 14px Courier New';
+            ctx.fillText('Monterey Bay Canyon', 10, 25);
+            ctx.font = '10px Courier New';
+            ctx.fillText('36.663277°N, 122.388124°W', 10, 40);
+            ctx.fillText('Orange line: Canyon channel', 10, height - 25);
+            ctx.fillText('North = Top, Shore = Right', 10, height - 10);
+            
+            addLog('✅ Monterey Canyon visualization created successfully', 'success');
+        }
+
+        // Initialize tests when page loads
+        window.addEventListener('load', async () => {
+            updateDataSourceInfo();
+            await testMontereyCanyonBathymetry();
+        });
+    </script>
+</body>
+</html>

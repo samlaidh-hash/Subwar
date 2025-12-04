@@ -1,0 +1,1246 @@
+// Sub War 2060 - Submarine Module
+
+// Submarine class for player vessel
+class Submarine {
+    constructor(scene) {
+        this.scene = scene;
+        this.mesh = null;
+        this.position = new THREE.Vector3(0, 0, 0);
+        this.rotation = new THREE.Euler(0, 0, 0);
+        this.velocity = new THREE.Vector3(0, 0, 0);
+        
+        // Submarine stats
+        this.health = 100;
+        this.maxHealth = 100;
+        this.speed = 0;
+        this.maxSpeed = 100; // High-speed fighter submarine
+        this.depth = 0;
+        this.maxDepth = 500; // Deeper ocean for larger scale
+        
+        // Movement state
+        this.keys = {
+            strafeLeft: false,
+            strafeRight: false,
+            ballastUp: false,      // W - blow ballast (surface)
+            ballastDown: false,    // S - flood ballast (dive)
+            rollLeft: false,       // Q - roll left
+            rollRight: false       // E - roll right
+        };
+        
+        // Reticle control system
+        this.firingReticle = {
+            position: new THREE.Vector3(0, 0, 0), // Projected ahead of submarine
+            distance: 12, // Three submarine lengths ahead (4m * 3)
+            // Target lock system
+            target: null,
+            lockProgress: 0, // 0-1, how close to lock
+            isLocked: false,
+            lockDistance: 2.0, // Distance for full lock
+            maxLockRange: 8.0, // Maximum range for lock attempt
+            spinSpeed: 0,
+            currentScale: 1.0,
+            baseScale: 1.0,
+            minScale: 0.3,
+            currentRotation: 0,
+            // Sonar-dependent lock system
+            baseLockRate: 0.2, // Base lock rate with no active sonar (per second)
+            lastSonarPing: 0,   // Track when last sonar ping occurred
+            sonarLockBonus: 0   // Current lock rate bonus from sonar
+        };
+        
+        this.maneuverReticle = {
+            position: new THREE.Vector3(0, 0, 0), // Target position for submarine to aim at
+            screenX: 0, // Screen-space coordinates (-1 to 1)
+            screenY: 0,
+            deadZone: 0.15, // Dead zone radius for auto-centering (increased)
+            sensitivity: 0.002, // Mouse sensitivity for reticle movement (reduced)
+            driftRate: 0.05, // Rate at which reticle drifts back to center (faster)
+            maxDistance: 15 // Maximum distance from submarine (reduced)
+        };
+        
+        // Current submarine orientation (what we're turning towards)
+        this.targetOrientation = {
+            yaw: 0,
+            pitch: 0,
+            roll: 0
+        };
+        
+        // Throttle control
+        this.throttle = 0;      // -1 to 1 range
+        this.maxSpeed = 100;    // Maximum speed for high-speed combat
+        
+        // Roll control
+        this.roll = 0;
+        this.maxRoll = Math.PI / 4; // 45 degrees max roll
+        
+        // Ballast system - slower for realistic diving/surfacing
+        this.ballastRate = 0.008; // Rate of depth change via ballast (reduced from 0.02)
+        this.bubbleTimer = 0;
+        
+        // Advanced submarine warfare systems
+        this.knuckles = []; // Turbulence pockets created by sharp turns
+        this.knuckleTimer = 0;
+        this.lastYaw = 0;
+        this.turnRate = 0;
+        
+        // Towed array system
+        this.towedArray = {
+            deployed: false,
+            sensitivity: 1.0,   // Multiplier for passive sonar
+            speedPenalty: 0.7   // Max speed when deployed
+        };
+        
+        // Sonar signature system
+        this.sonarSignature = {
+            base: 5,            // Base signature
+            speedMultiplier: 1, // Increases with speed
+            cavitation: 0,      // Additional noise from high speed
+            current: 5          // Current total signature
+        };
+        
+        // Passive sonar sensitivity
+        this.passiveSensitivity = 1.0;
+        
+        // Sonar system configuration
+        this.sonarSettings = {
+            power: 2, // 0=Low(50m), 1=Medium(75m), 2=High(100m), 3=Maximum(150m)
+            rate: 1   // 0=Fast(1s), 1=Normal(2s), 2=Slow(3s), 3=Veryslow(5s)
+        };
+        
+        this.init();
+    }
+    
+    init() {
+        this.createSubmarineMesh();
+        this.setupControls();
+        console.log("Player submarine initialized");
+    }
+    
+    createSubmarineMesh() {
+        // Create submarine geometry in Elite-style wireframe vectors
+        const submarineGroup = new THREE.Group();
+        
+        // Vector wireframe material (white lines on black background)
+        const vectorMaterial = new THREE.LineBasicMaterial({ 
+            color: 0xffffff,
+            linewidth: 1
+        });
+        
+        // Main hull outline (wireframe cylinder)
+        const hullGeometry = new THREE.CylinderGeometry(0.5, 0.3, 4, 8);
+        const hullEdges = new THREE.EdgesGeometry(hullGeometry);
+        const hull = new THREE.LineSegments(hullEdges, vectorMaterial);
+        hull.rotation.z = Math.PI / 2; // Point forward
+        submarineGroup.add(hull);
+        
+        // Conning tower (wireframe box)
+        const towerGeometry = new THREE.BoxGeometry(0.8, 0.4, 0.6);
+        const towerEdges = new THREE.EdgesGeometry(towerGeometry);
+        const tower = new THREE.LineSegments(towerEdges, vectorMaterial);
+        tower.position.set(0, 0.4, 0);
+        submarineGroup.add(tower);
+        
+        // Periscope (simple line)
+        const periscopeGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, 0.8, 0),
+            new THREE.Vector3(0, 1.8, 0)
+        ]);
+        const periscope = new THREE.Line(periscopeGeometry, vectorMaterial);
+        submarineGroup.add(periscope);
+        
+        // Propeller (wireframe disc)
+        const propellerGeometry = new THREE.CylinderGeometry(0.3, 0.3, 0.1, 6);
+        const propellerEdges = new THREE.EdgesGeometry(propellerGeometry);
+        const propeller = new THREE.LineSegments(propellerEdges, vectorMaterial);
+        propeller.position.set(-2.2, 0, 0);
+        propeller.rotation.z = Math.PI / 2;
+        submarineGroup.add(propeller);
+        
+        // Navigation markers (simple cross symbols)
+        const markerGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(-0.1, 0, 0),
+            new THREE.Vector3(0.1, 0, 0),
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0, -0.1, 0),
+            new THREE.Vector3(0, 0.1, 0)
+        ]);
+        
+        const leftMarker = new THREE.Line(markerGeometry, vectorMaterial);
+        leftMarker.position.set(1.8, 0, -0.6);
+        submarineGroup.add(leftMarker);
+        
+        const rightMarker = new THREE.Line(markerGeometry, vectorMaterial);
+        rightMarker.position.set(1.8, 0, 0.6);
+        submarineGroup.add(rightMarker);
+        
+        // Add directional arrow on front
+        const arrowGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(2, 0, 0),
+            new THREE.Vector3(1.7, 0.1, 0),
+            new THREE.Vector3(2, 0, 0),
+            new THREE.Vector3(1.7, -0.1, 0)
+        ]);
+        const arrow = new THREE.Line(arrowGeometry, vectorMaterial);
+        submarineGroup.add(arrow);
+        
+        this.mesh = submarineGroup;
+        this.mesh.name = 'playerSubmarine';
+        this.scene.add(this.mesh);
+        
+        // Create reticle visuals
+        this.createReticleVisuals();
+        
+        // Remove test cube if it exists
+        const testCube = this.scene.children.find(obj => obj.type === 'Mesh' && obj.geometry.type === 'BoxGeometry');
+        if (testCube) {
+            this.scene.remove(testCube);
+        }
+    }
+    
+    setupControls() {
+        document.addEventListener('keydown', (event) => this.handleKeyDown(event));
+        document.addEventListener('keyup', (event) => this.handleKeyUp(event));
+        
+        // Mouse controls for submarine heading
+        document.addEventListener('mousemove', (event) => this.handleMouseMove(event));
+        document.addEventListener('wheel', (event) => this.handleWheel(event));
+        
+        // Lock pointer for better control
+        document.addEventListener('click', () => {
+            document.body.requestPointerLock();
+        });
+    }
+    
+    handleKeyDown(event) {
+        // Prevent Tab key from losing focus
+        if (event.code === 'Tab') {
+            event.preventDefault();
+            return;
+        }
+        
+        switch (event.code) {
+            case 'KeyW':
+                this.keys.ballastUp = true; // Blow ballast tanks (surface)
+                break;
+            case 'KeyS':
+                this.keys.ballastDown = true; // Flood ballast tanks (dive)
+                break;
+            case 'KeyA':
+                this.keys.strafeLeft = true; // Strafe left
+                break;
+            case 'KeyD':
+                this.keys.strafeRight = true; // Strafe right
+                break;
+            case 'KeyQ':
+                this.keys.rollLeft = true; // Roll left
+                break;
+            case 'KeyE':
+                this.keys.rollRight = true; // Roll right
+                break;
+            case 'KeyR':
+                this.performSonarPing();
+                break;
+            case 'KeyT':
+                this.adjustSonarPower(1);
+                break;
+            case 'KeyG':
+                this.adjustSonarPower(-1);
+                break;
+            case 'KeyY':
+                this.adjustSonarRate(1);
+                break;
+            case 'KeyH':
+                this.adjustSonarRate(-1);
+                break;
+            case 'KeyF':
+                this.toggleTowedArray();
+                break;
+        }
+    }
+    
+    handleKeyUp(event) {
+        switch (event.code) {
+            case 'KeyW':
+                this.keys.ballastUp = false;
+                break;
+            case 'KeyS':
+                this.keys.ballastDown = false;
+                break;
+            case 'KeyA':
+                this.keys.strafeLeft = false;
+                break;
+            case 'KeyD':
+                this.keys.strafeRight = false;
+                break;
+            case 'KeyQ':
+                this.keys.rollLeft = false;
+                break;
+            case 'KeyE':
+                this.keys.rollRight = false;
+                break;
+        }
+    }
+    
+    handleMouseMove(event) {
+        if (document.pointerLockElement === document.body) {
+            // Update maneuver reticle position based on mouse movement
+            this.maneuverReticle.screenX += event.movementX * this.maneuverReticle.sensitivity;
+            this.maneuverReticle.screenY += event.movementY * this.maneuverReticle.sensitivity;
+            
+            // Clamp to screen bounds
+            this.maneuverReticle.screenX = Math.max(-1, Math.min(1, this.maneuverReticle.screenX));
+            this.maneuverReticle.screenY = Math.max(-1, Math.min(1, this.maneuverReticle.screenY));
+        }
+    }
+    
+    handleWheel(event) {
+        event.preventDefault();
+        
+        // Adjust throttle with mouse wheel
+        const throttleChange = event.deltaY > 0 ? -0.1 : 0.1;
+        this.throttle = Math.max(-1, Math.min(1, this.throttle + throttleChange));
+        
+        // Update speed based on throttle
+        this.speed = this.throttle * this.maxSpeed;
+    }
+    
+    update(deltaTime = 0.016) {
+        if (!this.mesh) return;
+        
+        // Update reticle system
+        this.updateReticles(deltaTime);
+        
+        // Calculate submarine orientation control based on speed
+        this.updateSubmarineOrientation(deltaTime);
+        
+        // Calculate turn rate for knuckles system
+        const currentYaw = this.mesh.rotation.y;
+        this.turnRate = Math.abs(currentYaw - this.lastYaw) / deltaTime;
+        this.lastYaw = currentYaw;
+        
+        // Handle ballast tank depth control
+        if (this.keys.ballastUp) {
+            // Blow ballast tanks - submarine rises
+            this.mesh.position.y = Math.min(this.mesh.position.y + this.ballastRate, 295);
+            this.createBubbleEffect('up');
+        }
+        if (this.keys.ballastDown) {
+            // Flood ballast tanks - submarine dives
+            this.mesh.position.y = Math.max(this.mesh.position.y - this.ballastRate, -600);
+            this.createBubbleEffect('down');
+        }
+        
+        // Update submarine warfare systems
+        this.updateWarfareSystems(deltaTime);
+        
+        // Apply throttle-based movement (affected by towed array)
+        let effectiveMaxSpeed = this.maxSpeed;
+        if (this.towedArray.deployed) {
+            effectiveMaxSpeed *= this.towedArray.speedPenalty;
+            this.speed = Math.min(Math.abs(this.speed), effectiveMaxSpeed) * Math.sign(this.speed);
+        }
+        
+        if (Math.abs(this.speed) > 0.1) {
+            const moveSpeed = 0.1;
+            
+            // Forward/backward movement
+            const forwardDirection = new THREE.Vector3(1, 0, 0);
+            forwardDirection.applyQuaternion(this.mesh.quaternion);
+            const forwardMovement = forwardDirection.multiplyScalar(this.speed * moveSpeed);
+            
+            // Strafe movement
+            let strafeMovement = new THREE.Vector3(0, 0, 0);
+            if (this.keys.strafeLeft || this.keys.strafeRight) {
+                const strafeDirection = new THREE.Vector3(0, 0, this.keys.strafeLeft ? 1 : -1);
+                strafeDirection.applyQuaternion(this.mesh.quaternion);
+                strafeMovement = strafeDirection.multiplyScalar(Math.abs(this.speed) * moveSpeed * 0.5);
+            }
+            
+            // Store old position for collision detection
+            const oldPosition = this.mesh.position.clone();
+            this.mesh.position.add(forwardMovement);
+            this.mesh.position.add(strafeMovement);
+            
+            // Check collisions
+            this.checkSeabedCollision(oldPosition);
+            this.checkSurfaceCollision();
+            
+            // Create wake effect at high speeds
+            if (Math.abs(this.speed) > 6) {
+                this.createWakeEffect();
+            }
+        }
+        
+        // Update HUD
+        this.updateHUD();
+    }
+    
+    updateReticles(deltaTime) {
+        // Update firing reticle position (always 3 sub lengths ahead)
+        const firingDirection = new THREE.Vector3(1, 0, 0); // Forward direction
+        firingDirection.applyQuaternion(this.mesh.quaternion);
+        this.firingReticle.position.copy(this.mesh.position);
+        this.firingReticle.position.add(firingDirection.multiplyScalar(this.firingReticle.distance));
+        
+        // Update firing reticle target lock system
+        this.updateTargetLock(deltaTime);
+        
+        // Handle maneuver reticle dead zone and drift
+        const reticleDistance = Math.sqrt(
+            this.maneuverReticle.screenX ** 2 + this.maneuverReticle.screenY ** 2
+        );
+        
+        if (reticleDistance < this.maneuverReticle.deadZone) {
+            // In dead zone - drift back to center
+            this.maneuverReticle.screenX *= (1 - this.maneuverReticle.driftRate);
+            this.maneuverReticle.screenY *= (1 - this.maneuverReticle.driftRate);
+        }
+        
+        // Convert screen coordinates to world position
+        const reticleDistance = Math.sqrt(
+            this.maneuverReticle.screenX ** 2 + this.maneuverReticle.screenY ** 2
+        );
+        
+        // If maneuver reticle is in dead zone, align with firing reticle
+        if (reticleDistance < this.maneuverReticle.deadZone) {
+            this.maneuverReticle.position.copy(this.firingReticle.position);
+        } else {
+            // Calculate world position for maneuver reticle
+            const forwardDir = new THREE.Vector3(1, 0, 0);
+            const rightDir = new THREE.Vector3(0, 0, -1);
+            const upDir = new THREE.Vector3(0, 1, 0);
+            
+            // Apply submarine's current rotation to direction vectors
+            forwardDir.applyQuaternion(this.mesh.quaternion);
+            rightDir.applyQuaternion(this.mesh.quaternion);
+            upDir.applyQuaternion(this.mesh.quaternion);
+            
+            // Position reticle based on screen coordinates
+            const offsetX = this.maneuverReticle.screenX * this.maneuverReticle.maxDistance;
+            const offsetY = this.maneuverReticle.screenY * this.maneuverReticle.maxDistance;
+            
+            this.maneuverReticle.position.copy(this.firingReticle.position);
+            this.maneuverReticle.position.add(rightDir.multiplyScalar(offsetX));
+            this.maneuverReticle.position.add(upDir.multiplyScalar(offsetY));
+        }
+        
+        // Update visual reticle positions and animations
+        if (this.firingReticleMesh) {
+            this.firingReticleMesh.position.copy(this.firingReticle.position);
+            
+            // Apply spin animation
+            this.firingReticle.currentRotation += this.firingReticle.spinSpeed * deltaTime;
+            this.firingReticleMesh.rotation.z = this.firingReticle.currentRotation;
+            
+            // Apply scale animation
+            this.firingReticleMesh.scale.setScalar(this.firingReticle.currentScale);
+            
+            // Update reticle color based on lock status
+            const material = this.firingReticleMesh.children[0].material; // crosshair material
+            const circleMaterial = this.firingReticleMesh.children[1].material; // circle material
+            
+            if (this.firingReticle.isLocked) {
+                material.color.setHex(0xff0000); // Red when locked
+                circleMaterial.color.setHex(0xff0000);
+            } else if (this.firingReticle.lockProgress > 0) {
+                // Interpolate from green to yellow during lock process
+                const r = this.firingReticle.lockProgress;
+                const g = 1.0;
+                const b = 0;
+                material.color.setRGB(r, g, b);
+                circleMaterial.color.setRGB(r, g, b);
+            } else {
+                material.color.setHex(0x00ff00); // Green when no target
+                circleMaterial.color.setHex(0x00ff00);
+            }
+        }
+        
+        if (this.maneuverReticleMesh) {
+            this.maneuverReticleMesh.position.copy(this.maneuverReticle.position);
+            
+            // Make maneuver reticle face the camera for better visibility
+            const camera = window.gameState ? window.gameState.camera : null;
+            if (camera) {
+                this.maneuverReticleMesh.lookAt(camera.position);
+            }
+        }
+    }
+    
+    updateTargetLock(deltaTime) {
+        // Calculate sonar lock bonus based on active sonar ping rate
+        this.updateSonarLockBonus();
+        
+        // Find closest enemy to firing reticle
+        const enemies = window.getEnemySubmarines ? window.getEnemySubmarines() : [];
+        let closestEnemy = null;
+        let closestDistance = Infinity;
+        
+        enemies.forEach(enemy => {
+            const distance = this.firingReticle.position.distanceTo(enemy.getPosition());
+            if (distance < closestDistance && distance < this.firingReticle.maxLockRange) {
+                closestDistance = distance;
+                closestEnemy = enemy;
+            }
+        });
+        
+        // Update target and lock progress
+        if (closestEnemy && closestDistance < this.firingReticle.maxLockRange) {
+            this.firingReticle.target = closestEnemy;
+            
+            // Calculate base lock progress based on distance to reticle center
+            const proximityFactor = Math.max(0, 1 - (closestDistance / this.firingReticle.maxLockRange));
+            
+            // Apply sonar-dependent lock rate
+            const totalLockRate = this.firingReticle.baseLockRate + this.firingReticle.sonarLockBonus;
+            const lockIncrement = totalLockRate * proximityFactor * deltaTime;
+            
+            // Accumulate lock progress over time
+            this.firingReticle.lockProgress = Math.min(1.0, 
+                this.firingReticle.lockProgress + lockIncrement);
+            
+            // Check for full lock (requires sustained targeting)
+            if (this.firingReticle.lockProgress >= 0.95 && closestDistance < this.firingReticle.lockDistance) {
+                this.firingReticle.isLocked = true;
+            } else {
+                this.firingReticle.isLocked = false;
+            }
+            
+            // Update spin speed based on lock progress (faster as lock progresses)
+            this.firingReticle.spinSpeed = this.firingReticle.lockProgress * 8; // Max 8 radians per second
+            
+            // Update scale based on lock progress (shrink as lock progresses)
+            const targetScale = this.firingReticle.baseScale - 
+                (this.firingReticle.baseScale - this.firingReticle.minScale) * this.firingReticle.lockProgress;
+            this.firingReticle.currentScale = targetScale;
+            
+        } else {
+            // No valid target - slowly decay lock progress
+            this.firingReticle.target = null;
+            this.firingReticle.lockProgress = Math.max(0, this.firingReticle.lockProgress - deltaTime * 2); // Decay at 2x rate
+            this.firingReticle.isLocked = false;
+            
+            if (this.firingReticle.lockProgress === 0) {
+                this.firingReticle.spinSpeed = 0;
+                this.firingReticle.currentScale = this.firingReticle.baseScale;
+            } else {
+                // Keep spinning/scaling during decay
+                this.firingReticle.spinSpeed = this.firingReticle.lockProgress * 4; // Slower decay spin
+                const targetScale = this.firingReticle.baseScale - 
+                    (this.firingReticle.baseScale - this.firingReticle.minScale) * this.firingReticle.lockProgress;
+                this.firingReticle.currentScale = targetScale;
+            }
+        }
+        
+        // Stop spinning when fully locked
+        if (this.firingReticle.isLocked) {
+            this.firingReticle.spinSpeed = 0;
+        }
+    }
+    
+    updateSonarLockBonus() {
+        // Calculate lock rate bonus based on active sonar ping rate
+        // Faster ping rates = faster lock-on, no sonar = slowest lock-on
+        
+        const sonarRateSettings = [
+            { rate: 1.0, bonus: 2.0 },   // Fast (1s) - 2.0 lock bonus
+            { rate: 2.0, bonus: 1.5 },   // Normal (2s) - 1.5 lock bonus  
+            { rate: 3.0, bonus: 1.0 },   // Slow (3s) - 1.0 lock bonus
+            { rate: 5.0, bonus: 0.5 }    // Very Slow (5s) - 0.5 lock bonus
+        ];
+        
+        // Check if sonar has pinged recently
+        const currentTime = Date.now();
+        const timeSinceLastPing = currentTime - this.firingReticle.lastSonarPing;
+        const sonarCooldown = sonarRateSettings[this.sonarSettings.rate].rate * 1000; // Convert to ms
+        
+        // If sonar is actively pinging (within cooldown period), apply bonus
+        if (timeSinceLastPing < sonarCooldown * 1.5) { // Give some grace period
+            this.firingReticle.sonarLockBonus = sonarRateSettings[this.sonarSettings.rate].bonus;
+        } else {
+            // No recent sonar ping - use base lock rate only
+            this.firingReticle.sonarLockBonus = 0;
+        }
+    }
+    
+    updateSubmarineOrientation(deltaTime) {
+        if (!this.mesh) return;
+        
+        // Calculate desired orientation to point firing reticle at maneuver reticle
+        const directionToTarget = this.maneuverReticle.position.clone().sub(this.firingReticle.position);
+        
+        if (directionToTarget.length() > 0.5) { // Increased threshold to prevent micro-movements
+            directionToTarget.normalize();
+            
+            // Calculate target yaw and pitch with validation
+            const targetYaw = Math.atan2(directionToTarget.x, directionToTarget.z);
+            const targetPitch = -Math.asin(Math.max(-0.5, Math.min(0.5, directionToTarget.y))); // Clamp asin input
+            
+            // Check if target orientation is valid
+            if (!isNaN(targetYaw) && !isNaN(targetPitch)) {
+                this.targetOrientation.yaw = targetYaw;
+                this.targetOrientation.pitch = targetPitch;
+                
+                // Speed-dependent turn rates (faster at higher speeds)
+                const speedFactor = Math.abs(this.speed) / this.maxSpeed;
+                const baseRate = 0.008; // Minimum turn rate when stationary
+                const maxRate = 0.04;   // Maximum turn rate at full speed
+                const turnRate = baseRate + (maxRate - baseRate) * speedFactor;
+                
+                // Smooth rotation towards target orientation
+                let yawDiff = this.targetOrientation.yaw - this.mesh.rotation.y;
+                let pitchDiff = this.targetOrientation.pitch - this.mesh.rotation.x;
+                
+                // Handle angle wrapping
+                if (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
+                if (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
+                if (pitchDiff > Math.PI) pitchDiff -= Math.PI * 2;
+                if (pitchDiff < -Math.PI) pitchDiff += Math.PI * 2;
+                
+                // Apply rotation with speed-dependent rate - but limit maximum change
+                const maxRotationChange = 0.1; // Maximum rotation per frame
+                yawDiff = Math.max(-maxRotationChange, Math.min(maxRotationChange, yawDiff * turnRate));
+                pitchDiff = Math.max(-maxRotationChange, Math.min(maxRotationChange, pitchDiff * turnRate));
+                
+                this.mesh.rotation.y += yawDiff;
+                this.mesh.rotation.x += pitchDiff;
+                
+                // Clamp pitch to reasonable submarine limits
+                const maxPitch = Math.PI / 6; // 30 degrees
+                this.mesh.rotation.x = Math.max(-maxPitch, Math.min(maxPitch, this.mesh.rotation.x));
+            }
+        }
+        
+        // Handle roll control (still manual with Q/E keys)
+        const rollSpeed = 0.008;
+        if (this.keys.rollLeft) {
+            this.roll = Math.max(this.roll - rollSpeed, -this.maxRoll);
+        } else if (this.keys.rollRight) {
+            this.roll = Math.min(this.roll + rollSpeed, this.maxRoll);
+        } else {
+            // Auto-level roll
+            this.roll *= 0.98;
+        }
+        this.mesh.rotation.z = this.roll;
+    }
+    
+    createReticleVisuals() {
+        // Firing reticle (crosshair ahead of submarine)
+        const firingReticleGroup = new THREE.Group();
+        const firingReticleMaterial = new THREE.LineBasicMaterial({ 
+            color: 0x00ff00, // Green
+            linewidth: 2,
+            transparent: true,
+            opacity: 0.8
+        });
+        
+        // Crosshair design - made larger and more visible
+        const crosshairSize = 1.5;
+        const crosshairGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(-crosshairSize, 0, 0),
+            new THREE.Vector3(crosshairSize, 0, 0),
+            new THREE.Vector3(0, 0, 0),
+            new THREE.Vector3(0, -crosshairSize, 0),
+            new THREE.Vector3(0, crosshairSize, 0)
+        ]);
+        
+        const firingCrosshair = new THREE.Line(crosshairGeometry, firingReticleMaterial);
+        firingReticleGroup.add(firingCrosshair);
+        
+        // Circle around crosshair - made larger
+        const circleGeometry = new THREE.RingGeometry(2.0, 2.2, 16);
+        const circleEdges = new THREE.EdgesGeometry(circleGeometry);
+        const firingCircle = new THREE.LineSegments(circleEdges, firingReticleMaterial);
+        firingReticleGroup.add(firingCircle);
+        
+        this.firingReticleMesh = firingReticleGroup;
+        this.scene.add(this.firingReticleMesh);
+        
+        // Maneuver reticle (target point for submarine to aim at)
+        const maneuverReticleGroup = new THREE.Group();
+        const maneuverReticleMaterial = new THREE.LineBasicMaterial({ 
+            color: 0xff6600, // Orange
+            linewidth: 2,
+            transparent: true,
+            opacity: 0.9
+        });
+        
+        // Diamond shape with center dot - made larger
+        const diamondSize = 1.2;
+        const diamondGeometry = new THREE.BufferGeometry().setFromPoints([
+            new THREE.Vector3(0, diamondSize, 0),
+            new THREE.Vector3(diamondSize, 0, 0),
+            new THREE.Vector3(0, -diamondSize, 0),
+            new THREE.Vector3(-diamondSize, 0, 0),
+            new THREE.Vector3(0, diamondSize, 0)
+        ]);
+        
+        const maneuverDiamond = new THREE.Line(diamondGeometry, maneuverReticleMaterial);
+        maneuverReticleGroup.add(maneuverDiamond);
+        
+        // Center dot - made larger
+        const dotGeometry = new THREE.SphereGeometry(0.15, 6, 6);
+        const dotEdges = new THREE.EdgesGeometry(dotGeometry);
+        const maneuverDot = new THREE.LineSegments(dotEdges, maneuverReticleMaterial);
+        maneuverReticleGroup.add(maneuverDot);
+        
+        this.maneuverReticleMesh = maneuverReticleGroup;
+        this.scene.add(this.maneuverReticleMesh);
+    }
+    
+    updateHUD() {
+        // Calculate current depth based on position (surface is at y=300)
+        this.depth = Math.max(0, 300 - this.mesh.position.y);
+        
+        // Update game HUD with submarine stats
+        if (window.updateDepth) {
+            window.updateDepth(Math.round(this.depth));
+        }
+        if (window.updateSpeed) {
+            window.updateSpeed(Math.round(this.speed));
+        }
+        if (window.updateHealth) {
+            window.updateHealth(this.health);
+        }
+        
+        // Update sonar settings display
+        this.updateSonarDisplay();
+        
+        // Update throttle display
+        this.updateThrottleDisplay();
+        
+        // Update towed array and sonar signature display
+        this.updateWarfareDisplay();
+        
+        // Update target lock display
+        this.updateTargetLockDisplay();
+    }
+    
+    updateThrottleDisplay() {
+        // Add throttle percentage to HUD (will need to add this element to HTML)
+        const throttleElement = document.getElementById('throttle');
+        if (throttleElement) {
+            const throttlePercent = Math.round(this.throttle * 100);
+            throttleElement.textContent = `Throttle: ${throttlePercent}%`;
+            throttleElement.style.color = this.throttle > 0 ? '#00ff00' : this.throttle < 0 ? '#ff0000' : '#ffff00';
+        }
+    }
+    
+    updateWarfareDisplay() {
+        // Update towed array status
+        const towedArrayElement = document.getElementById('towedArray');
+        if (towedArrayElement) {
+            towedArrayElement.textContent = `Towed Array: ${this.towedArray.deployed ? 'DEPLOYED' : 'RETRACTED'}`;
+            towedArrayElement.style.color = this.towedArray.deployed ? '#00ff00' : '#ffaa00';
+        }
+        
+        // Update sonar signature
+        const signatureElement = document.getElementById('signature');
+        if (signatureElement) {
+            signatureElement.textContent = `Noise: ${Math.round(this.sonarSignature.current)}dB`;
+            const color = this.sonarSignature.current > 10 ? '#ff0000' : 
+                         this.sonarSignature.current > 6 ? '#ffaa00' : '#00ff00';
+            signatureElement.style.color = color;
+        }
+        
+        // Update passive sensitivity
+        const sensitivityElement = document.getElementById('sensitivity');
+        if (sensitivityElement) {
+            sensitivityElement.textContent = `Passive: ${Math.round(this.passiveSensitivity * 100)}%`;
+            sensitivityElement.style.color = this.passiveSensitivity > 1.5 ? '#00ff00' : 
+                                           this.passiveSensitivity > 1.0 ? '#ffaa00' : '#ff0000';
+        }
+    }
+    
+    updateTargetLockDisplay() {
+        const targetDetailsElement = document.getElementById('targetDetails');
+        const lockStatusElement = document.getElementById('lockStatus');
+        
+        if (targetDetailsElement && lockStatusElement) {
+            if (this.firingReticle.target) {
+                const distance = this.firingReticle.position.distanceTo(this.firingReticle.target.getPosition());
+                const sonarBonus = this.firingReticle.sonarLockBonus > 0 ? ` +${this.firingReticle.sonarLockBonus.toFixed(1)}x` : '';
+                targetDetailsElement.innerHTML = `Target: Enemy Sub<br>Range: ${distance.toFixed(1)}m${sonarBonus}`;
+                
+                if (this.firingReticle.isLocked) {
+                    lockStatusElement.innerHTML = 'Status: <span style="color: #ff0000">LOCKED</span>';
+                } else {
+                    const lockPercent = Math.round(this.firingReticle.lockProgress * 100);
+                    const sonarStatus = this.firingReticle.sonarLockBonus > 0 ? ' (Sonar)' : ' (Passive)';
+                    lockStatusElement.innerHTML = `Status: <span style="color: #ffff00">Locking... ${lockPercent}%</span>${sonarStatus}`;
+                }
+            } else {
+                targetDetailsElement.textContent = 'No target locked';
+                const sonarStatus = this.firingReticle.sonarLockBonus > 0 ? ' (Active Sonar)' : ' (Silent)';
+                lockStatusElement.innerHTML = `Status: <span style="color: #00ff00">Scanning</span>${sonarStatus}`;
+            }
+        }
+    }
+    
+    createBubbleEffect(direction) {
+        // Throttle bubble creation
+        this.bubbleTimer += 1;
+        if (this.bubbleTimer < 10) return; // Create bubbles every 10 frames
+        this.bubbleTimer = 0;
+        
+        // Create bubble particles
+        const bubbleCount = 5;
+        for (let i = 0; i < bubbleCount; i++) {
+            const bubble = this.createBubbleParticle();
+            const submarinePos = this.mesh.position.clone();
+            
+            // Position bubbles near ballast tank vents
+            bubble.position.set(
+                submarinePos.x + (Math.random() - 0.5) * 2,
+                submarinePos.y + (direction === 'up' ? -1 : 1),
+                submarinePos.z + (Math.random() - 0.5) * 2
+            );
+            
+            this.scene.add(bubble);
+            
+            // Animate and remove bubble
+            this.animateBubble(bubble, direction);
+        }
+    }
+    
+    createBubbleParticle() {
+        const bubbleGeometry = new THREE.SphereGeometry(0.1, 8, 6);
+        const bubbleMaterial = new THREE.MeshBasicMaterial({
+            color: 0xffffff,
+            transparent: true,
+            opacity: 0.6
+        });
+        return new THREE.Mesh(bubbleGeometry, bubbleMaterial);
+    }
+    
+    animateBubble(bubble, direction) {
+        const startY = bubble.position.y;
+        const lifetime = 2000; // 2 seconds
+        const startTime = Date.now();
+        
+        const animate = () => {
+            const elapsed = Date.now() - startTime;
+            const progress = elapsed / lifetime;
+            
+            if (progress >= 1) {
+                this.scene.remove(bubble);
+                bubble.geometry.dispose();
+                bubble.material.dispose();
+                return;
+            }
+            
+            // Bubble movement
+            if (direction === 'up') {
+                bubble.position.y = startY + progress * 10; // Rise up
+            } else {
+                bubble.position.y = startY - progress * 5; // Sink down
+            }
+            
+            // Fade out
+            bubble.material.opacity = 0.6 * (1 - progress);
+            
+            requestAnimationFrame(animate);
+        };
+        
+        animate();
+    }
+    
+    createWakeEffect() {
+        // Simple wake trail effect
+        if (!this.wakeParticles) this.wakeParticles = [];
+        
+        // Create wake particle
+        const wakeGeometry = new THREE.SphereGeometry(0.2, 6, 4);
+        const wakeMaterial = new THREE.MeshBasicMaterial({
+            color: 0x88aaff,
+            transparent: true,
+            opacity: 0.3
+        });
+        const wakeParticle = new THREE.Mesh(wakeGeometry, wakeMaterial);
+        
+        // Position behind submarine
+        const behindSub = new THREE.Vector3(-2, 0, 0);
+        behindSub.applyQuaternion(this.mesh.quaternion);
+        wakeParticle.position.copy(this.mesh.position.clone().add(behindSub));
+        
+        this.scene.add(wakeParticle);
+        this.wakeParticles.push({
+            particle: wakeParticle,
+            startTime: Date.now()
+        });
+        
+        // Clean up old wake particles
+        this.wakeParticles = this.wakeParticles.filter(wake => {
+            const age = Date.now() - wake.startTime;
+            if (age > 3000) { // 3 second lifetime
+                this.scene.remove(wake.particle);
+                wake.particle.geometry.dispose();
+                wake.particle.material.dispose();
+                return false;
+            }
+            // Fade out over time
+            wake.particle.material.opacity = 0.3 * (1 - age / 3000);
+            return true;
+        });
+    }
+    
+    updateWarfareSystems(deltaTime) {
+        // Update knuckles (turbulence pockets from sharp turns)
+        this.updateKnuckles(deltaTime);
+        
+        // Update sonar signature based on speed and conditions
+        this.updateSonarSignature();
+        
+        // Update passive sensitivity based on speed and towed array
+        this.updatePassiveSensitivity();
+        
+        // Create knuckles on sharp turns
+        if (this.turnRate > 50 && Math.abs(this.speed) > 3) { // Sharp turn at speed
+            this.createKnuckle();
+        }
+    }
+    
+    updateKnuckles(deltaTime) {
+        // Update existing knuckles (they fade over time)
+        this.knuckles = this.knuckles.filter(knuckle => {
+            knuckle.lifetime -= deltaTime;
+            knuckle.mesh.material.opacity = Math.max(0, knuckle.lifetime / knuckle.maxLifetime);
+            
+            if (knuckle.lifetime <= 0) {
+                this.scene.remove(knuckle.mesh);
+                knuckle.mesh.geometry.dispose();
+                knuckle.mesh.material.dispose();
+                return false;
+            }
+            return true;
+        });
+    }
+    
+    createKnuckle() {
+        // Don't create knuckles too frequently
+        if (Date.now() - this.knuckleTimer < 2000) return;
+        this.knuckleTimer = Date.now();
+        
+        // Create visual knuckle (turbulent water effect)
+        const knuckleGeometry = new THREE.SphereGeometry(3, 8, 6);
+        const knuckleMaterial = new THREE.MeshBasicMaterial({
+            color: 0x4488ff,
+            transparent: true,
+            opacity: 0.6,
+            wireframe: true
+        });
+        
+        const knuckleMesh = new THREE.Mesh(knuckleGeometry, knuckleMaterial);
+        knuckleMesh.position.copy(this.mesh.position);
+        
+        const knuckle = {
+            mesh: knuckleMesh,
+            position: this.mesh.position.clone(),
+            lifetime: 30, // 30 seconds
+            maxLifetime: 30,
+            sonarBlocking: true,
+            decoyStrength: 4 // Appears as submarine-sized contact
+        };
+        
+        this.knuckles.push(knuckle);
+        this.scene.add(knuckleMesh);
+        
+        // Knuckles slow you down significantly
+        this.speed *= 0.6;
+        
+        console.log('Knuckle created! Speed reduced due to turbulence.');
+    }
+    
+    updateSonarSignature() {
+        const speedFactor = Math.abs(this.speed) / this.maxSpeed;
+        
+        // Base signature increases with speed
+        this.sonarSignature.speedMultiplier = 1 + (speedFactor * 2);
+        
+        // Cavitation noise at high speeds
+        this.sonarSignature.cavitation = speedFactor > 0.7 ? (speedFactor - 0.7) * 10 : 0;
+        
+        // Slower speeds reduce signature
+        const quietFactor = speedFactor < 0.3 ? (0.3 - speedFactor) * 2 : 0;
+        
+        this.sonarSignature.current = this.sonarSignature.base * 
+            this.sonarSignature.speedMultiplier + 
+            this.sonarSignature.cavitation - 
+            quietFactor;
+            
+        this.sonarSignature.current = Math.max(1, this.sonarSignature.current);
+    }
+    
+    updatePassiveSensitivity() {
+        const speedFactor = Math.abs(this.speed) / this.maxSpeed;
+        
+        // Base sensitivity (better when slower)
+        this.passiveSensitivity = 1.5 - speedFactor;
+        
+        // Towed array bonus
+        if (this.towedArray.deployed) {
+            this.passiveSensitivity *= this.towedArray.sensitivity * 2;
+        }
+        
+        this.passiveSensitivity = Math.max(0.2, this.passiveSensitivity);
+    }
+    
+    toggleTowedArray() {
+        this.towedArray.deployed = !this.towedArray.deployed;
+        
+        if (this.towedArray.deployed) {
+            // Reduce speed when deploying
+            this.speed = Math.min(this.speed, this.maxSpeed * this.towedArray.speedPenalty);
+            console.log('Towed array deployed - Speed limited, sensitivity increased');
+        } else {
+            console.log('Towed array retracted - Full speed available');
+        }
+    }
+    
+    checkSurfaceCollision() {
+        if (this.mesh.position.y > 295) {
+            this.mesh.position.y = 295; // Stay 5 units below surface
+        }
+    }
+    
+    updateSonarDisplay() {
+        const sonarPowerElement = document.getElementById('sonarPower');
+        const sonarRateElement = document.getElementById('sonarRate');
+        
+        if (sonarPowerElement) {
+            const powerSettings = [
+                { name: 'Low', range: 50 },
+                { name: 'Medium', range: 75 },
+                { name: 'High', range: 100 },
+                { name: 'Maximum', range: 150 }
+            ];
+            const currentPower = powerSettings[this.sonarSettings.power];
+            sonarPowerElement.textContent = `Power: ${currentPower.name} (${currentPower.range}m)`;
+        }
+        
+        if (sonarRateElement) {
+            const rateSettings = [
+                { name: 'Fast', cooldown: 1.0 },
+                { name: 'Normal', cooldown: 2.0 },
+                { name: 'Slow', cooldown: 3.0 },
+                { name: 'Very Slow', cooldown: 5.0 }
+            ];
+            const currentRate = rateSettings[this.sonarSettings.rate];
+            sonarRateElement.textContent = `Rate: ${currentRate.name} (${currentRate.cooldown}s)`;
+        }
+    }
+    
+    adjustSonarPower(direction) {
+        this.sonarSettings.power = Math.max(0, Math.min(3, this.sonarSettings.power + direction));
+        this.updateSonarDisplay();
+        console.log(`Sonar power adjusted to level ${this.sonarSettings.power}`);
+    }
+    
+    adjustSonarRate(direction) {
+        this.sonarSettings.rate = Math.max(0, Math.min(3, this.sonarSettings.rate + direction));
+        this.updateSonarDisplay();
+        console.log(`Sonar rate adjusted to level ${this.sonarSettings.rate}`);
+    }
+    
+    performSonarPing() {
+        if (window.performAdvancedSonarSweep && this.mesh) {
+            // Record sonar ping time for target lock system
+            this.firingReticle.lastSonarPing = Date.now();
+            
+            // Get current sonar settings
+            const powerSettings = [50, 75, 100, 150]; // Range in meters
+            const rateSettings = [1000, 2000, 3000, 5000]; // Cooldown in ms
+            
+            const currentRange = powerSettings[this.sonarSettings.power];
+            const currentCooldown = rateSettings[this.sonarSettings.rate];
+            
+            // Use advanced sonar system with warfare mechanics
+            const contacts = window.performAdvancedSonarSweep(
+                this.mesh.position, 
+                currentRange, 
+                this.passiveSensitivity,
+                this.knuckles
+            );
+            
+            this.updateSonarContactsDisplay(contacts);
+            this.triggerSonarPingEffect();
+            console.log(`Advanced sonar ping: ${contacts.length} contacts detected at ${currentRange}m range`);
+        }
+    }
+    
+    updateSonarContactsDisplay(contacts) {
+        const contactsList = document.getElementById('contactsList');
+        const sonarStatus = document.getElementById('sonar');
+        
+        if (contactsList) {
+            if (contacts.length === 0) {
+                contactsList.innerHTML = 'No contacts detected';
+            } else {
+                let html = '';
+                contacts.forEach(contact => {
+                    const isIdentified = contact.classification !== 'UNKNOWN' && contact.classification !== 'UNIDENTIFIED';
+                    const isDecoy = contact.isDecoy || false;
+                    const confidence = contact.confidence || 1.0;
+                    
+                    html += `
+                        <div class="contact ${isIdentified ? 'identified' : ''} ${isDecoy ? 'decoy' : ''}">
+                            <div class="contact-header">
+                                ${contact.classification}
+                                ${isDecoy ? ' [DECOY]' : ''}
+                            </div>
+                            <div class="contact-details">
+                                Distance: ${contact.distance}m | Bearing: ${contact.bearing}°<br>
+                                Signal Strength: ${contact.strength}/10
+                                ${confidence < 1.0 ? ` | Confidence: ${Math.round(confidence * 100)}%` : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+                contactsList.innerHTML = html;
+            }
+        }
+        
+        if (sonarStatus) {
+            const ghostCount = window.sealifeSystem ? window.sealifeSystem().ghostContacts.length : 0;
+            sonarStatus.textContent = `Sonar: ${contacts.length} contacts${ghostCount > 0 ? ` | ${ghostCount} ghosts` : ''}`;
+        }
+    }
+    
+    triggerSonarPingEffect() {
+        // Add visual sonar ping effect
+        const sonarPing = document.createElement('div');
+        sonarPing.className = 'sonar-ping active';
+        document.getElementById('gameContainer').appendChild(sonarPing);
+        
+        setTimeout(() => {
+            sonarPing.remove();
+        }, 2000);
+        
+        // Update HUD sonar status
+        const sonarElement = document.getElementById('sonar');
+        if (sonarElement) {
+            sonarElement.style.color = '#00ff00';
+            setTimeout(() => {
+                sonarElement.style.color = '#00ffff';
+            }, 1000);
+        }
+    }
+    
+    checkSeabedCollision(oldPosition) {
+        if (!this.mesh) return;
+        
+        // Get ocean instance to check seabed height
+        const oceanInstance = window.oceanInstance;
+        if (!oceanInstance || !oceanInstance.getSeabedHeight) return;
+        
+        const currentPos = this.mesh.position;
+        const seabedHeight = oceanInstance.getSeabedHeight(currentPos.x, currentPos.z);
+        const submarineBottom = currentPos.y - 2; // Submarine hull extends 2 units down
+        
+        if (submarineBottom <= seabedHeight) {
+            // Collision detected - calculate impact speed
+            const impactSpeed = this.speed;
+            const speedThreshold = 5; // Speed below which no damage occurs
+            
+            if (impactSpeed > speedThreshold) {
+                // Calculate damage based on speed
+                const damage = Math.floor((impactSpeed - speedThreshold) * 2);
+                this.takeDamage(damage);
+                console.log(`Seabed impact! Speed: ${impactSpeed.toFixed(1)}, Damage: ${damage}`);
+                
+                // Show damage effect
+                this.triggerDamageEffect();
+            }
+            
+            // Prevent submarine from going below seabed
+            this.mesh.position.y = seabedHeight + 2;
+            this.speed *= 0.5; // Reduce speed after impact
+            
+            // Level out mouse pitch when hitting seabed
+            this.mouse.pitch *= 0.8;
+            
+            // Update depth based on new position (surface is now at y=300)
+            this.depth = Math.max(0, 300 - this.mesh.position.y);
+        }
+    }
+    
+    triggerDamageEffect() {
+        // Add visual damage effect
+        const damageOverlay = document.createElement('div');
+        damageOverlay.className = 'damage-overlay active';
+        const gameContainer = document.getElementById('gameContainer');
+        if (gameContainer) {
+            gameContainer.appendChild(damageOverlay);
+            
+            setTimeout(() => {
+                damageOverlay.remove();
+            }, 300);
+        }
+    }
+    
+    takeDamage(amount) {
+        this.health = Math.max(this.health - amount, 0);
+        this.updateHUD();
+        
+        if (this.health <= 0) {
+            this.destroy();
+        }
+    }
+    
+    repair(amount) {
+        this.health = Math.min(this.health + amount, this.maxHealth);
+        this.updateHUD();
+    }
+    
+    destroy() {
+        if (this.mesh) {
+            this.scene.remove(this.mesh);
+            this.mesh = null;
+        }
+        
+        // Clean up reticles
+        if (this.firingReticleMesh) {
+            this.scene.remove(this.firingReticleMesh);
+            this.firingReticleMesh = null;
+        }
+        
+        if (this.maneuverReticleMesh) {
+            this.scene.remove(this.maneuverReticleMesh);
+            this.maneuverReticleMesh = null;
+        }
+        
+        console.log("Submarine destroyed!");
+    }
+    
+    getPosition() {
+        return this.mesh ? this.mesh.position.clone() : new THREE.Vector3(0, 0, 0);
+    }
+    
+    getRotation() {
+        return this.mesh ? this.mesh.rotation.clone() : new THREE.Euler(0, 0, 0);
+    }
+}
+
+// Global submarine instance
+let playerSubmarine = null;
+
+// Initialize submarine (called from game.js)
+function initSubmarine(scene) {
+    if (playerSubmarine) {
+        playerSubmarine.destroy();
+    }
+    playerSubmarine = new Submarine(scene);
+    console.log("Submarine module loaded and initialized");
+    return playerSubmarine;
+}
+
+// Update submarine (called from game loop)
+function updateSubmarine(deltaTime) {
+    if (playerSubmarine) {
+        playerSubmarine.update(deltaTime);
+    }
+}
+
+// Export functions
+window.initSubmarine = initSubmarine;
+window.updateSubmarine = updateSubmarine;
+window.playerSubmarine = () => playerSubmarine;

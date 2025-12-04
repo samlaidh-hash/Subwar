@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sub War 2060</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <!-- Scenario Selection Overlay -->
+    <div id="scenarioOverlay" class="scenario-overlay">
+        <div class="scenario-container">
+            <h1 class="scenario-title">SUB WAR 2060</h1>
+            <h2 class="scenario-subtitle">Mission Selection</h2>
+            
+            <div class="scenario-grid">
+                <div class="scenario-card" data-scenario="PATROL_MISSION">
+                    <div class="scenario-header">
+                        <h3>Patrol Mission</h3>
+                        <span class="scenario-key">[F1]</span>
+                    </div>
+                    <div class="scenario-description">
+                        Patrol the designated area and identify any contacts. A routine mission perfect for honing basic submarine operations and detection skills.
+                    </div>
+                    <div class="scenario-objectives">
+                        <div class="objective">• Patrol assigned area for 5 minutes</div>
+                        <div class="objective">• Identify at least 3 contacts</div>
+                    </div>
+                    <div class="scenario-rewards">
+                        <span class="reward-exp">+100 XP</span>
+                        <span class="reward-skill">+2 Skill Points</span>
+                    </div>
+                </div>
+                
+                <div class="scenario-card" data-scenario="STEALTH_OPERATION">
+                    <div class="scenario-header">
+                        <h3>Stealth Operation</h3>
+                        <span class="scenario-key">[F2]</span>
+                    </div>
+                    <div class="scenario-description">
+                        Navigate through hostile waters without being detected. Requires careful speed and depth management to maintain stealth.
+                    </div>
+                    <div class="scenario-objectives">
+                        <div class="objective">• Keep sonar signature below 10dB for 3 minutes</div>
+                        <div class="objective">• Reach the target coordinates</div>
+                    </div>
+                    <div class="scenario-rewards">
+                        <span class="reward-exp">+150 XP</span>
+                        <span class="reward-skill">+3 Skill Points</span>
+                    </div>
+                </div>
+                
+                <div class="scenario-card" data-scenario="COMBAT_TRAINING">
+                    <div class="scenario-header">
+                        <h3>Combat Training</h3>
+                        <span class="scenario-key">[F3]</span>
+                    </div>
+                    <div class="scenario-description">
+                        Destroy enemy targets in combat simulation. Test your tactical skills and weapons systems against hostile submarines.
+                    </div>
+                    <div class="scenario-objectives">
+                        <div class="objective">• Destroy 2 enemy submarines</div>
+                        <div class="objective">• Maintain hull integrity above 50%</div>
+                    </div>
+                    <div class="scenario-rewards">
+                        <span class="reward-exp">+200 XP</span>
+                        <span class="reward-skill">+4 Skill Points</span>
+                    </div>
+                </div>
+                
+                <div class="scenario-card" data-scenario="RESCUE_MISSION">
+                    <div class="scenario-header">
+                        <h3>Rescue Mission</h3>
+                        <span class="scenario-key">[F4]</span>
+                    </div>
+                    <div class="scenario-description">
+                        Locate and assist a damaged friendly submarine. Time is critical - use sonar to find them quickly.
+                    </div>
+                    <div class="scenario-objectives">
+                        <div class="objective">• Find the damaged submarine</div>
+                        <div class="objective">• Stay within 50m for 2 minutes to provide aid</div>
+                    </div>
+                    <div class="scenario-rewards">
+                        <span class="reward-exp">+175 XP</span>
+                        <span class="reward-skill">+3 Skill Points</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="loadout-section">
+                <h3>Submarine Selection</h3>
+                <div class="submarine-grid">
+                    <div class="submarine-card active" data-submarine="NAUTILUS">
+                        <div class="submarine-name">SSN Nautilus</div>
+                        <div class="submarine-specs">
+                            <div class="spec">Max Depth: 240m</div>
+                            <div class="spec">Speed: 85 knots</div>
+                            <div class="spec">Hull: Balanced</div>
+                        </div>
+                    </div>
+                    <div class="submarine-card" data-submarine="THUNDER">
+                        <div class="submarine-name">SSN Thunder</div>
+                        <div class="submarine-specs">
+                            <div class="spec">Max Depth: 5,944m</div>
+                            <div class="spec">Speed: 90 knots</div>
+                            <div class="spec">Hull: Ultra-Deep</div>
+                        </div>
+                    </div>
+                    <div class="submarine-card" data-submarine="CYCLONE">
+                        <div class="submarine-name">SSN Cyclone</div>
+                        <div class="submarine-specs">
+                            <div class="spec">Max Depth: 7,772m</div>
+                            <div class="spec">Speed: 95 knots</div>
+                            <div class="spec">Hull: Abyssal</div>
+                        </div>
+                    </div>
+                    <div class="submarine-card" data-submarine="WHIRLWIND">
+                        <div class="submarine-name">SSN Whirlwind</div>
+                        <div class="submarine-specs">
+                            <div class="spec">Max Depth: 9,144m</div>
+                            <div class="spec">Speed: 100 knots</div>
+                            <div class="spec">Hull: Hadal Zone</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="control-hints">
+                <div class="hint">Click a mission card or press F1-F4 to select</div>
+                <div class="hint">ESC - Start Free Roam Mode</div>
+            </div>
+        </div>
+    </div>
+
+    <div id="gameContainer">
+        <div id="sonarContacts">
+            <h4>Sonar Contacts</h4>
+            <div id="sonarMode">
+                <div id="sonar">Mode: Active</div>
+                <div id="sonarPower">Power: High (100m)</div>
+                <div id="sonarRate">Rate: Normal (2.0s)</div>
+            </div>
+            <div id="sonarControls">
+                <div class="sonar-shortcuts">R - Single Ping | M - Mode (Active/Passive/Silent) | SCAV auto-activates at high speed</div>
+            </div>
+            <div id="contactsList">No contacts detected</div>
+        </div>
+        
+        <!-- Launcher Display System - Horizontal Rows -->
+        <div id="launcherDisplay">
+            <div class="launcher-row-container">
+                <div class="launcher-row-label">1</div>
+                <div id="launcher1" class="launcher-row">
+                    <div class="torpedo-box torpedo-box-0 empty"></div>
+                    <div class="torpedo-box torpedo-box-1">HT</div>
+                    <div class="torpedo-box torpedo-box-2">HT</div>
+                    <div class="torpedo-box torpedo-box-3">HT</div>
+                    <div class="torpedo-box torpedo-box-4">HT</div>
+                    <div class="torpedo-box torpedo-box-5">HT</div>
+                    <div class="torpedo-box torpedo-box-6">HT</div>
+                </div>
+            </div>
+            <div class="launcher-row-container">
+                <div class="launcher-row-label">2</div>
+                <div id="launcher2" class="launcher-row">
+                    <div class="torpedo-box torpedo-box-0 empty"></div>
+                    <div class="torpedo-box torpedo-box-1">LT</div>
+                    <div class="torpedo-box torpedo-box-2">LT</div>
+                    <div class="torpedo-box torpedo-box-3">LT</div>
+                    <div class="torpedo-box torpedo-box-4">LT</div>
+                    <div class="torpedo-box torpedo-box-5">LT</div>
+                    <div class="torpedo-box torpedo-box-6">LT</div>
+                </div>
+            </div>
+            <div class="launcher-row-container">
+                <div class="launcher-row-label">3</div>
+                <div id="launcher3" class="launcher-row">
+                    <div class="torpedo-box torpedo-box-0 empty"></div>
+                    <div class="torpedo-box torpedo-box-1">HT</div>
+                    <div class="torpedo-box torpedo-box-2">HT</div>
+                    <div class="torpedo-box torpedo-box-3">HT</div>
+                    <div class="torpedo-box torpedo-box-4">HT</div>
+                    <div class="torpedo-box torpedo-box-5">HT</div>
+                    <div class="torpedo-box torpedo-box-6">HT</div>
+                </div>
+            </div>
+            <div class="launcher-row-container">
+                <div class="launcher-row-label">4</div>
+                <div id="launcher4" class="launcher-row">
+                    <div class="torpedo-box torpedo-box-0 empty"></div>
+                    <div class="torpedo-box torpedo-box-1">MT</div>
+                    <div class="torpedo-box torpedo-box-2">MT</div>
+                    <div class="torpedo-box torpedo-box-3">MT</div>
+                    <div class="torpedo-box torpedo-box-4">MT</div>
+                    <div class="torpedo-box torpedo-box-5">MT</div>
+                    <div class="torpedo-box torpedo-box-6">MT</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Advanced Reticle HUD System -->
+        <div id="reticleHUD">
+            <!-- Torpedo Data (below reticle) -->
+            <div id="reticleTorpedoData">
+                <div id="reticleTubeInfo">Tube 1 [MT]</div>
+                <div id="reticleLockStatus"></div>
+            </div>
+            
+            <!-- Noise Indicator (above reticle) -->
+            <div id="reticleNoiseIndicator">
+                <div class="noise-label">NOISE</div>
+                <div class="noise-bar">
+                    <div id="noiseLevel"></div>
+                </div>
+                <div class="noise-value">6</div>
+            </div>
+            
+            <!-- Speed Bar (left side) -->
+            <div id="reticleSpeedBar">
+                <div class="speed-label">SPEED</div>
+                <div class="speed-bar-container">
+                    <div id="speedBarFill"></div>
+                    <div id="speedTargetCaret">></div>
+                </div>
+                <div class="speed-values">
+                    <div class="speed-current">0</div>
+                    <div class="speed-max">85</div>
+                </div>
+            </div>
+            
+            <!-- Depth Bar (right side) -->
+            <div id="reticleDepthBar">
+                <div class="depth-label">DEPTH</div>
+                <div class="depth-bar-container">
+                    <div id="depthBarFill"></div>
+                    <div id="bottomDepthMarker" class="bottom-depth-marker"></div>
+                </div>
+                <div class="depth-values">
+                    <div class="depth-current">50m</div>
+                    <div class="depth-bottom">500m</div>
+                    <div class="depth-crush">1000m</div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Off-screen contact indicators -->
+        <div id="offScreenIndicators">
+            <div id="contactArrowTop" class="contact-arrow arrow-top">▲</div>
+            <div id="contactArrowBottom" class="contact-arrow arrow-bottom">▼</div>
+            <div id="contactArrowLeft" class="contact-arrow arrow-left">◄</div>
+            <div id="contactArrowRight" class="contact-arrow arrow-right">►</div>
+        </div>
+        
+        <!-- Mini-map Display -->
+        <div id="minimapContainer" style="position: absolute; top: 20px; right: 20px; width: 200px; height: 200px; border: 2px solid #00ffff; border-radius: 8px; background: rgba(0, 0, 0, 0.7); padding: 5px;">
+            <h4 style="color: #00ffff; margin: 0 0 5px 0; font-size: 12px; text-align: center;">Mini-Map</h4>
+            <canvas id="minimapCanvas" width="190" height="170" style="border: 1px solid #008888; display: block; margin: 0 auto;"></canvas>
+        </div>
+        
+        
+        <div id="armorSystems">
+            <h4>Armor & Systems</h4>
+            <div class="armor-section">
+                <div class="armor-title">Armor HP (O:Oobleck/M:Meta-Material)</div>
+                <div id="armorFore">FORE: 100% (O:50 M:50)</div>
+                <div id="armorPort">PORT: 100% (O:50 M:50)</div>
+                <div id="armorStarboard">STARBOARD: 100% (O:50 M:50)</div>
+                <div id="armorAft">AFT: 100% (O:50 M:50)</div>
+                <div id="armorTop">TOP: 100% (O:50 M:50)</div>
+                <div id="armorBottom">BOTTOM: 100% (O:50 M:50)</div>
+            </div>
+            <div class="systems-section">
+                <div class="systems-title">Internal Systems HP</div>
+                <div id="systemHull">Hull: 100%</div>
+                <div id="systemEngines">Engines: 100%</div>
+                <div id="systemWeapons">Weapons: 100%</div>
+                <div id="systemSensors">Sensors: 100%</div>
+                <div id="systemLifeSupport">Life Support: 100%</div>
+                <div id="systemNavigation">Navigation: 100%</div>
+            </div>
+        </div>
+        
+        <div id="controls">
+            <div>Mouse Move - Maneuver Icon | Mouse Wheel - Throttle | Left Click - Cannons | Right Click - Rockets<br>
+            SPACE - Launch Torpedo | Keys 1-4 - Select Torpedo Launcher (Tap to cycle chambers) | Key 0 - Deploy Noisemaker | Key 9 - Deploy Mine<br>
+            R - Single Ping | M - Sonar Mode (Active/Passive/Silent) | Q - Toggle QMAD System | TAB - Cycle Targets | C - Emergency Repair | - (Minus) - Toggle Towed Array<br>
+            V - Toggle Terrain Wireframe | H - Toggle Thermoclines | B - Terrain Shader Mode | N - Terrain Solid Mode | K - Toggle Camera Mode<br>
+            Shift+1-6 - Emergency Armor Redistribution (Fore/Port/Starboard/Aft/Top/Bottom)<br>
+            F1 - Patrol Mission | F2 - Stealth Operation | F3 - Combat Training | F4 - Rescue Mission</div>
+        </div>
+    </div>
+    
+    <!-- Three.js from unpkg CDN -->
+    <script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
+    <!-- THREE.Terrain library -->
+    <script src="lib/THREE.Terrain.js"></script>
+    <!-- Local bathymetry data -->
+    <script src="data/monterey_canyon_bathymetry.js"></script>
+    <script src="js/game.js"></script>
+    <script src="js/submarine.js"></script>
+    <script src="js/noaa_bathymetry_terrain.js"></script>
+    <script src="js/simple_terrain_fix.js"></script>
+    <script src="js/integrated_mapping.js"></script>
+    <script src="js/underwater_structures.js"></script>
+    <script src="js/procedural_terrain.js"></script>
+    <script src="js/ocean.js"></script>
+    <script src="js/sealife.js"></script>
+    <script src="js/tactical.js"></script>
+    <script src="js/enemies.js"></script>
+    <script src="js/weapons.js"></script>
+    <script src="js/oolite_loader.js"></script>
+    <script src="js/scenario_system.js"></script>
+    <!-- <script src="demo_oolite_integration.js"></script> -->
+    <script>
+        // Initialize scenario system when page loads, game will start after scenario selection
+        window.addEventListener('load', () => {
+            // Initialize basic Three.js scene and terrain immediately for preview
+            console.log('🎮 Sub War 2060 loading...');
+            
+            // Initialize minimal game state for terrain display using initGame
+            if (typeof window.initGame === 'function') {
+                console.log('🎨 Initializing 3D scene for terrain preview...');
+                window.initGame(); // This will call initThreeJS() internally
+                
+                // Small delay to ensure gameState is ready, then initialize terrain
+                setTimeout(() => {
+                    if (window.initSimpleTerrain && window.gameState && window.gameState.scene) {
+                        console.log('🌍 Creating terrain preview...');
+                        window.initSimpleTerrain(window.gameState.scene);
+                        
+                        // Position camera to see terrain clearly
+                        if (window.gameState.camera) {
+                            window.gameState.camera.position.set(0, 500, 1500); // Lower, closer to terrain
+                            window.gameState.camera.lookAt(0, 0, 0);
+                            console.log('📹 Camera positioned for terrain viewing:', window.gameState.camera.position);
+                        }
+                        
+                        // Start basic render loop for terrain display
+                        function previewRender() {
+                            if (window.gameState && window.gameState.renderer && window.gameState.scene && window.gameState.camera) {
+                                // Update terrain shader animation
+                                if (window.simpleTerrain && window.simpleTerrain.shaderMaterial) {
+                                    window.simpleTerrain.update(0.016);
+                                }
+                                
+                                window.gameState.renderer.render(window.gameState.scene, window.gameState.camera);
+                            }
+                            requestAnimationFrame(previewRender);
+                        }
+                        previewRender();
+                        
+                        // Terrain keyboard handlers already managed by game.js
+                        console.log('✅ Terrain will be available via game.js keyboard handlers (V, B, N keys)');
+                    } else {
+                        console.log('❌ Failed to initialize terrain: gameState or scene not ready');
+                    }
+                }, 100); // 100ms delay to ensure initialization completes
+            } else {
+                console.log('❌ initGame function not available');
+            }
+            
+            // Initialize the scenario selection system
+            initScenarioSystem();
+            
+            console.log('🎮 Sub War 2060 loaded - Select your mission and submarine');
+        });
+    </script>
+</body>
+</html>

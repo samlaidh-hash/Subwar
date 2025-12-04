@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Collision & Depth Fix Test</title>
+    <style>
+        body { 
+            background: #000; 
+            color: #00ff00; 
+            font-family: 'Courier New', monospace; 
+            padding: 20px;
+        }
+        .test-panel {
+            border: 1px solid #333;
+            padding: 15px;
+            margin: 10px 0;
+            background: #111;
+        }
+        .success { color: #00ff88; }
+        .error { color: #ff6666; }
+        .warning { color: #ffaa00; }
+        button {
+            background: #003366;
+            color: #00ffff;
+            border: 1px solid #006699;
+            padding: 8px 15px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        button:hover { background: #004477; }
+        #status {
+            font-size: 14px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <h1>Submarine Collision & Depth Indicator Fix Test</h1>
+    
+    <div class="test-panel">
+        <h3>Test Status</h3>
+        <div id="status">Initializing test...</div>
+        <button onclick="testDepthCalculation()">Test Depth Calculation</button>
+        <button onclick="testCollisionSystem()">Test Collision System</button>
+        <button onclick="simulateCollision()">Simulate Seabed Collision</button>
+        <button onclick="window.location.reload()">Reset Test</button>
+    </div>
+    
+    <div class="test-panel">
+        <h3>Expected Behavior</h3>
+        <ul>
+            <li>✅ Depth bar shows actual seafloor depth (not fixed 6000m)</li>
+            <li>✅ Seafloor marker moves based on terrain under submarine</li>
+            <li>✅ Submarine cannot pass through terrain</li>
+            <li>✅ Collision causes damage and pushes submarine up</li>
+            <li>✅ Console shows seabed collision warnings</li>
+        </ul>
+    </div>
+    
+    <div class="test-panel">
+        <h3>Test Results</h3>
+        <div id="results"></div>
+    </div>
+
+    <!-- Load Three.js and game modules -->
+    <script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
+    <script src="js/bathymetry_data.js"></script>
+    <script src="js/real_bathymetry_terrain.js"></script>
+    <script src="js/ocean.js"></script>
+    <script src="js/submarine.js"></script>
+    
+    <script>
+        let testSubmarine = null;
+        let testScene = null;
+        let testOcean = null;
+        
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const className = type === 'success' ? 'success' : type === 'error' ? 'error' : type === 'warning' ? 'warning' : '';
+            results.innerHTML += `<div class="${className}">[${new Date().toLocaleTimeString()}] ${message}</div>`;
+        }
+        
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+        }
+        
+        async function initializeTestEnvironment() {
+            try {
+                updateStatus('Initializing test environment...');
+                
+                // Create basic Three.js scene
+                testScene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                const renderer = new THREE.WebGLRenderer();
+                renderer.setSize(400, 300);
+                
+                // Initialize ocean environment
+                testOcean = initOcean(testScene);
+                window.oceanInstance = testOcean;
+                
+                // Wait for bathymetry to load
+                let attempts = 0;
+                while ((!testOcean || !testOcean.bathymetryTerrain || !testOcean.bathymetryTerrain.loaded) && attempts < 50) {
+                    await new Promise(resolve => setTimeout(resolve, 100));
+                    attempts++;
+                }
+                
+                if (!testOcean.bathymetryTerrain.loaded) {
+                    throw new Error('Bathymetry terrain failed to load');
+                }
+                
+                // Create test submarine
+                testSubmarine = new Submarine();
+                testSubmarine.mesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(2, 1, 4),
+                    new THREE.MeshBasicMaterial({color: 0x00ffff})
+                );
+                testSubmarine.mesh.position.set(0, -50, 0); // Start at 50m depth
+                testSubmarine.depth = -50;
+                testSubmarine.maxDepth = 6000;
+                
+                testScene.add(testSubmarine.mesh);
+                
+                addResult('✅ Test environment initialized successfully', 'success');
+                updateStatus('Test environment ready');
+                return true;
+                
+            } catch (error) {
+                addResult(`❌ Failed to initialize test environment: ${error.message}`, 'error');
+                updateStatus('Initialization failed');
+                return false;
+            }
+        }
+        
+        function testDepthCalculation() {
+            if (!testSubmarine || !testOcean) {
+                addResult('❌ Test environment not ready', 'error');
+                return;
+            }
+            
+            addResult('🧪 Testing depth calculation...', 'warning');
+            
+            try {
+                // Test at submarine's current position
+                const pos = testSubmarine.mesh.position;
+                const seabedHeight = testOcean.getSeabedHeight(pos.x, pos.z);
+                const calculatedDepth = Math.abs(seabedHeight);
+                
+                addResult(`📍 Position: (${pos.x.toFixed(1)}, ${pos.z.toFixed(1)})`, 'info');
+                addResult(`🌊 Seabed height: ${seabedHeight.toFixed(1)}m`, 'info');
+                addResult(`📏 Calculated depth: ${calculatedDepth.toFixed(1)}m`, 'info');
+                
+                if (seabedHeight < 0 && calculatedDepth > 0) {
+                    addResult('✅ Depth calculation working correctly', 'success');
+                } else {
+                    addResult('❌ Depth calculation may have issues', 'error');
+                }
+                
+                // Test depth bar update
+                testSubmarine.updateDepthBar();
+                addResult('📊 Depth bar update triggered', 'info');
+                
+            } catch (error) {
+                addResult(`❌ Depth calculation test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        function testCollisionSystem() {
+            if (!testSubmarine || !testOcean) {
+                addResult('❌ Test environment not ready', 'error');
+                return;
+            }
+            
+            addResult('🧪 Testing collision system...', 'warning');
+            
+            try {
+                const pos = testSubmarine.mesh.position;
+                const seabedHeight = testOcean.getSeabedHeight(pos.x, pos.z);
+                const submarineBottom = pos.y - 2;
+                
+                addResult(`🚢 Submarine bottom: ${submarineBottom.toFixed(1)}m`, 'info');
+                addResult(`🌊 Seabed height: ${seabedHeight.toFixed(1)}m`, 'info');
+                
+                if (submarineBottom <= seabedHeight) {
+                    addResult('⚠️ Collision should be detected', 'warning');
+                } else {
+                    addResult('✅ No collision (submarine above seabed)', 'success');
+                }
+                
+                // Manual collision test
+                testSubmarine.checkSeabedCollision();
+                addResult('🔍 Collision check performed', 'info');
+                
+            } catch (error) {
+                addResult(`❌ Collision test failed: ${error.message}`, 'error');
+            }
+        }
+        
+        function simulateCollision() {
+            if (!testSubmarine || !testOcean) {
+                addResult('❌ Test environment not ready', 'error');
+                return;
+            }
+            
+            addResult('🧪 Simulating seabed collision...', 'warning');
+            
+            try {
+                const pos = testSubmarine.mesh.position;
+                const seabedHeight = testOcean.getSeabedHeight(pos.x, pos.z);
+                
+                // Move submarine below seabed to trigger collision
+                const oldY = pos.y;
+                testSubmarine.mesh.position.y = seabedHeight - 10; // 10m below seabed
+                testSubmarine.speed = 15; // Set speed for damage calculation
+                
+                addResult(`📍 Moved submarine to ${testSubmarine.mesh.position.y.toFixed(1)}m (below seabed at ${seabedHeight.toFixed(1)}m)`, 'info');
+                
+                // Trigger collision detection
+                testSubmarine.checkSeabedCollision();
+                
+                addResult(`🚢 Submarine position after collision: ${testSubmarine.mesh.position.y.toFixed(1)}m`, 'info');
+                
+                if (testSubmarine.mesh.position.y > seabedHeight) {
+                    addResult('✅ Collision resolution successful - submarine pushed above seabed', 'success');
+                } else {
+                    addResult('❌ Collision resolution failed - submarine still below seabed', 'error');
+                }
+                
+            } catch (error) {
+                addResult(`❌ Collision simulation failed: ${error.message}`, 'error');
+            }
+        }
+        
+        // Initialize when page loads
+        window.addEventListener('load', async () => {
+            addResult('🚀 Starting collision and depth fix test...', 'warning');
+            const success = await initializeTestEnvironment();
+            
+            if (success) {
+                // Run initial tests
+                setTimeout(() => {
+                    testDepthCalculation();
+                    testCollisionSystem();
+                }, 1000);
+            }
+        });
+        
+        // Capture console logs
+        const originalConsoleLog = console.log;
+        console.log = function(...args) {
+            originalConsoleLog.apply(console, args);
+            const message = args.join(' ');
+            if (message.includes('SEABED COLLISION') || message.includes('Collision resolved') || message.includes('Seabed at')) {
+                addResult(`🖥️ Console: ${message}`, 'warning');
+            }
+        };
+    </script>
+</body>
+</html>

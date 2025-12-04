@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Terrain Debug Test</title>
+    <style>
+        body { margin: 0; overflow: hidden; background: black; color: white; font-family: monospace; }
+        #info { position: absolute; top: 10px; left: 10px; z-index: 100; }
+        #console { position: absolute; bottom: 10px; left: 10px; right: 10px; height: 200px; background: rgba(0,0,0,0.8); padding: 10px; overflow-y: scroll; z-index: 100; border: 1px solid #333; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h3>Terrain Debug Test</h3>
+        <p>Press N to create terrain | Press C to clear console | Camera: WASD + Mouse</p>
+    </div>
+    <div id="console"></div>
+    
+    <script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
+    <script src="js/simple_terrain_fix.js"></script>
+    <script>
+        let scene, camera, renderer, gameState;
+        let consoleDiv = document.getElementById('console');
+        
+        // Override console.log to show in page
+        const originalLog = console.log;
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            consoleDiv.innerHTML += args.join(' ') + '<br>';
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        };
+        
+        // Initialize basic Three.js setup
+        function init() {
+            console.log('🎮 Initializing debug test...');
+            
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x001133);
+            
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 100000);
+            camera.position.set(0, 500, 1500);
+            camera.lookAt(0, 0, 0);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            document.body.appendChild(renderer.domElement);
+            
+            // Create gameState for compatibility
+            window.gameState = { scene, camera, renderer };
+            
+            // Add some basic lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(1000, 1000, 500);
+            scene.add(directionalLight);
+            
+            console.log('✅ Basic Three.js setup complete');
+            console.log('📊 Scene:', !!scene, 'Camera:', !!camera, 'Renderer:', !!renderer);
+            
+            // Test terrain initialization
+            testTerrainInit();
+            
+            animate();
+        }
+        
+        function testTerrainInit() {
+            console.log('🧪 Testing terrain initialization...');
+            
+            // Test 1: Check if initSimpleTerrain function exists
+            console.log('🔍 Test 1: initSimpleTerrain exists:', typeof window.initSimpleTerrain);
+            
+            if (window.initSimpleTerrain) {
+                // Test 2: Try to initialize terrain
+                console.log('🔍 Test 2: Calling initSimpleTerrain...');
+                const result = window.initSimpleTerrain(scene);
+                console.log('🔍 Test 2 Result:', !!result);
+                
+                // Test 3: Check if window.simpleTerrain was created
+                console.log('🔍 Test 3: window.simpleTerrain exists:', !!window.simpleTerrain);
+                
+                if (window.simpleTerrain) {
+                    console.log('🔍 Test 3: window.simpleTerrain methods:');
+                    console.log('  - createTerrain:', typeof window.simpleTerrain.createTerrain);
+                    console.log('  - setVisualizationMode:', typeof window.simpleTerrain.setVisualizationMode);
+                    console.log('  - terrainGroup:', !!window.simpleTerrain.terrainGroup);
+                }
+            }
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        
+        // Keyboard controls
+        document.addEventListener('keydown', (event) => {
+            switch(event.key.toLowerCase()) {
+                case 'n':
+                    console.log('🎯 N key pressed - Testing terrain visualization...');
+                    if (window.simpleTerrain) {
+                        console.log('🎮 Calling setVisualizationMode("shader")...');
+                        window.simpleTerrain.setVisualizationMode('shader');
+                    } else {
+                        console.log('❌ window.simpleTerrain not available');
+                        testTerrainInit(); // Try again
+                    }
+                    break;
+                    
+                case 'c':
+                    consoleDiv.innerHTML = '';
+                    break;
+                    
+                case 'w':
+                    camera.position.z -= 100;
+                    break;
+                case 's':
+                    camera.position.z += 100;
+                    break;
+                case 'a':
+                    camera.position.x -= 100;
+                    break;
+                case 'd':
+                    camera.position.x += 100;
+                    break;
+            }
+            
+            console.log('📹 Camera position:', camera.position.x.toFixed(0), camera.position.y.toFixed(0), camera.position.z.toFixed(0));
+        });
+        
+        // Initialize when page loads
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>

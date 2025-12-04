@@ -1,0 +1,386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Full 100x100km Bathymetric 3D Scene</title>
+    <style>
+        body { 
+            margin: 0;
+            background: #000; 
+            color: #00ff00; 
+            font-family: 'Courier New', monospace; 
+            overflow: hidden;
+        }
+        
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border: 1px solid #00ffff;
+            color: #00ffff;
+            max-width: 300px;
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border: 1px solid #00ffff;
+            color: #00ffff;
+            font-size: 12px;
+        }
+        
+        #stats {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 15px;
+            border: 1px solid #00ffff;
+            color: #00ffff;
+            font-size: 12px;
+        }
+        
+        .success { color: #00ff88; }
+        .error { color: #ff6666; }
+        .warning { color: #ffaa00; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h3>🌊 Full Bathymetric 3D Scene</h3>
+        <div>Coverage: <strong>100km × 100km</strong></div>
+        <div>Depth Range: <strong>500m - 6000m</strong></div>
+        <div>Terrain Resolution: <strong>512×512 vertices</strong></div>
+        <div id="loadingStatus">📡 Loading bathymetry data...</div>
+    </div>
+    
+    <div id="controls">
+        <h4>Controls</h4>
+        <div><strong>Mouse:</strong> Look around</div>
+        <div><strong>WASD:</strong> Move camera</div>
+        <div><strong>Q/E:</strong> Up/Down</div>
+        <div><strong>Shift:</strong> Fast movement</div>
+        <div><strong>1-4:</strong> Rendering modes</div>
+        <div><strong>Space:</strong> Toggle wireframe</div>
+    </div>
+    
+    <div id="stats">
+        <div id="fps">FPS: --</div>
+        <div id="position">Position: (0, 0, 0)</div>
+        <div id="depth">Depth: --m</div>
+        <div id="vertices">Vertices: --</div>
+    </div>
+
+    <!-- Three.js -->
+    <script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
+    <!-- Load game modules -->
+    <script src="js/bathymetry_data.js"></script>
+    <script src="js/real_bathymetry_terrain.js"></script>
+    
+    <script>
+        let scene, camera, renderer, controls;
+        let terrainSystem, terrainMesh;
+        let clock = new THREE.Clock();
+        let frameCount = 0;
+        let lastTime = 0;
+        
+        // Camera movement
+        let moveForward = false, moveBackward = false, moveLeft = false, moveRight = false, moveUp = false, moveDown = false;
+        let velocity = new THREE.Vector3();
+        let isShiftPressed = false;
+        
+        // Mouse look
+        let prevMouseX = 0, prevMouseY = 0;
+        let mouseX = 0, mouseY = 0;
+        let isMouseDown = false;
+        
+        // Rendering modes
+        let renderingMode = 1; // 1=solid, 2=wireframe, 3=depth colors, 4=height relief
+        
+        async function init() {
+            // Initialize Three.js scene
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x001122, 0.00015);
+            
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 200000);
+            camera.position.set(0, 5000, 10000); // Start high above the terrain
+            camera.lookAt(0, -2000, 0);
+            
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x000511);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.body.appendChild(renderer.domElement);
+            
+            // Lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0x0077aa, 0.7);
+            directionalLight.position.set(10000, 20000, 10000);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            directionalLight.shadow.camera.near = 1000;
+            directionalLight.shadow.camera.far = 100000;
+            directionalLight.shadow.camera.left = -50000;
+            directionalLight.shadow.camera.right = 50000;
+            directionalLight.shadow.camera.top = 50000;
+            directionalLight.shadow.camera.bottom = -50000;
+            scene.add(directionalLight);
+            
+            // Initialize bathymetry system
+            try {
+                updateStatus('📡 Loading real bathymetry data...', 'warning');
+                terrainSystem = new RealBathymetryTerrain();
+                await terrainSystem.loadBathymetryData();
+                updateStatus('✅ Bathymetry data loaded successfully!', 'success');
+                
+                // Generate full terrain mesh
+                await generateFullTerrainMesh();
+                
+            } catch (error) {
+                updateStatus(`❌ Error loading bathymetry: ${error.message}`, 'error');
+                console.error(error);
+            }
+            
+            // Event listeners
+            setupEventListeners();
+            
+            // Start rendering loop
+            animate();
+        }
+        
+        async function generateFullTerrainMesh() {
+            updateStatus('🏗️ Generating 100x100km terrain mesh...', 'warning');
+            
+            const terrainSize = terrainSystem.terrainSize; // 100km
+            const resolution = 512; // 512x512 vertices for good detail
+            const halfSize = terrainSize / 2;
+            
+            // Create geometry
+            const geometry = new THREE.PlaneGeometry(terrainSize, terrainSize, resolution - 1, resolution - 1);
+            geometry.rotateX(-Math.PI / 2); // Rotate to horizontal
+            
+            // Sample terrain heights
+            const vertices = geometry.attributes.position.array;
+            const colors = new Float32Array(vertices.length);
+            
+            let minHeight = 0, maxHeight = -10000;
+            
+            for (let i = 0; i < vertices.length; i += 3) {
+                const x = vertices[i];
+                const z = vertices[i + 2];
+                
+                // Get real bathymetry height
+                const height = terrainSystem.getTerrainHeight(x, z);
+                vertices[i + 1] = height; // Set Y coordinate
+                
+                // Track min/max for color scaling
+                minHeight = Math.min(minHeight, height);
+                maxHeight = Math.max(maxHeight, height);
+                
+                // Generate colors based on depth
+                const depth = -height;
+                const normalizedDepth = Math.max(0, Math.min(1, (depth - 500) / 5500));
+                
+                colors[i] = normalizedDepth * 0.2; // R
+                colors[i + 1] = normalizedDepth * 0.5; // G
+                colors[i + 2] = 0.3 + normalizedDepth * 0.7; // B
+            }
+            
+            // Add color attribute
+            geometry.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            
+            // Compute normals for proper lighting
+            geometry.computeVertexNormals();
+            
+            // Create material
+            const material = new THREE.MeshLambertMaterial({
+                vertexColors: true,
+                side: THREE.DoubleSide
+            });
+            
+            // Create mesh
+            terrainMesh = new THREE.Mesh(geometry, material);
+            terrainMesh.receiveShadow = true;
+            scene.add(terrainMesh);
+            
+            updateStatus(`✅ Terrain mesh created: ${resolution}×${resolution} vertices`, 'success');
+            updateStatus(`🌊 Depth range: ${Math.round(-maxHeight)}m to ${Math.round(-minHeight)}m`, 'info');
+            
+            document.getElementById('vertices').textContent = `Vertices: ${(resolution * resolution).toLocaleString()}`;
+        }
+        
+        function updateStatus(message, type = 'info') {
+            const status = document.getElementById('loadingStatus');
+            const colors = {
+                success: '#00ff88',
+                error: '#ff6666', 
+                warning: '#ffaa00',
+                info: '#00ffff'
+            };
+            status.innerHTML = `<span style="color: ${colors[type]}">${message}</span>`;
+        }
+        
+        function setupEventListeners() {
+            // Keyboard controls
+            document.addEventListener('keydown', (event) => {
+                switch (event.code) {
+                    case 'KeyW': moveForward = true; break;
+                    case 'KeyS': moveBackward = true; break;
+                    case 'KeyA': moveLeft = true; break;
+                    case 'KeyD': moveRight = true; break;
+                    case 'KeyQ': moveDown = true; break;
+                    case 'KeyE': moveUp = true; break;
+                    case 'ShiftLeft': isShiftPressed = true; break;
+                    case 'Space':
+                        event.preventDefault();
+                        toggleWireframe();
+                        break;
+                    case 'Digit1': setRenderingMode(1); break;
+                    case 'Digit2': setRenderingMode(2); break;
+                    case 'Digit3': setRenderingMode(3); break;
+                    case 'Digit4': setRenderingMode(4); break;
+                }
+            });
+            
+            document.addEventListener('keyup', (event) => {
+                switch (event.code) {
+                    case 'KeyW': moveForward = false; break;
+                    case 'KeyS': moveBackward = false; break;
+                    case 'KeyA': moveLeft = false; break;
+                    case 'KeyD': moveRight = false; break;
+                    case 'KeyQ': moveDown = false; break;
+                    case 'KeyE': moveUp = false; break;
+                    case 'ShiftLeft': isShiftPressed = false; break;
+                }
+            });
+            
+            // Mouse controls
+            renderer.domElement.addEventListener('mousedown', (event) => {
+                isMouseDown = true;
+                prevMouseX = event.clientX;
+                prevMouseY = event.clientY;
+            });
+            
+            document.addEventListener('mouseup', () => {
+                isMouseDown = false;
+            });
+            
+            document.addEventListener('mousemove', (event) => {
+                if (isMouseDown) {
+                    const deltaX = event.clientX - prevMouseX;
+                    const deltaY = event.clientY - prevMouseY;
+                    
+                    camera.rotation.y -= deltaX * 0.005;
+                    camera.rotation.x -= deltaY * 0.005;
+                    camera.rotation.x = Math.max(-Math.PI/2, Math.min(Math.PI/2, camera.rotation.x));
+                    
+                    prevMouseX = event.clientX;
+                    prevMouseY = event.clientY;
+                }
+            });
+            
+            // Resize handler
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+        
+        function updateCamera() {
+            const delta = clock.getDelta();
+            const speed = isShiftPressed ? 2000 : 500; // meters per second
+            
+            velocity.x -= velocity.x * 10.0 * delta;
+            velocity.z -= velocity.z * 10.0 * delta;
+            velocity.y -= velocity.y * 10.0 * delta;
+            
+            if (moveForward) velocity.z -= speed * delta;
+            if (moveBackward) velocity.z += speed * delta;
+            if (moveLeft) velocity.x -= speed * delta;
+            if (moveRight) velocity.x += speed * delta;
+            if (moveUp) velocity.y += speed * delta;
+            if (moveDown) velocity.y -= speed * delta;
+            
+            // Apply velocity with rotation
+            const moveDirection = new THREE.Vector3(velocity.x, velocity.y, velocity.z);
+            moveDirection.applyEuler(new THREE.Euler(0, camera.rotation.y, 0));
+            
+            camera.position.add(moveDirection.multiplyScalar(delta));
+            
+            // Update UI
+            const pos = camera.position;
+            document.getElementById('position').textContent = 
+                `Position: (${Math.round(pos.x)}, ${Math.round(pos.y)}, ${Math.round(pos.z)})`;
+            
+            if (terrainSystem) {
+                const depth = -terrainSystem.getTerrainHeight(pos.x, pos.z);
+                document.getElementById('depth').textContent = `Depth: ${Math.round(depth)}m`;
+            }
+        }
+        
+        function toggleWireframe() {
+            if (terrainMesh) {
+                terrainMesh.material.wireframe = !terrainMesh.material.wireframe;
+            }
+        }
+        
+        function setRenderingMode(mode) {
+            renderingMode = mode;
+            if (!terrainMesh) return;
+            
+            switch (mode) {
+                case 1: // Solid
+                    terrainMesh.material.wireframe = false;
+                    terrainMesh.material.vertexColors = true;
+                    break;
+                case 2: // Wireframe
+                    terrainMesh.material.wireframe = true;
+                    terrainMesh.material.vertexColors = true;
+                    break;
+                case 3: // Depth colors only
+                    terrainMesh.material.wireframe = false;
+                    terrainMesh.material.vertexColors = true;
+                    break;
+                case 4: // Height relief
+                    terrainMesh.material.wireframe = false;
+                    terrainMesh.material.vertexColors = false;
+                    break;
+            }
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            updateCamera();
+            
+            renderer.render(scene, camera);
+            
+            // Update FPS
+            frameCount++;
+            const currentTime = performance.now();
+            if (currentTime - lastTime >= 1000) {
+                document.getElementById('fps').textContent = `FPS: ${frameCount}`;
+                frameCount = 0;
+                lastTime = currentTime;
+            }
+        }
+        
+        // Initialize when page loads
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>

@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sub War 2060 - Control Test</title>
+    <style>
+        body {
+            background: black;
+            color: white;
+            font-family: monospace;
+            margin: 20px;
+        }
+        .status {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: rgba(0,0,0,0.8);
+            padding: 10px;
+            border: 1px solid #0ff;
+        }
+        .instructions {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            padding: 10px;
+            border: 1px solid #0ff;
+            max-width: 300px;
+        }
+    </style>
+</head>
+<body>
+    <div class="instructions">
+        <h3>Control Test Instructions</h3>
+        <p>1. Open game: <a href="http://localhost:8000" target="_blank" style="color: #0ff;">http://localhost:8000</a></p>
+        <p>2. Move mouse from center left/right</p>
+        <p>3. Check if submarine:</p>
+        <ul>
+            <li>✓ Starts level</li>
+            <li>✓ Turns in response to mouse</li>
+            <li>✓ Banks (rolls) when turning</li>
+            <li>✓ Auto-levels when centered</li>
+        </ul>
+        <p><strong>F12 → Console</strong> to see debug logs</p>
+    </div>
+    
+    <div class="status" id="status">
+        <div>Status: Ready</div>
+        <div>Server: <span id="serverStatus">Checking...</span></div>
+    </div>
+
+    <script>
+        // Check if server is running
+        fetch('http://localhost:8000')
+            .then(response => {
+                document.getElementById('serverStatus').textContent = '✓ Running';
+                document.getElementById('serverStatus').style.color = '#0f0';
+            })
+            .catch(error => {
+                document.getElementById('serverStatus').textContent = '✗ Not Running';
+                document.getElementById('serverStatus').style.color = '#f00';
+            });
+    </script>
+</body>
+</html>

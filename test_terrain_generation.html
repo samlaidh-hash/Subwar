@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Terrain Generation Test - Sub War 2060</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+        }
+        #info {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border: 1px solid #00ff00;
+        }
+        #controls {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.8);
+            padding: 10px;
+            border: 1px solid #00ff00;
+        }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h3>THREE.Terrain Generation Test</h3>
+        <div>Algorithm: <span id="algorithm">Combined</span></div>
+        <div>Segments: <span id="segments">127</span></div>
+        <div>Size: <span id="size">2000m</span></div>
+        <div>Status: <span id="status">Initializing...</span></div>
+    </div>
+    
+    <div id="controls">
+        <div>Controls:</div>
+        <div>Mouse: Look around</div>
+        <div>WASD: Move camera</div>
+        <div>R: Regenerate terrain</div>
+        <div>1-4: Change algorithm</div>
+        <div>V: Toggle wireframe</div>
+        <div>B: Shader mode</div>
+        <div>N: Solid mode</div>
+    </div>
+
+    <!-- Three.js and terrain libraries -->
+    <script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
+    <script src="lib/THREE.Terrain.js"></script>
+    <script src="js/procedural_terrain.js"></script>
+    
+    <script>
+        // Test setup
+        let scene, camera, renderer, controls;
+        let terrainGenerator, currentTerrain;
+        let currentAlgorithm = 'combined';
+        
+        // Initialize the test
+        function init() {
+            console.log('Initializing terrain generation test...');
+            
+            // Create scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x001122);
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 5000);
+            camera.position.set(0, 100, 200);
+            camera.lookAt(0, -50, 0);
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            document.body.appendChild(renderer.domElement);
+            
+            // Add lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.6);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            directionalLight.position.set(100, 200, 100);
+            directionalLight.castShadow = true;
+            directionalLight.shadow.mapSize.width = 2048;
+            directionalLight.shadow.mapSize.height = 2048;
+            scene.add(directionalLight);
+            
+            // Initialize terrain generator
+            terrainGenerator = new ProceduralTerrain();
+            
+            // Generate initial terrain
+            generateTerrain();
+            
+            // Add event listeners
+            setupControls();
+            
+            // Start animation loop
+            animate();
+            
+            updateStatus('Ready - Terrain generated successfully!');
+        }
+        
+        function generateTerrain() {
+            console.log('Generating terrain with algorithm:', currentAlgorithm);
+            
+            // Remove old terrain
+            if (currentTerrain) {
+                scene.remove(currentTerrain);
+                if (currentTerrain.geometry) currentTerrain.geometry.dispose();
+                if (currentTerrain.material) currentTerrain.material.dispose();
+            }
+            
+            try {
+                // Generate new terrain
+                currentTerrain = terrainGenerator.generateTerrain({
+                    algorithm: currentAlgorithm,
+                    seed: Math.random(),
+                    roughness: 0.6,
+                    size: 2000,
+                    segments: 127
+                });
+                
+                if (currentTerrain) {
+                    scene.add(currentTerrain);
+                    updateStatus(`Terrain generated with ${currentAlgorithm} algorithm`);
+                    document.getElementById('algorithm').textContent = currentAlgorithm;
+                } else {
+                    updateStatus('Error: Terrain generation failed');
+                }
+            } catch (error) {
+                console.error('Terrain generation error:', error);
+                updateStatus('Error: ' + error.message);
+            }
+        }
+        
+        function setupControls() {
+            let mouseDown = false;
+            let mouseX = 0, mouseY = 0;
+            
+            // Mouse controls
+            renderer.domElement.addEventListener('mousedown', (event) => {
+                mouseDown = true;
+                mouseX = event.clientX;
+                mouseY = event.clientY;
+            });
+            
+            renderer.domElement.addEventListener('mouseup', () => {
+                mouseDown = false;
+            });
+            
+            renderer.domElement.addEventListener('mousemove', (event) => {
+                if (!mouseDown) return;
+                
+                const deltaX = event.clientX - mouseX;
+                const deltaY = event.clientY - mouseY;
+                
+                // Orbit camera around center
+                const distance = camera.position.length();
+                const phi = Math.atan2(camera.position.z, camera.position.x) - deltaX * 0.01;
+                const theta = Math.acos(camera.position.y / distance) - deltaY * 0.01;
+                const clampedTheta = Math.max(0.1, Math.min(Math.PI - 0.1, theta));
+                
+                camera.position.set(
+                    distance * Math.sin(clampedTheta) * Math.cos(phi),
+                    distance * Math.cos(clampedTheta),
+                    distance * Math.sin(clampedTheta) * Math.sin(phi)
+                );
+                camera.lookAt(0, -50, 0);
+                
+                mouseX = event.clientX;
+                mouseY = event.clientY;
+            });
+            
+            // Keyboard controls
+            document.addEventListener('keydown', (event) => {
+                switch (event.code) {
+                    case 'KeyR':
+                        generateTerrain();
+                        break;
+                    case 'Digit1':
+                        currentAlgorithm = 'perlin';
+                        generateTerrain();
+                        break;
+                    case 'Digit2':
+                        currentAlgorithm = 'diamond-square';
+                        generateTerrain();
+                        break;
+                    case 'Digit3':
+                        currentAlgorithm = 'fault';
+                        generateTerrain();
+                        break;
+                    case 'Digit4':
+                        currentAlgorithm = 'combined';
+                        generateTerrain();
+                        break;
+                    case 'KeyW':
+                        camera.position.multiplyScalar(0.9);
+                        break;
+                    case 'KeyS':
+                        camera.position.multiplyScalar(1.1);
+                        break;
+                    case 'KeyV':
+                        // Toggle wireframe
+                        if (terrainGenerator) {
+                            terrainGenerator.toggleWireframe();
+                        }
+                        break;
+                    case 'KeyB':
+                        // Switch to shader mode
+                        if (terrainGenerator) {
+                            terrainGenerator.setVisualizationMode('shader');
+                        }
+                        break;
+                    case 'KeyN':
+                        // Switch to solid mode
+                        if (terrainGenerator) {
+                            terrainGenerator.setVisualizationMode('solid');
+                        }
+                        break;
+                }
+            });
+            
+            // Window resize
+            window.addEventListener('resize', () => {
+                camera.aspect = window.innerWidth / window.innerHeight;
+                camera.updateProjectionMatrix();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+            });
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            renderer.render(scene, camera);
+        }
+        
+        function updateStatus(message) {
+            document.getElementById('status').textContent = message;
+            console.log('Status:', message);
+        }
+        
+        // Initialize when page loads
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>

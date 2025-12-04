@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Geometry Fix Test</title>
+    <style>
+        body { margin: 0; background: #001; color: #0f0; font-family: monospace; }
+        #info { 
+            position: absolute; top: 10px; left: 10px; z-index: 1000; 
+            background: rgba(0,0,0,0.9); padding: 15px; border: 2px solid #0f0;
+            max-width: 500px;
+        }
+        .log { margin: 2px 0; font-size: 11px; }
+        .success { color: #0f0; }
+        .error { color: #f44; }
+        .warning { color: #fa0; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <div class="log success"><strong>🔧 GEOMETRY FIX TEST</strong></div>
+        <div class="log">Testing mesh bounds calculation and visibility fixes</div>
+        <div class="log">B = Terrain Mode | V = Wireframe | T = Toggle</div>
+        <div class="log" id="status">⏳ Initializing...</div>
+        <div class="log" id="geometryStatus">⏳ Creating geometry...</div>
+        <div class="log" id="boundsStatus">⏳ Checking bounds...</div>
+        <div class="log" id="visibilityStatus">⏳ Testing visibility...</div>
+    </div>
+
+    <script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
+    <script src="js/simple_terrain_fix.js"></script>
+
+    <script>
+        let scene, camera, renderer, terrain;
+        
+        function updateStatus(id, message, type = 'success') {
+            const element = document.getElementById(id);
+            element.textContent = message;
+            element.className = `log ${type}`;
+        }
+
+        function init() {
+            try {
+                updateStatus('status', '🎨 Creating 3D scene...', 'warning');
+                
+                // Scene with visible background
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x001122);
+
+                // Camera positioned for clear terrain view
+                camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 50000);
+                camera.position.set(500, 800, 1200);
+                camera.lookAt(0, 0, 0);
+
+                // Renderer
+                renderer = new THREE.WebGLRenderer({ antialias: true });
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                document.body.appendChild(renderer.domElement);
+
+                updateStatus('status', '💡 Setting up lighting...', 'warning');
+
+                // Strong lighting for maximum visibility
+                const ambientLight = new THREE.AmbientLight(0x606060, 0.6);
+                scene.add(ambientLight);
+                
+                const directionalLight = new THREE.DirectionalLight(0xffffff, 1.0);
+                directionalLight.position.set(1000, 1000, 500);
+                scene.add(directionalLight);
+
+                updateStatus('geometryStatus', '🌍 Creating terrain with geometry fix...', 'warning');
+
+                // Create terrain with fixed geometry
+                if (window.SimpleTerrain) {
+                    terrain = new window.SimpleTerrain(scene);
+                    terrain.wireframeMode = false; // Start with solid mode
+                    terrain.useFallbackMaterial = false; // Use the fixed material system
+                    terrain.createTerrain();
+                    
+                    updateStatus('status', '✅ Terrain created successfully!', 'success');
+                    
+                    // Check geometry details
+                    setTimeout(() => {
+                        if (terrain.terrainGroup) {
+                            const children = terrain.terrainGroup.children;
+                            updateStatus('geometryStatus', `✅ Terrain has ${children.length} child objects`, 'success');
+                            
+                            // Check for actual mesh geometry
+                            let meshCount = 0;
+                            let validBounds = 0;
+                            
+                            children.forEach((child, i) => {
+                                if (child.type === 'Mesh') {
+                                    meshCount++;
+                                    if (child.geometry && child.geometry.boundingBox) {
+                                        validBounds++;
+                                    }
+                                    console.log(`Child ${i}:`, {
+                                        type: child.type,
+                                        visible: child.visible,
+                                        hasGeometry: !!child.geometry,
+                                        hasBounds: !!(child.geometry && child.geometry.boundingBox),
+                                        position: child.position
+                                    });
+                                }
+                            });
+                            
+                            updateStatus('boundsStatus', `✅ Found ${meshCount} meshes, ${validBounds} with valid bounds`, 
+                                validBounds > 0 ? 'success' : 'error');
+                            updateStatus('visibilityStatus', `✅ Terrain visible: ${terrain.isVisible}`, 'success');
+                        }
+                    }, 1000);
+                    
+                } else {
+                    updateStatus('status', '❌ SimpleTerrain class not found', 'error');
+                }
+
+                // Controls
+                document.addEventListener('keydown', (e) => {
+                    if (!terrain) return;
+                    
+                    switch(e.key.toLowerCase()) {
+                        case 'b':
+                            console.log('🌍 Switching to terrain mode...');
+                            terrain.setVisualizationMode('shader');
+                            updateStatus('status', '🌍 Terrain mode activated', 'success');
+                            break;
+                        case 'v':
+                            console.log('📐 Switching to wireframe mode...');
+                            terrain.setVisualizationMode('wireframe');
+                            updateStatus('status', '📐 Wireframe mode activated', 'warning');
+                            break;
+                        case 't':
+                            console.log('👁️ Toggling terrain visibility...');
+                            terrain.toggleVisibility();
+                            updateStatus('visibilityStatus', `Terrain: ${terrain.isVisible ? 'Visible' : 'Hidden'}`, 
+                                terrain.isVisible ? 'success' : 'error');
+                            break;
+                    }
+                });
+
+                // Mouse camera controls
+                let isDragging = false;
+                let previousMousePosition = { x: 0, y: 0 };
+                
+                renderer.domElement.addEventListener('mousedown', (e) => {
+                    isDragging = true;
+                    previousMousePosition = { x: e.clientX, y: e.clientY };
+                });
+                
+                renderer.domElement.addEventListener('mouseup', () => {
+                    isDragging = false;
+                });
+                
+                renderer.domElement.addEventListener('mousemove', (e) => {
+                    if (!isDragging) return;
+                    
+                    const deltaMove = {
+                        x: e.clientX - previousMousePosition.x,
+                        y: e.clientY - previousMousePosition.y
+                    };
+                    
+                    // Rotate camera around target
+                    const spherical = new THREE.Spherical();
+                    spherical.setFromVector3(camera.position);
+                    spherical.theta -= deltaMove.x * 0.01;
+                    spherical.phi += deltaMove.y * 0.01;
+                    spherical.phi = Math.max(0.1, Math.min(Math.PI - 0.1, spherical.phi));
+                    
+                    camera.position.setFromSpherical(spherical);
+                    camera.lookAt(0, 0, 0);
+                    
+                    previousMousePosition = { x: e.clientX, y: e.clientY };
+                });
+
+                // Render loop
+                function animate() {
+                    requestAnimationFrame(animate);
+                    renderer.render(scene, camera);
+                }
+                animate();
+
+                console.log('🔧 Geometry fix test initialized');
+                
+            } catch (error) {
+                console.error('❌ Initialization failed:', error);
+                updateStatus('status', `❌ Error: ${error.message}`, 'error');
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>

@@ -1,0 +1,326 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mine Collision & Explosion Test</title>
+    <style>
+        body { 
+            background: #000; 
+            color: #00ff00; 
+            font-family: 'Courier New', monospace; 
+            padding: 20px;
+        }
+        .test-panel {
+            border: 1px solid #333;
+            padding: 15px;
+            margin: 10px 0;
+            background: #111;
+        }
+        .success { color: #00ff88; }
+        .error { color: #ff6666; }
+        .warning { color: #ffaa00; }
+        .explosion { color: #ff4400; }
+        button {
+            background: #003366;
+            color: #00ffff;
+            border: 1px solid #006699;
+            padding: 8px 15px;
+            margin: 5px;
+            cursor: pointer;
+        }
+        button:hover { background: #004477; }
+        #gameArea {
+            width: 100%;
+            height: 400px;
+            border: 1px solid #333;
+            margin: 10px 0;
+            position: relative;
+            background: #001122;
+        }
+        .mine-indicator {
+            position: absolute;
+            width: 10px;
+            height: 10px;
+            background: #ff6600;
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+        }
+        .sub-indicator {
+            position: absolute;
+            width: 15px;
+            height: 8px;
+            background: #00ffff;
+            transform: translate(-50%, -50%);
+        }
+    </style>
+</head>
+<body>
+    <h1>Mine Collision & Explosion Test</h1>
+    
+    <div class="test-panel">
+        <h3>Mine System Features</h3>
+        <div>✅ <strong>3-second activation delay</strong> - Mines won't explode immediately after deployment</div>
+        <div>✅ <strong>50m detection radius</strong> - Proximity warnings</div>
+        <div>✅ <strong>30m explosion radius</strong> - Damage zone</div>
+        <div>✅ <strong>Distance-based damage</strong> - Up to 150 damage at center, scaling down</div>
+        <div>✅ <strong>Knockback effect</strong> - Pushes submarine away from explosion</div>
+        <div>✅ <strong>Visual explosion</strong> - Expanding sphere effect</div>
+        <div>✅ <strong>Enemy collision</strong> - Enemy submarines can trigger mines</div>
+    </div>
+    
+    <div class="test-panel">
+        <h3>Test Controls</h3>
+        <button onclick="deployTestMine()">Deploy Test Mine (Key 9)</button>
+        <button onclick="moveToMine()">Move Sub to Mine</button>
+        <button onclick="testExplosion()">Force Explosion Test</button>
+        <button onclick="clearAllMines()">Clear All Mines</button>
+        <button onclick="window.location.reload()">Reset Test</button>
+    </div>
+    
+    <div id="gameArea">
+        <div>Visual representation - Submarine: <span style="color: #00ffff;">■</span> Mines: <span style="color: #ff6600;">●</span></div>
+    </div>
+    
+    <div class="test-panel">
+        <h3>Test Results</h3>
+        <div id="results"></div>
+    </div>
+
+    <!-- Load Three.js and game modules -->
+    <script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
+    <script src="js/bathymetry_data.js"></script>
+    <script src="js/real_bathymetry_terrain.js"></script>
+    <script src="js/ocean.js"></script>
+    <script src="js/submarine.js"></script>
+    <script src="js/sealife.js"></script>
+    
+    <script>
+        let testSubmarine = null;
+        let testSealife = null;
+        let testScene = null;
+        let testMines = [];
+        
+        function addResult(message, type = 'info') {
+            const results = document.getElementById('results');
+            const className = type === 'success' ? 'success' : 
+                             type === 'error' ? 'error' : 
+                             type === 'warning' ? 'warning' :
+                             type === 'explosion' ? 'explosion' : '';
+            const time = new Date().toLocaleTimeString();
+            results.innerHTML += `<div class="${className}">[${time}] ${message}</div>`;
+            results.scrollTop = results.scrollHeight;
+        }
+        
+        async function initializeTestEnvironment() {
+            try {
+                addResult('🚀 Initializing mine collision test environment...', 'warning');
+                
+                // Create basic Three.js scene
+                testScene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                
+                // Initialize sealife system (manages mines)
+                testSealife = new SealifeSystem(testScene);
+                window.sealifeSystem = () => testSealife;
+                
+                // Create test submarine
+                testSubmarine = new Submarine();
+                testSubmarine.mesh = new THREE.Mesh(
+                    new THREE.BoxGeometry(2, 1, 4),
+                    new THREE.MeshBasicMaterial({color: 0x00ffff})
+                );
+                testSubmarine.mesh.position.set(0, -50, 0);
+                testSubmarine.depth = -50;
+                testSubmarine.submarineClass = 'TORNADO';
+                testSubmarine.mineCount = 10; // Give plenty of mines for testing
+                
+                testScene.add(testSubmarine.mesh);
+                
+                // Make submarine globally available
+                window.playerSubmarine = () => testSubmarine;
+                
+                addResult('✅ Test environment initialized successfully', 'success');
+                addResult(`🚢 Test submarine at (${testSubmarine.mesh.position.x}, ${testSubmarine.mesh.position.y}, ${testSubmarine.mesh.position.z})`, 'info');
+                addResult(`💣 Mine count: ${testSubmarine.mineCount}`, 'info');
+                
+                return true;
+                
+            } catch (error) {
+                addResult(`❌ Failed to initialize: ${error.message}`, 'error');
+                return false;
+            }
+        }
+        
+        function deployTestMine() {
+            if (!testSubmarine || !testSealife) {
+                addResult('❌ Test environment not ready', 'error');
+                return;
+            }
+            
+            try {
+                const oldMineCount = testSubmarine.mineCount;
+                testSubmarine.deployMine();
+                
+                if (testSubmarine.mineCount < oldMineCount) {
+                    addResult(`💣 Mine deployed successfully! Mines remaining: ${testSubmarine.mineCount}`, 'success');
+                    
+                    // Find the newly deployed mine
+                    const mines = testSealife.sonarContacts.filter(c => c.isMine);
+                    const newMine = mines[mines.length - 1];
+                    
+                    if (newMine) {
+                        addResult(`📍 Mine location: (${newMine.position.x.toFixed(1)}, ${newMine.position.y.toFixed(1)}, ${newMine.position.z.toFixed(1)})`, 'info');
+                        addResult(`⏱️ Activation in ${(newMine.activationDelay / 1000)} seconds`, 'warning');
+                        addResult(`📏 Detection radius: ${newMine.detectionRadius}m, Explosion radius: ${newMine.explosionRadius}m`, 'info');
+                        
+                        testMines.push(newMine);
+                        updateVisualDisplay();
+                    }
+                } else {
+                    addResult('❌ Mine deployment failed', 'error');
+                }
+                
+            } catch (error) {
+                addResult(`❌ Mine deployment error: ${error.message}`, 'error');
+            }
+        }
+        
+        function moveToMine() {
+            if (!testSubmarine || testMines.length === 0) {
+                addResult('❌ No mines to move to', 'error');
+                return;
+            }
+            
+            const latestMine = testMines[testMines.length - 1];
+            
+            // Move submarine close to mine (within explosion radius)
+            testSubmarine.mesh.position.set(
+                latestMine.position.x + 25, // 25m away (within 30m explosion radius)
+                latestMine.position.y,
+                latestMine.position.z
+            );
+            
+            addResult(`🚢 Submarine moved to (${testSubmarine.mesh.position.x.toFixed(1)}, ${testSubmarine.mesh.position.y.toFixed(1)}, ${testSubmarine.mesh.position.z.toFixed(1)})`, 'info');
+            addResult(`📏 Distance to mine: ~25m (within explosion radius)`, 'warning');
+            
+            updateVisualDisplay();
+            
+            // Trigger collision check manually
+            setTimeout(() => {
+                testSealife.checkMineCollisions(testSubmarine.mesh.position);
+            }, 100);
+        }
+        
+        function testExplosion() {
+            if (!testSubmarine || !testSealife || testMines.length === 0) {
+                addResult('❌ No mines available for explosion test', 'error');
+                return;
+            }
+            
+            const testMine = testMines[testMines.length - 1];
+            
+            // Force mine to be active (skip activation delay)
+            testMine.deployTime = Date.now() - testMine.activationDelay - 1000;
+            
+            addResult('💥 FORCING MINE EXPLOSION...', 'explosion');
+            
+            // Position submarine right next to mine for maximum damage
+            testSubmarine.mesh.position.copy(testMine.position);
+            testSubmarine.mesh.position.x += 5; // 5m away for high damage
+            
+            addResult(`🚢 Submarine positioned 5m from mine for maximum damage`, 'warning');
+            
+            // Trigger explosion
+            testSealife.triggerMineExplosion(testMine, testSubmarine.mesh.position, testSubmarine);
+            
+            // Remove from our tracking
+            testMines = testMines.filter(m => m.id !== testMine.id);
+            updateVisualDisplay();
+        }
+        
+        function clearAllMines() {
+            if (!testSealife) {
+                addResult('❌ Sealife system not available', 'error');
+                return;
+            }
+            
+            const mineCount = testSealife.sonarContacts.filter(c => c.isMine).length;
+            testSealife.sonarContacts = testSealife.sonarContacts.filter(c => !c.isMine);
+            testMines = [];
+            
+            addResult(`🧹 Cleared ${mineCount} mines from sonar contacts`, 'success');
+            updateVisualDisplay();
+        }
+        
+        function updateVisualDisplay() {
+            const gameArea = document.getElementById('gameArea');
+            
+            // Clear existing indicators
+            gameArea.querySelectorAll('.mine-indicator, .sub-indicator').forEach(el => el.remove());
+            
+            if (!testSubmarine) return;
+            
+            // Add submarine indicator
+            const subDiv = document.createElement('div');
+            subDiv.className = 'sub-indicator';
+            subDiv.style.left = '50%'; // Center of area
+            subDiv.style.top = '50%';
+            subDiv.title = `Submarine at (${testSubmarine.mesh.position.x.toFixed(1)}, ${testSubmarine.mesh.position.y.toFixed(1)}, ${testSubmarine.mesh.position.z.toFixed(1)})`;
+            gameArea.appendChild(subDiv);
+            
+            // Add mine indicators
+            testMines.forEach((mine, index) => {
+                const mineDiv = document.createElement('div');
+                mineDiv.className = 'mine-indicator';
+                
+                // Position mines around the submarine
+                const angle = (index * 60) * (Math.PI / 180); // 60 degrees apart
+                const radius = 80; // pixels from center
+                const x = 50 + Math.cos(angle) * (radius / gameArea.offsetWidth * 100);
+                const y = 50 + Math.sin(angle) * (radius / gameArea.offsetHeight * 100);
+                
+                mineDiv.style.left = x + '%';
+                mineDiv.style.top = y + '%';
+                mineDiv.title = `Mine ${mine.id} - Distance: ${testSubmarine.mesh.position.distanceTo(mine.position).toFixed(1)}m`;
+                gameArea.appendChild(mineDiv);
+            });
+        }
+        
+        // Initialize when page loads
+        window.addEventListener('load', async () => {
+            const success = await initializeTestEnvironment();
+            
+            if (success) {
+                addResult('🎯 Mine collision test ready!', 'success');
+                addResult('📋 Use controls above to test mine deployment and explosions', 'info');
+                updateVisualDisplay();
+            }
+        });
+        
+        // Capture console logs for mine-related messages
+        const originalConsoleLog = console.log;
+        console.log = function(...args) {
+            originalConsoleLog.apply(console, args);
+            const message = args.join(' ');
+            
+            if (message.includes('Mine deployed')) {
+                addResult(`🖥️ ${message}`, 'success');
+            } else if (message.includes('MINE EXPLOSION') || message.includes('Explosion damage')) {
+                addResult(`🖥️ ${message}`, 'explosion');
+            } else if (message.includes('MINE PROXIMITY WARNING')) {
+                addResult(`🖥️ ${message}`, 'warning');
+            } else if (message.includes('Knockback applied')) {
+                addResult(`🖥️ ${message}`, 'warning');
+            }
+        };
+        
+        // Simulate continuous collision checking
+        setInterval(() => {
+            if (testSealife && testSubmarine) {
+                testSealife.updateSonarContacts(testSubmarine.mesh.position);
+            }
+        }, 1000); // Check every second
+    </script>
+</body>
+</html>

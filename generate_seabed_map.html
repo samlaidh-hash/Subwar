@@ -1,0 +1,471 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Seabed Height Map Generator</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+            background: #001122;
+            color: white;
+        }
+        canvas {
+            border: 2px solid #00ffff;
+            margin: 20px 0;
+            display: block;
+        }
+        .controls {
+            margin: 20px 0;
+        }
+        button {
+            background: #0066cc;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            margin: 5px;
+            cursor: pointer;
+            border-radius: 5px;
+        }
+        button:hover {
+            background: #0088ff;
+        }
+        .info {
+            background: #003366;
+            padding: 15px;
+            border-radius: 5px;
+            margin: 10px 0;
+        }
+        .legend {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            margin: 10px 0;
+        }
+        .color-box {
+            width: 30px;
+            height: 20px;
+            border: 1px solid white;
+        }
+    </style>
+</head>
+<body>
+    <h1>🌊 Sub War 2060 - Seabed Height Map Generator</h1>
+    
+    <div class="info">
+        <h3>📊 Terrain Information:</h3>
+        <p><strong>Size:</strong> 50km × 50km underwater terrain</p>
+        <p><strong>Depth Range:</strong> 150m (shallow/bright) to 2000m (deep/dark)</p>
+        <p><strong>Resolution:</strong> 1000 × 1000 pixels (50m per pixel)</p>
+        <p><strong>Features:</strong> Continental shelves, mountain ridges, abyssal plains, scale references</p>
+    </div>
+
+    <div class="legend">
+        <strong>Depth Legend:</strong>
+        <div class="color-box" style="background: #ffff88;"></div>
+        <span>150m (Shallow)</span>
+        <div class="color-box" style="background: #88ff88;"></div>
+        <span>500m</span>
+        <div class="color-box" style="background: #00ffff;"></div>
+        <span>1000m</span>
+        <div class="color-box" style="background: #0088ff;"></div>
+        <span>1500m</span>
+        <div class="color-box" style="background: #000088;"></div>
+        <span>2000m (Deep)</span>
+    </div>
+
+    <div class="controls">
+        <button onclick="generateHeightMap()">🗺️ Generate Height Map</button>
+        <button onclick="addScaleMarkers()">📏 Add Scale References</button>
+        <button onclick="addSubmarinePosition()">🚢 Show Submarine Start</button>
+        <button onclick="downloadPNG()">💾 Download PNG</button>
+        <button onclick="toggleContours()">📐 Toggle Contour Lines</button>
+    </div>
+
+    <canvas id="heightMapCanvas" width="1000" height="1000"></canvas>
+
+    <div class="info">
+        <h3>🔍 Scale Reference Objects:</h3>
+        <p><strong>🚢 Ships:</strong> Red markers (110m-330m vessels)</p>
+        <p><strong>🐋 Whales:</strong> White markers (14m-30m skeletons)</p>
+        <p><strong>🪸 Reefs:</strong> Green circles (50m-300m radius)</p>
+        <p><strong>🚁 Submarine:</strong> Yellow crosshair at origin (0,0) - your starting position!</p>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('heightMapCanvas');
+        const ctx = canvas.getContext('2d');
+        const terrainSize = 50000; // 50km
+        const resolution = 1000; // 1000x1000 pixels
+        const pixelSize = terrainSize / resolution; // 50m per pixel
+        
+        let showContours = false;
+        let heightData = null;
+        let scaleReferences = [];
+        let submarinePosition = { x: 0, z: 0 }; // Submarine starts at origin
+
+        // Same terrain generation function as the game
+        function getHeightAtPosition(x, z) {
+            // Smoother underwater terrain with bigger features (150m to 2000m depth)
+            
+            // Base seafloor depth
+            let height = -1000; // Start at 1000m deep (middle of our range)
+            
+            // Large-scale continental features (very low frequency for big smooth features)
+            // Continental shelf transition (huge smooth depth change)
+            const continentalScale = 0.00005; // Even lower frequency = bigger features
+            const continentalShelf = Math.sin(x * continentalScale) * Math.cos(z * continentalScale) * 600;
+            height += continentalShelf;
+            
+            // Major underwater mountain ranges (big smooth ridges)
+            const ridgeScale = 0.00008;
+            const ridgeNoise = Math.sin(x * ridgeScale + z * ridgeScale * 0.7) * Math.cos(z * ridgeScale * 0.9);
+            height += ridgeNoise * 500; // Smooth mountain ranges varying 500m
+            
+            // Large abyssal plains and deep basins (very smooth transitions)
+            const basinScale = 0.00006;
+            const basinNoise = Math.cos(x * basinScale - z * basinScale * 0.8) * Math.sin(x * basinScale * 1.2);
+            height += basinNoise * 400; // Large smooth depth variations
+            
+            // Medium-scale smooth hills and valleys
+            const hillScale = 0.0002;
+            height += Math.sin(x * hillScale) * Math.cos(z * hillScale * 0.8) * 250;
+            height += Math.cos(x * hillScale * 1.3 + z * hillScale) * 200;
+            
+            // Gentle undulations (remove all fine detail for smoother terrain)
+            const gentleScale = 0.0005;
+            height += Math.sin(x * gentleScale * 1.5) * Math.cos(z * gentleScale) * 100;
+            
+            // Constrain to requested depth range: 150m to 2000m depth
+            height = Math.max(height, -2000); // Deepest at 2000m
+            height = Math.min(height, -150);  // Shallowest at 150m
+            
+            return height;
+        }
+
+        function depthToColor(depth) {
+            // Convert depth (-150 to -2000) to color
+            const normalizedDepth = (depth + 150) / (-2000 + 150); // 0 (shallow) to 1 (deep)
+            
+            let r, g, b;
+            if (normalizedDepth < 0.2) {
+                // Shallow: yellow to green
+                const t = normalizedDepth / 0.2;
+                r = Math.floor(255 - t * 119); // 255 to 136
+                g = Math.floor(255);
+                b = Math.floor(136 - t * 136); // 136 to 0
+            } else if (normalizedDepth < 0.5) {
+                // Medium: green to cyan
+                const t = (normalizedDepth - 0.2) / 0.3;
+                r = Math.floor(136 - t * 136); // 136 to 0
+                g = Math.floor(255);
+                b = Math.floor(t * 255); // 0 to 255
+            } else if (normalizedDepth < 0.8) {
+                // Deep: cyan to blue
+                const t = (normalizedDepth - 0.5) / 0.3;
+                r = 0;
+                g = Math.floor(255 - t * 119); // 255 to 136
+                b = 255;
+            } else {
+                // Very deep: blue to dark blue
+                const t = (normalizedDepth - 0.8) / 0.2;
+                r = 0;
+                g = Math.floor(136 - t * 136); // 136 to 0
+                b = Math.floor(255 - t * 119); // 255 to 136
+            }
+            
+            return [r, g, b];
+        }
+
+        function generateHeightMap() {
+            console.log('🗺️ Generating seabed height map...');
+            
+            const imageData = ctx.createImageData(resolution, resolution);
+            heightData = new Array(resolution * resolution);
+            
+            const halfSize = terrainSize / 2;
+            
+            for (let y = 0; y < resolution; y++) {
+                for (let x = 0; x < resolution; x++) {
+                    // Convert pixel coordinates to world coordinates
+                    const worldX = (x - resolution/2) * pixelSize;
+                    const worldZ = (y - resolution/2) * pixelSize;
+                    
+                    const height = getHeightAtPosition(worldX, worldZ);
+                    heightData[y * resolution + x] = height;
+                    
+                    const [r, g, b] = depthToColor(height);
+                    const pixelIndex = (y * resolution + x) * 4;
+                    
+                    imageData.data[pixelIndex] = r;     // Red
+                    imageData.data[pixelIndex + 1] = g; // Green
+                    imageData.data[pixelIndex + 2] = b; // Blue
+                    imageData.data[pixelIndex + 3] = 255; // Alpha
+                }
+                
+                // Progress indicator
+                if (y % 100 === 0) {
+                    console.log(`Progress: ${Math.round(y/resolution * 100)}%`);
+                }
+            }
+            
+            ctx.putImageData(imageData, 0, 0);
+            
+            // Generate scale references
+            generateScaleReferences();
+            
+            console.log('✅ Height map generated successfully!');
+        }
+
+        function generateScaleReferences() {
+            scaleReferences = [];
+            
+            // Generate shipwrecks
+            const shipwrecks = [
+                { name: 'Destroyer', length: 110, color: 'red' },
+                { name: 'Cargo Ship', length: 180, color: 'darkred' },
+                { name: 'Battleship', length: 250, color: 'red' },
+                { name: 'Container Ship', length: 300, color: 'darkred' },
+                { name: 'Aircraft Carrier', length: 330, color: 'red' }
+            ];
+            
+            shipwrecks.forEach(ship => {
+                const x = (Math.random() - 0.5) * terrainSize * 0.8;
+                const z = (Math.random() - 0.5) * terrainSize * 0.8;
+                scaleReferences.push({
+                    type: 'ship',
+                    x: x,
+                    z: z,
+                    size: ship.length,
+                    color: ship.color,
+                    name: ship.name
+                });
+            });
+            
+            // Generate whale skeletons
+            const whales = [
+                { name: 'Blue Whale', length: 30 },
+                { name: 'Sperm Whale', length: 18 },
+                { name: 'Humpback Whale', length: 16 },
+                { name: 'Gray Whale', length: 14 }
+            ];
+            
+            whales.forEach(whale => {
+                const x = (Math.random() - 0.5) * terrainSize * 0.6;
+                const z = (Math.random() - 0.5) * terrainSize * 0.6;
+                scaleReferences.push({
+                    type: 'whale',
+                    x: x,
+                    z: z,
+                    size: whale.length,
+                    color: 'white',
+                    name: whale.name
+                });
+            });
+            
+            // Generate coral reefs
+            const reefs = [
+                { radius: 50 },
+                { radius: 100 },
+                { radius: 200 },
+                { radius: 300 }
+            ];
+            
+            reefs.forEach(reef => {
+                let x, z, height, attempts = 0;
+                do {
+                    x = (Math.random() - 0.5) * terrainSize * 0.7;
+                    z = (Math.random() - 0.5) * terrainSize * 0.7;
+                    height = getHeightAtPosition(x, z);
+                    attempts++;
+                } while (height < -500 && attempts < 20);
+                
+                scaleReferences.push({
+                    type: 'reef',
+                    x: x,
+                    z: z,
+                    size: reef.radius,
+                    color: 'lime',
+                    name: `Coral Reef (${reef.radius}m)`
+                });
+            });
+        }
+
+        function addScaleMarkers() {
+            if (!scaleReferences.length) {
+                generateScaleReferences();
+            }
+            
+            console.log('📏 Adding scale reference markers...');
+            
+            scaleReferences.forEach(ref => {
+                // Convert world coordinates to pixel coordinates
+                const pixelX = (ref.x / terrainSize + 0.5) * resolution;
+                const pixelY = (ref.z / terrainSize + 0.5) * resolution;
+                
+                ctx.save();
+                
+                if (ref.type === 'ship') {
+                    // Draw ship as rectangle
+                    ctx.fillStyle = ref.color;
+                    ctx.strokeStyle = 'white';
+                    ctx.lineWidth = 1;
+                    const length = ref.size / pixelSize;
+                    const width = Math.max(2, length / 8);
+                    ctx.fillRect(pixelX - length/2, pixelY - width/2, length, width);
+                    ctx.strokeRect(pixelX - length/2, pixelY - width/2, length, width);
+                } else if (ref.type === 'whale') {
+                    // Draw whale as oval
+                    ctx.fillStyle = ref.color;
+                    ctx.strokeStyle = 'black';
+                    ctx.lineWidth = 1;
+                    const length = ref.size / pixelSize;
+                    ctx.beginPath();
+                    ctx.ellipse(pixelX, pixelY, length/2, Math.max(1, length/6), 0, 0, 2 * Math.PI);
+                    ctx.fill();
+                    ctx.stroke();
+                } else if (ref.type === 'reef') {
+                    // Draw reef as circle
+                    ctx.strokeStyle = ref.color;
+                    ctx.lineWidth = 2;
+                    const radius = ref.size / pixelSize;
+                    ctx.beginPath();
+                    ctx.arc(pixelX, pixelY, radius, 0, 2 * Math.PI);
+                    ctx.stroke();
+                }
+                
+                ctx.restore();
+            });
+            
+            console.log('✅ Scale markers added!');
+        }
+
+        function addSubmarinePosition() {
+            console.log('🚁 Adding submarine starting position...');
+            
+            // Convert submarine world coordinates (0,0) to pixel coordinates
+            const centerX = resolution / 2; // Center of the map
+            const centerY = resolution / 2;
+            
+            ctx.save();
+            
+            // Draw submarine crosshair at center
+            ctx.strokeStyle = '#ffff00'; // Bright yellow
+            ctx.lineWidth = 3;
+            ctx.shadowColor = '#000000';
+            ctx.shadowBlur = 2;
+            
+            // Draw crosshair
+            const crossSize = 20;
+            ctx.beginPath();
+            // Horizontal line
+            ctx.moveTo(centerX - crossSize, centerY);
+            ctx.lineTo(centerX + crossSize, centerY);
+            // Vertical line
+            ctx.moveTo(centerX, centerY - crossSize);
+            ctx.lineTo(centerX, centerY + crossSize);
+            ctx.stroke();
+            
+            // Draw submarine hull outline
+            ctx.fillStyle = '#ffff00';
+            ctx.strokeStyle = '#ffaa00';
+            ctx.lineWidth = 2;
+            
+            // Simple submarine shape (elongated oval)
+            ctx.beginPath();
+            ctx.ellipse(centerX, centerY, 12, 4, 0, 0, 2 * Math.PI);
+            ctx.fill();
+            ctx.stroke();
+            
+            // Draw conning tower
+            ctx.fillStyle = '#ffaa00';
+            ctx.fillRect(centerX - 2, centerY - 6, 4, 8);
+            
+            // Add text label
+            ctx.fillStyle = '#ffffff';
+            ctx.font = '12px Arial';
+            ctx.textAlign = 'center';
+            ctx.fillText('START', centerX, centerY - 25);
+            ctx.fillText('(0,0)', centerX, centerY + 35);
+            
+            ctx.restore();
+            
+            console.log('✅ Submarine position marked at center (0,0)!');
+        }
+
+        function toggleContours() {
+            showContours = !showContours;
+            
+            if (showContours && heightData) {
+                console.log('📐 Drawing contour lines...');
+                drawContours();
+            } else if (heightData) {
+                // Regenerate without contours
+                generateHeightMap();
+                if (scaleReferences.length > 0) {
+                    addScaleMarkers();
+                }
+            }
+        }
+
+        function drawContours() {
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.3)';
+            ctx.lineWidth = 1;
+            
+            // Draw contour lines every 200m
+            const contourInterval = 200;
+            const minDepth = -2000;
+            const maxDepth = -150;
+            
+            for (let depth = minDepth; depth <= maxDepth; depth += contourInterval) {
+                drawContourLine(depth);
+            }
+        }
+
+        function drawContourLine(targetDepth) {
+            // Simple contour line drawing
+            for (let y = 0; y < resolution - 1; y++) {
+                for (let x = 0; x < resolution - 1; x++) {
+                    const h1 = heightData[y * resolution + x];
+                    const h2 = heightData[y * resolution + (x + 1)];
+                    const h3 = heightData[(y + 1) * resolution + x];
+                    
+                    // Check if contour crosses through this pixel
+                    if ((h1 <= targetDepth && h2 >= targetDepth) || 
+                        (h1 >= targetDepth && h2 <= targetDepth) ||
+                        (h1 <= targetDepth && h3 >= targetDepth) || 
+                        (h1 >= targetDepth && h3 <= targetDepth)) {
+                        ctx.fillStyle = 'rgba(255, 255, 255, 0.3)';
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+            }
+        }
+
+        function downloadPNG() {
+            if (!heightData) {
+                alert('Please generate the height map first!');
+                return;
+            }
+            
+            console.log('💾 Preparing PNG download...');
+            
+            const link = document.createElement('a');
+            link.download = 'subwar2060_seabed_map.png';
+            link.href = canvas.toDataURL('image/png');
+            link.click();
+            
+            console.log('✅ PNG downloaded as subwar2060_seabed_map.png');
+        }
+
+        // Auto-generate on page load
+        window.addEventListener('load', () => {
+            console.log('🌊 Seabed map generator ready!');
+            setTimeout(() => {
+                generateHeightMap();
+            }, 500);
+        });
+    </script>
+</body>
+</html>

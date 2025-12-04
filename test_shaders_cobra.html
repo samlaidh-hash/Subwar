@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sub War 2060 - Shader & Cobra Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            color: #00ff00;
+            font-family: 'Courier New', monospace;
+            overflow: hidden;
+        }
+        
+        #gameContainer {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #debugInfo {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            padding: 10px;
+            border: 1px solid #00ff00;
+            z-index: 1000;
+            font-size: 12px;
+            line-height: 1.4;
+        }
+        
+        #controls {
+            position: absolute;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            padding: 10px;
+            border: 1px solid #00ff00;
+            z-index: 1000;
+            font-size: 12px;
+        }
+    </style>
+</head>
+<body>
+    <div id="gameContainer">
+        <div id="debugInfo">
+            <div>🧪 Shader & Cobra Model Test</div>
+            <div id="terrainStatus">Terrain: Loading...</div>
+            <div id="submarineStatus">Submarine: Loading...</div>
+            <div id="shaderStatus">Shaders: Checking...</div>
+            <div id="cobraStatus">Cobra Model: Checking...</div>
+        </div>
+        
+        <div id="controls">
+            <div>T - Toggle Terrain | B - Terrain Shader | V - Wireframe | W/A/S/D - Camera</div>
+        </div>
+    </div>
+
+    <!-- Three.js -->
+    <script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
+    
+    <!-- Game modules -->
+    <script src="js/simple_terrain_fix.js"></script>
+    <script src="js/submarine.js"></script>
+    <script src="js/oolite_loader.js"></script>
+    
+    <script>
+        // Test setup
+        let scene, camera, renderer, terrain, submarine;
+        let debugInfo = {
+            terrain: document.getElementById('terrainStatus'),
+            submarine: document.getElementById('submarineStatus'),
+            shader: document.getElementById('shaderStatus'),
+            cobra: document.getElementById('cobraStatus')
+        };
+        
+        function init() {
+            console.log('🧪 Starting Shader & Cobra Model Test');
+            
+            // Create scene
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x000011);
+            
+            // Create camera
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 1, 100000);
+            camera.position.set(0, 500, 2000);
+            camera.lookAt(0, 0, 0);
+            
+            // Create renderer
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0x000011);
+            document.getElementById('gameContainer').appendChild(renderer.domElement);
+            
+            // Test terrain with shaders
+            testTerrain();
+            
+            // Test Cobra model
+            testCobraModel();
+            
+            // Add lighting
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.3);
+            scene.add(ambientLight);
+            
+            const directionalLight = new THREE.DirectionalLight(0xffffff, 0.7);
+            directionalLight.position.set(10, 10, 5);
+            scene.add(directionalLight);
+            
+            // Setup controls
+            setupControls();
+            
+            // Start render loop
+            animate();
+        }
+        
+        function testTerrain() {
+            try {
+                debugInfo.terrain.textContent = 'Terrain: Creating...';
+                
+                if (window.SimpleTerrain) {
+                    terrain = new window.SimpleTerrain(scene);
+                    terrain.createTerrain();
+                    
+                    debugInfo.terrain.textContent = `Terrain: ✅ Created (Mode: ${terrain.wireframeMode ? 'Wireframe' : 'Shaded'})`;
+                    
+                    // Test shader status
+                    if (terrain.shaderMaterial) {
+                        debugInfo.shader.textContent = 'Shaders: ✅ Active with animation';
+                    } else {
+                        debugInfo.shader.textContent = 'Shaders: ⚠️ Fallback material used';
+                    }
+                } else {
+                    debugInfo.terrain.textContent = 'Terrain: ❌ SimpleTerrain class not found';
+                }
+            } catch (error) {
+                debugInfo.terrain.textContent = `Terrain: ❌ Error - ${error.message}`;
+                console.error('Terrain test failed:', error);
+            }
+        }
+        
+        function testCobraModel() {
+            try {
+                debugInfo.submarine.textContent = 'Submarine: Creating...';
+                
+                if (window.Submarine) {
+                    // Create submarine material
+                    const submarineMaterial = new THREE.MeshLambertMaterial({
+                        color: 0x444444,
+                        transparent: false
+                    });
+                    
+                    submarine = new window.Submarine(scene, 'COBRA');
+                    submarine.initializeSystemsForClass('COBRA');
+                    
+                    if (submarine.mesh) {
+                        // Scale up the submarine for visibility
+                        submarine.mesh.scale.set(50, 50, 50);
+                        submarine.mesh.position.set(0, 200, 0);
+                        
+                        debugInfo.submarine.textContent = 'Submarine: ✅ COBRA created and scaled';
+                        debugInfo.cobra.textContent = `Cobra Model: ✅ Visible (Children: ${submarine.mesh.children.length})`;
+                        
+                        // Log mesh details
+                        console.log('🐍 Cobra mesh details:', {
+                            position: submarine.mesh.position,
+                            scale: submarine.mesh.scale,
+                            children: submarine.mesh.children.length,
+                            visible: submarine.mesh.visible
+                        });
+                    } else {
+                        debugInfo.submarine.textContent = 'Submarine: ❌ Mesh not created';
+                        debugInfo.cobra.textContent = 'Cobra Model: ❌ No mesh';
+                    }
+                } else {
+                    debugInfo.submarine.textContent = 'Submarine: ❌ Submarine class not found';
+                }
+            } catch (error) {
+                debugInfo.submarine.textContent = `Submarine: ❌ Error - ${error.message}`;
+                debugInfo.cobra.textContent = 'Cobra Model: ❌ Creation failed';
+                console.error('Cobra test failed:', error);
+            }
+        }
+        
+        function setupControls() {
+            const keys = {};
+            
+            window.addEventListener('keydown', (e) => {
+                keys[e.key.toLowerCase()] = true;
+                
+                switch(e.key.toLowerCase()) {
+                    case 't':
+                        if (terrain) {
+                            terrain.toggleVisibility();
+                            debugInfo.terrain.textContent = `Terrain: ${terrain.isVisible ? '✅ Visible' : '❌ Hidden'}`;
+                        }
+                        break;
+                    case 'b':
+                        if (terrain) {
+                            terrain.setVisualizationMode('shader');
+                            debugInfo.terrain.textContent = `Terrain: ✅ Shader Mode`;
+                        }
+                        break;
+                    case 'v':
+                        if (terrain) {
+                            terrain.setVisualizationMode('wireframe');
+                            debugInfo.terrain.textContent = `Terrain: ✅ Wireframe Mode`;
+                        }
+                        break;
+                }
+            });
+            
+            window.addEventListener('keyup', (e) => {
+                keys[e.key.toLowerCase()] = false;
+            });
+            
+            // Camera movement
+            setInterval(() => {
+                const moveSpeed = 50;
+                if (keys['w']) camera.position.z -= moveSpeed;
+                if (keys['s']) camera.position.z += moveSpeed;
+                if (keys['a']) camera.position.x -= moveSpeed;
+                if (keys['d']) camera.position.x += moveSpeed;
+                if (keys['q']) camera.position.y += moveSpeed;
+                if (keys['e']) camera.position.y -= moveSpeed;
+                
+                camera.lookAt(0, 0, 0);
+            }, 16);
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Update terrain shader animation
+            if (terrain && terrain.shaderMaterial) {
+                terrain.update(0.016);
+            }
+            
+            // Render
+            renderer.render(scene, camera);
+        }
+        
+        // Handle window resize
+        window.addEventListener('resize', () => {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        });
+        
+        // Start the test
+        init();
+    </script>
+</body>
+</html>

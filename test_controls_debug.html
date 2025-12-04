@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Controls Debug Test</title>
+    <style>
+        body { 
+            background: #000; 
+            color: #00ff00; 
+            font-family: 'Courier New', monospace; 
+            padding: 20px;
+        }
+        #log { 
+            height: 400px; 
+            overflow-y: scroll; 
+            border: 1px solid #333; 
+            padding: 10px; 
+            background: #111;
+        }
+        .key-info {
+            padding: 5px;
+            margin: 5px 0;
+            border-left: 3px solid #00ff00;
+            padding-left: 10px;
+        }
+    </style>
+</head>
+<body>
+    <h1>Terrain Controls Debug Test</h1>
+    
+    <div class="key-info">Press V, B, or N keys to test terrain visualization controls</div>
+    
+    <div>Terrain Generator Status: <span id="status">Checking...</span></div>
+    <div>Current Mode: <span id="mode">Unknown</span></div>
+    
+    <h3>Key Press Log:</h3>
+    <div id="log"></div>
+
+    <!-- Load libraries -->
+    <script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
+    <script src="lib/THREE.Terrain.js"></script>
+    <script src="js/procedural_terrain.js"></script>
+    
+    <script>
+        const log = document.getElementById('log');
+        const status = document.getElementById('status');
+        const mode = document.getElementById('mode');
+        
+        function addLog(message) {
+            const time = new Date().toLocaleTimeString();
+            log.innerHTML += `<div>[${time}] ${message}</div>`;
+            log.scrollTop = log.scrollHeight;
+        }
+        
+        // Initialize terrain
+        let terrainGenerator = null;
+        let terrainMesh = null;
+        
+        function initTestTerrain() {
+            try {
+                addLog('Initializing terrain generator...');
+                terrainGenerator = new ProceduralTerrain();
+                window.terrainGenerator = terrainGenerator;
+                
+                // Create simple scene for testing
+                const scene = new THREE.Scene();
+                const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                const renderer = new THREE.WebGLRenderer();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                document.body.appendChild(renderer.domElement);
+                
+                // Generate terrain
+                terrainMesh = terrainGenerator.generateTerrain({
+                    algorithm: 'perlin',
+                    seed: 0.5,
+                    size: 500,
+                    segments: 31,
+                    wireframe: true
+                });
+                
+                scene.add(terrainMesh);
+                camera.position.set(0, 100, 200);
+                camera.lookAt(0, 0, 0);
+                
+                // Simple render loop
+                function animate() {
+                    requestAnimationFrame(animate);
+                    renderer.render(scene, camera);
+                }
+                animate();
+                
+                status.textContent = 'Active';
+                mode.textContent = 'Wireframe';
+                addLog('✅ Terrain generator initialized successfully');
+                
+            } catch (error) {
+                status.textContent = 'Error';
+                addLog('❌ Failed to initialize terrain: ' + error.message);
+                console.error(error);
+            }
+        }
+        
+        // Key event handler
+        document.addEventListener('keydown', (event) => {
+            addLog(`Key pressed: ${event.code} (${event.key})`);
+            
+            switch (event.code) {
+                case 'KeyV':
+                    addLog('🔧 Processing V key - Toggle wireframe');
+                    if (window.terrainGenerator) {
+                        window.terrainGenerator.toggleWireframe();
+                        addLog('✅ Wireframe toggled');
+                        mode.textContent = terrainMesh.material.wireframe ? 'Wireframe' : 'Solid';
+                    } else {
+                        addLog('❌ No terrain generator available');
+                    }
+                    break;
+                    
+                case 'KeyB':
+                    addLog('🔧 Processing B key - Shader mode');
+                    if (window.terrainGenerator) {
+                        window.terrainGenerator.setVisualizationMode('shader');
+                        addLog('✅ Switched to shader mode');
+                        mode.textContent = 'Shader';
+                    } else {
+                        addLog('❌ No terrain generator available');
+                    }
+                    break;
+                    
+                case 'KeyN':
+                    addLog('🔧 Processing N key - Solid mode');
+                    if (window.terrainGenerator) {
+                        window.terrainGenerator.setVisualizationMode('solid');
+                        addLog('✅ Switched to solid mode');
+                        mode.textContent = 'Solid';
+                    } else {
+                        addLog('❌ No terrain generator available');
+                    }
+                    break;
+                    
+                default:
+                    addLog(`ℹ️ Key ${event.code} not handled`);
+            }
+        });
+        
+        // Initialize on load
+        window.addEventListener('load', initTestTerrain);
+        
+        addLog('Debug test ready - Press V, B, or N to test terrain controls');
+    </script>
+</body>
+</html>

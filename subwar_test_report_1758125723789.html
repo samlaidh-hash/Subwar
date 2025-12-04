@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sub War 2060 - Test Report</title>
+    <style>
+        body { font-family: 'Courier New', monospace; background: #0a0a0a; color: #00ff00; margin: 20px; }
+        .header { border: 2px solid #00ff00; padding: 20px; margin-bottom: 20px; }
+        .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+        .metric { border: 1px solid #00ff00; padding: 15px; text-align: center; }
+        .metric-value { font-size: 24px; font-weight: bold; }
+        .test-section { margin-bottom: 30px; border: 1px solid #006600; padding: 15px; }
+        .test-result { margin: 10px 0; padding: 10px; border-left: 4px solid #00ff00; }
+        .test-result.fail { border-left-color: #ff0000; background: #220000; }
+        .test-result.pass { border-left-color: #00ff00; background: #002200; }
+        .issues { background: #330000; border: 2px solid #ff0000; padding: 15px; margin: 20px 0; }
+        .recommendations { background: #003300; border: 2px solid #00ff00; padding: 15px; margin: 20px 0; }
+        .performance { background: #001133; border: 2px solid #0099ff; padding: 15px; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🤖 SUB WAR 2060 - COMPREHENSIVE TEST REPORT</h1>
+        <p><strong>Generated:</strong> 2025-09-17T16:15:17.098Z</p>
+        <p><strong>Game Version:</strong> Sub War 2060 v1.0</p>
+        <p><strong>Test Duration:</strong> 6.68 seconds</p>
+    </div>
+
+    <div class="summary">
+        <div class="metric">
+            <div class="metric-value">26.7%</div>
+            <div>Success Rate</div>
+        </div>
+        <div class="metric">
+            <div class="metric-value">4</div>
+            <div>Tests Passed</div>
+        </div>
+        <div class="metric">
+            <div class="metric-value">11</div>
+            <div>Tests Failed</div>
+        </div>
+        <div class="metric">
+            <div class="metric-value">15</div>
+            <div>Total Tests</div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 TEST RESULTS</h2>
+        
+            <div class="test-result pass">
+                <strong>✅ Page Load</strong><br>
+                Page loaded successfully<br>
+                <small>Executed: 2025-09-17T16:15:20.737Z</small>
+            </div>
+        
+            <div class="test-result fail">
+                <strong>❌ Three.js Scene Creation</strong><br>
+                Error: Three.js scene not initialized<br>
+                <small>Executed: 2025-09-17T16:15:20.744Z</small>
+            </div>
+        
+            <div class="test-result fail">
+                <strong>❌ Submarine Initialization</strong><br>
+                Error: Submarine not initialized<br>
+                <small>Executed: 2025-09-17T16:15:20.747Z</small>
+            </div>
+        
+            <div class="test-result fail">
+                <strong>❌ Terrain System</strong><br>
+                Error: Terrain system not initialized<br>
+                <small>Executed: 2025-09-17T16:15:20.750Z</small>
+            </div>
+        
+            <div class="test-result fail">
+                <strong>❌ HUD Elements</strong><br>
+                Error: Main HUD missing<br>
+                <small>Executed: 2025-09-17T16:15:20.753Z</small>
+            </div>
+        
+            <div class="test-result pass">
+                <strong>✅ SCAV Pipper System</strong><br>
+                SCAV pipper system present<br>
+                <small>Executed: 2025-09-17T16:15:20.756Z</small>
+            </div>
+        
+            <div class="test-result fail">
+                <strong>❌ Terrain Shelves</strong><br>
+                Error: Ocean instance not available<br>
+                <small>Executed: 2025-09-17T16:15:20.759Z</small>
+            </div>
+        
+            <div class="test-result fail">
+                <strong>❌ Collision Detection</strong><br>
+                Error: Submarine not available<br>
+                <small>Executed: 2025-09-17T16:15:20.762Z</small>
+            </div>
+        
+            <div class="test-result fail">
+                <strong>❌ SCAV Weapons Available</strong><br>
+                Error: Weapon types not defined<br>
+                <small>Executed: 2025-09-17T16:15:20.764Z</small>
+            </div>
+        
+            <div class="test-result fail">
+                <strong>❌ Weapon Projectile Classes</strong><br>
+                Error: Missing projectile classes: SCAVCannonRound, SCAVPointDefense, WISKRDrone<br>
+                <small>Executed: 2025-09-17T16:15:20.767Z</small>
+            </div>
+        
+            <div class="test-result fail">
+                <strong>❌ Pilot Skills System</strong><br>
+                Error: PilotSkills class not found<br>
+                <small>Executed: 2025-09-17T16:15:20.772Z</small>
+            </div>
+        
+            <div class="test-result fail">
+                <strong>❌ Reputation System</strong><br>
+                Error: ReputationSystem class not found<br>
+                <small>Executed: 2025-09-17T16:15:20.775Z</small>
+            </div>
+        
+            <div class="test-result fail">
+                <strong>❌ Campaign System</strong><br>
+                Error: CampaignSystem class not found<br>
+                <small>Executed: 2025-09-17T16:15:20.777Z</small>
+            </div>
+        
+            <div class="test-result pass">
+                <strong>✅ Frame Rate</strong><br>
+                Frame rate: 61 FPS<br>
+                <small>Executed: 2025-09-17T16:15:23.786Z</small>
+            </div>
+        
+            <div class="test-result pass">
+                <strong>✅ Memory Usage</strong><br>
+                Memory: 5MB used of 6MB<br>
+                <small>Executed: 2025-09-17T16:15:23.788Z</small>
+            </div>
+        
+    </div>
+
+    
+    <div class="issues">
+        <h2>🚨 CRITICAL ISSUES</h2>
+        <p>❌ Three.js Scene Creation: Three.js scene not initialized</p><p>❌ Submarine Initialization: Submarine not initialized</p><p>❌ Terrain System: Terrain system not initialized</p><p>❌ HUD Elements: Main HUD missing</p><p>❌ Terrain Shelves: Ocean instance not available</p><p>❌ Collision Detection: Submarine not available</p><p>❌ SCAV Weapons Available: Weapon types not defined</p><p>❌ Weapon Projectile Classes: Missing projectile classes: SCAVCannonRound, SCAVPointDefense, WISKRDrone</p><p>❌ Pilot Skills System: PilotSkills class not found</p><p>❌ Reputation System: ReputationSystem class not found</p><p>❌ Campaign System: CampaignSystem class not found</p>
+    </div>
+    
+
+    
+
+    
+    <div class="performance">
+        <h2>⚡ PERFORMANCE METRICS</h2>
+        <p><strong>Frame Rate:</strong> 61 FPS</p>
+        
+            <p><strong>Memory Usage:</strong> 5MB / 6MB</p>
+            <p><strong>Memory Limit:</strong> 4096MB</p>
+        
+    </div>
+    
+
+    <div class="recommendations">
+        <h2>🎯 RECOMMENDATIONS</h2>
+        <p>❌ Critical issues require immediate attention</p>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 DETAILED ANALYSIS</h2>
+        <p><strong>Game Initialization:</strong> Tests core Three.js scene, submarine, and terrain system startup</p>
+        <p><strong>UI Elements:</strong> Verifies HUD components, compass, and SCAV pipper system</p>
+        <p><strong>Terrain Navigation:</strong> Tests shelf structure and collision detection</p>
+        <p><strong>Weapons Systems:</strong> Validates SCAV weapons and projectile classes</p>
+        <p><strong>RPG Systems:</strong> Checks pilot skills, reputation, and campaign framework</p>
+        <p><strong>Performance:</strong> Monitors frame rate and memory usage</p>
+    </div>
+</body>
+</html>

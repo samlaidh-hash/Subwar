@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Sub War 2060 - Test Report</title>
+    <style>
+        body { font-family: 'Courier New', monospace; background: #0a0a0a; color: #00ff00; margin: 20px; }
+        .header { border: 2px solid #00ff00; padding: 20px; margin-bottom: 20px; }
+        .summary { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; margin-bottom: 20px; }
+        .metric { border: 1px solid #00ff00; padding: 15px; text-align: center; }
+        .metric-value { font-size: 24px; font-weight: bold; }
+        .test-section { margin-bottom: 30px; border: 1px solid #006600; padding: 15px; }
+        .test-result { margin: 10px 0; padding: 10px; border-left: 4px solid #00ff00; }
+        .test-result.fail { border-left-color: #ff0000; background: #220000; }
+        .test-result.pass { border-left-color: #00ff00; background: #002200; }
+        .issues { background: #330000; border: 2px solid #ff0000; padding: 15px; margin: 20px 0; }
+        .recommendations { background: #003300; border: 2px solid #00ff00; padding: 15px; margin: 20px 0; }
+        .performance { background: #001133; border: 2px solid #0099ff; padding: 15px; margin: 20px 0; }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🤖 SUB WAR 2060 - COMPREHENSIVE TEST REPORT</h1>
+        <p><strong>Generated:</strong> 2025-09-17T16:41:22.710Z</p>
+        <p><strong>Game Version:</strong> Sub War 2060 v1.0</p>
+        <p><strong>Test Duration:</strong> 12.31 seconds</p>
+    </div>
+
+    <div class="summary">
+        <div class="metric">
+            <div class="metric-value">50.0%</div>
+            <div>Success Rate</div>
+        </div>
+        <div class="metric">
+            <div class="metric-value">8</div>
+            <div>Tests Passed</div>
+        </div>
+        <div class="metric">
+            <div class="metric-value">8</div>
+            <div>Tests Failed</div>
+        </div>
+        <div class="metric">
+            <div class="metric-value">16</div>
+            <div>Total Tests</div>
+        </div>
+    </div>
+
+    <div class="test-section">
+        <h2>🧪 TEST RESULTS</h2>
+        
+            <div class="test-result pass">
+                <strong>✅ Page Load</strong><br>
+                Page loaded successfully<br>
+                <small>Executed: 2025-09-17T16:41:26.322Z</small>
+            </div>
+        
+            <div class="test-result pass">
+                <strong>✅ Scenario System Initialization</strong><br>
+                Scenario selection system active<br>
+                <small>Executed: 2025-09-17T16:41:26.329Z</small>
+            </div>
+        
+            <div class="test-result fail">
+                <strong>❌ JavaScript Error Check</strong><br>
+                Error: JavaScript errors detected: Torpedo is not defined; Failed to load resource: the server responded with a status of 404 (Not Found)<br>
+                <small>Executed: 2025-09-17T16:41:28.347Z</small>
+            </div>
+        
+            <div class="test-result pass">
+                <strong>✅ Script Dependencies Loading</strong><br>
+                All script dependencies loaded<br>
+                <small>Executed: 2025-09-17T16:41:28.359Z</small>
+            </div>
+        
+            <div class="test-result fail">
+                <strong>❌ Force Game Initialization</strong><br>
+                Error: Submarine not created<br>
+                <small>Executed: 2025-09-17T16:41:31.964Z</small>
+            </div>
+        
+            <div class="test-result fail">
+                <strong>❌ HUD Elements</strong><br>
+                Error: Main HUD missing<br>
+                <small>Executed: 2025-09-17T16:41:31.969Z</small>
+            </div>
+        
+            <div class="test-result pass">
+                <strong>✅ SCAV Pipper System</strong><br>
+                SCAV pipper system present<br>
+                <small>Executed: 2025-09-17T16:41:31.973Z</small>
+            </div>
+        
+            <div class="test-result fail">
+                <strong>❌ Terrain Shelves</strong><br>
+                Error: Ocean instance not available<br>
+                <small>Executed: 2025-09-17T16:41:31.982Z</small>
+            </div>
+        
+            <div class="test-result fail">
+                <strong>❌ Collision Detection</strong><br>
+                Error: Submarine not available<br>
+                <small>Executed: 2025-09-17T16:41:31.984Z</small>
+            </div>
+        
+            <div class="test-result pass">
+                <strong>✅ SCAV Weapons Available</strong><br>
+                All SCAV weapons defined<br>
+                <small>Executed: 2025-09-17T16:41:31.987Z</small>
+            </div>
+        
+            <div class="test-result fail">
+                <strong>❌ Weapon Projectile Classes</strong><br>
+                Error: Missing projectile classes: SCAVCannonRound, SCAVPointDefense, WISKRDrone<br>
+                <small>Executed: 2025-09-17T16:41:31.997Z</small>
+            </div>
+        
+            <div class="test-result fail">
+                <strong>❌ Pilot Skills System</strong><br>
+                Error: Experience system missing<br>
+                <small>Executed: 2025-09-17T16:41:32.001Z</small>
+            </div>
+        
+            <div class="test-result pass">
+                <strong>✅ Reputation System</strong><br>
+                Reputation system active with 7 settlements<br>
+                <small>Executed: 2025-09-17T16:41:32.003Z</small>
+            </div>
+        
+            <div class="test-result fail">
+                <strong>❌ Campaign System</strong><br>
+                Error: Expected 20 missions, found 4<br>
+                <small>Executed: 2025-09-17T16:41:32.006Z</small>
+            </div>
+        
+            <div class="test-result pass">
+                <strong>✅ Frame Rate</strong><br>
+                Frame rate: 60 FPS<br>
+                <small>Executed: 2025-09-17T16:41:35.029Z</small>
+            </div>
+        
+            <div class="test-result pass">
+                <strong>✅ Memory Usage</strong><br>
+                Memory: 52MB used of 109MB<br>
+                <small>Executed: 2025-09-17T16:41:35.032Z</small>
+            </div>
+        
+    </div>
+
+    
+    <div class="issues">
+        <h2>🚨 CRITICAL ISSUES</h2>
+        <p>❌ JavaScript Error Check: JavaScript errors detected: Torpedo is not defined; Failed to load resource: the server responded with a status of 404 (Not Found)</p><p>❌ Force Game Initialization: Submarine not created</p><p>❌ HUD Elements: Main HUD missing</p><p>❌ Terrain Shelves: Ocean instance not available</p><p>❌ Collision Detection: Submarine not available</p><p>❌ Weapon Projectile Classes: Missing projectile classes: SCAVCannonRound, SCAVPointDefense, WISKRDrone</p><p>❌ Pilot Skills System: Experience system missing</p><p>❌ Campaign System: Expected 20 missions, found 4</p>
+    </div>
+    
+
+    
+
+    
+    <div class="performance">
+        <h2>⚡ PERFORMANCE METRICS</h2>
+        <p><strong>Frame Rate:</strong> 60 FPS</p>
+        
+            <p><strong>Memory Usage:</strong> 52MB / 109MB</p>
+            <p><strong>Memory Limit:</strong> 4096MB</p>
+        
+    </div>
+    
+
+    <div class="recommendations">
+        <h2>🎯 RECOMMENDATIONS</h2>
+        <p>❌ Critical issues require immediate attention</p>
+    </div>
+
+    <div class="test-section">
+        <h2>📊 DETAILED ANALYSIS</h2>
+        <p><strong>Game Initialization:</strong> Tests core Three.js scene, submarine, and terrain system startup</p>
+        <p><strong>UI Elements:</strong> Verifies HUD components, compass, and SCAV pipper system</p>
+        <p><strong>Terrain Navigation:</strong> Tests shelf structure and collision detection</p>
+        <p><strong>Weapons Systems:</strong> Validates SCAV weapons and projectile classes</p>
+        <p><strong>RPG Systems:</strong> Checks pilot skills, reputation, and campaign framework</p>
+        <p><strong>Performance:</strong> Monitors frame rate and memory usage</p>
+    </div>
+</body>
+</html>

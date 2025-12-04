@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Test Torpedo Key Highlighting</title>
+    <style>
+        body {
+            background: #000;
+            color: #00ffff;
+            font-family: monospace;
+        }
+        #test-container {
+            padding: 20px;
+        }
+        .launcher-row-container {
+            display: flex;
+            align-items: center;
+            margin: 5px 0;
+        }
+        .launcher-row-label {
+            color: #ffff00;
+            font-weight: bold;
+            margin-right: 10px;
+            width: 20px;
+        }
+        .launcher-row {
+            display: flex;
+            gap: 2px;
+        }
+        .torpedo-box {
+            width: 40px;
+            height: 30px;
+            border: 1px solid #00ffff;
+            background: rgba(0, 255, 255, 0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 12px;
+            font-weight: bold;
+            color: #fff;
+        }
+        .torpedo-box.empty {
+            background: rgba(255, 0, 0, 0.2);
+            border-color: #ff0000;
+        }
+        .torpedo-box.selected {
+            background: rgba(255, 255, 0, 0.5) !important;
+            border-color: #ffff00 !important;
+            box-shadow: 0 0 10px #ffff00;
+        }
+        .launcher-row-container.selected {
+            background: rgba(0, 255, 255, 0.1);
+        }
+    </style>
+</head>
+<body>
+    <div id="test-container">
+        <h3>Torpedo Launcher Test</h3>
+        <p>Press keys 1-4 to test launcher selection. Each press should cycle through the boxes.</p>
+        <div id="status"></div>
+        
+        <!-- Launcher Display System - Horizontal Rows -->
+        <div id="launcherDisplay">
+            <div class="launcher-row-container">
+                <div class="launcher-row-label">1</div>
+                <div id="launcher1" class="launcher-row">
+                    <div class="torpedo-box torpedo-box-0 empty"></div>
+                    <div class="torpedo-box torpedo-box-1">HT</div>
+                    <div class="torpedo-box torpedo-box-2">HT</div>
+                    <div class="torpedo-box torpedo-box-3">HT</div>
+                    <div class="torpedo-box torpedo-box-4">HT</div>
+                    <div class="torpedo-box torpedo-box-5">HT</div>
+                    <div class="torpedo-box torpedo-box-6">HT</div>
+                </div>
+            </div>
+            <div class="launcher-row-container">
+                <div class="launcher-row-label">2</div>
+                <div id="launcher2" class="launcher-row">
+                    <div class="torpedo-box torpedo-box-0 empty"></div>
+                    <div class="torpedo-box torpedo-box-1">LT</div>
+                    <div class="torpedo-box torpedo-box-2">LT</div>
+                    <div class="torpedo-box torpedo-box-3">LT</div>
+                    <div class="torpedo-box torpedo-box-4">LT</div>
+                    <div class="torpedo-box torpedo-box-5">LT</div>
+                    <div class="torpedo-box torpedo-box-6">LT</div>
+                </div>
+            </div>
+            <div class="launcher-row-container">
+                <div class="launcher-row-label">3</div>
+                <div id="launcher3" class="launcher-row">
+                    <div class="torpedo-box torpedo-box-0 empty"></div>
+                    <div class="torpedo-box torpedo-box-1">HT</div>
+                    <div class="torpedo-box torpedo-box-2">HT</div>
+                    <div class="torpedo-box torpedo-box-3">HT</div>
+                    <div class="torpedo-box torpedo-box-4">HT</div>
+                    <div class="torpedo-box torpedo-box-5">HT</div>
+                    <div class="torpedo-box torpedo-box-6">HT</div>
+                </div>
+            </div>
+            <div class="launcher-row-container">
+                <div class="launcher-row-label">4</div>
+                <div id="launcher4" class="launcher-row">
+                    <div class="torpedo-box torpedo-box-0 empty"></div>
+                    <div class="torpedo-box torpedo-box-1">MT</div>
+                    <div class="torpedo-box torpedo-box-2">MT</div>
+                    <div class="torpedo-box torpedo-box-3">MT</div>
+                    <div class="torpedo-box torpedo-box-4">MT</div>
+                    <div class="torpedo-box torpedo-box-5">MT</div>
+                    <div class="torpedo-box torpedo-box-6">MT</div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Simulate the submarine launcher system
+        const launchers = [
+            { id: 1, chambers: ['HT', 'HT', 'HT', 'HT', 'HT', 'HT'], currentBox: -1 },
+            { id: 2, chambers: ['LT', 'LT', 'LT', 'LT', 'LT', 'LT'], currentBox: -1 },
+            { id: 3, chambers: ['HT', 'HT', 'HT', 'HT', 'HT', 'HT'], currentBox: -1 },
+            { id: 4, chambers: ['MT', 'MT', 'MT', 'MT', 'MT', 'MT'], currentBox: -1 }
+        ];
+        
+        let selectedLauncher = 1;
+        let lastPressTime = 0;
+        let lastPressedLauncher = 0;
+        
+        function updateStatus(msg) {
+            document.getElementById('status').textContent = msg;
+        }
+        
+        function handleLauncherSelection(launcherNumber) {
+            if (launcherNumber < 1 || launcherNumber > launchers.length) {
+                return; // Invalid launcher number
+            }
+
+            const launcher = launchers[launcherNumber - 1];
+            const currentTime = Date.now();
+
+            // Check if this is the same launcher pressed recently for cycling
+            const isSameLauncher = lastPressedLauncher === launcherNumber;
+            const timeSinceLastPress = currentTime - lastPressTime;
+
+            // Update interaction tracking
+            lastPressTime = currentTime;
+            lastPressedLauncher = launcherNumber;
+
+            if (isSameLauncher && timeSinceLastPress < 2000) {
+                // Subsequent press of same launcher within 2 seconds - rotate chamber
+                rotateLauncher(launcherNumber);
+                updateStatus(`Rotating launcher ${launcherNumber} to box ${launcher.currentBox}`);
+            } else {
+                // First press or different launcher - select launcher
+                selectedLauncher = launcherNumber;
+                updateStatus(`Selected launcher ${launcherNumber}`);
+            }
+
+            // Update visual display
+            updateLauncherDisplay();
+        }
+
+        function rotateLauncher(launcherNumber) {
+            const launcher = launchers[launcherNumber - 1];
+            
+            // If no box is highlighted, start at box 0 (first/leftmost box)
+            if (launcher.currentBox === -1) {
+                launcher.currentBox = 0;
+            } else {
+                // Move highlight one box to the right
+                launcher.currentBox++;
+                // If we're past the rightmost box (6), wrap back to leftmost box (0)
+                if (launcher.currentBox > 6) {
+                    launcher.currentBox = 0;
+                }
+            }
+            
+            console.log(`🎯 Launcher ${launcherNumber} - Highlighted box ${launcher.currentBox}`);
+        }
+
+        function updateLauncherDisplay() {
+            // Update visual launcher display for all launchers (7-box system)
+            launchers.forEach((launcher, index) => {
+                const launcherRowElement = document.getElementById(`launcher${index + 1}`);
+                const launcherContainerElement = launcherRowElement?.parentElement;
+                if (!launcherRowElement) return;
+
+                // Update each torpedo box in the row (7 boxes: 0-6)
+                for (let i = 0; i <= 6; i++) {
+                    const torpedoBox = launcherRowElement.querySelector(`.torpedo-box-${i}`);
+                    if (!torpedoBox) continue;
+
+                    // Clear all state classes first
+                    torpedoBox.classList.remove('selected', 'fired');
+                    
+                    // Box 0 is always empty (leftmost)
+                    if (i === 0) {
+                        torpedoBox.classList.add('empty');
+                        torpedoBox.textContent = '';
+                    } else {
+                        // Boxes 1-6 map to chamber indices 0-5
+                        const chamberIndex = i - 1;
+                        const torpedoCode = launcher.chambers[chamberIndex] || '';
+                        torpedoBox.textContent = torpedoCode;
+                    }
+                    
+                    // Highlight the current box for the selected launcher
+                    if (i === launcher.currentBox && launcher.id === selectedLauncher) {
+                        torpedoBox.classList.add('selected');
+                    }
+                }
+
+                // Update launcher row container selection highlighting
+                if (launcherContainerElement) {
+                    launcherContainerElement.classList.remove('selected');
+                    if (launcher.id === selectedLauncher) {
+                        launcherContainerElement.classList.add('selected');
+                    }
+                }
+            });
+        }
+        
+        // Keyboard event handler
+        document.addEventListener('keydown', (event) => {
+            switch(event.code) {
+                case 'Digit1':
+                case 'Digit2':
+                case 'Digit3':
+                case 'Digit4':
+                    const launcherNum = parseInt(event.code.replace('Digit', ''));
+                    handleLauncherSelection(launcherNum);
+                    break;
+            }
+        });
+        
+        // Initialize display
+        updateLauncherDisplay();
+        updateStatus('Ready - Press keys 1-4 to test');
+    </script>
+</body>
+</html>

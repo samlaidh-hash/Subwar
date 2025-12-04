@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Mouse Movement Debug</title>
+    <style>
+        body {
+            background: black;
+            color: white;
+            font-family: monospace;
+            margin: 20px;
+        }
+        .debug {
+            position: fixed;
+            top: 10px;
+            left: 10px;
+            background: rgba(0,0,0,0.8);
+            padding: 20px;
+            border: 2px solid #0ff;
+            z-index: 2000;
+        }
+        .center-dot {
+            position: fixed;
+            width: 4px;
+            height: 4px;
+            background: red;
+            left: 50%;
+            top: 50%;
+            transform: translate(-50%, -50%);
+            z-index: 1500;
+        }
+    </style>
+</head>
+<body>
+    <div class="debug" id="debug">
+        <h3>Mouse Debug</h3>
+        <div>Game: <a href="http://localhost:8000" target="_blank">Open Game</a></div>
+        <div>Mouse X: <span id="mouseX">0</span></div>
+        <div>Mouse Y: <span id="mouseY">0</span></div>
+        <div>Normalized X: <span id="normX">0</span></div>
+        <div>Normalized Y: <span id="normY">0</span></div>
+        <div>Expected: X=Yaw(turn), Y=Pitch(up/down)</div>
+        <div style="color: #0f0;">Move mouse and check submarine response</div>
+    </div>
+    
+    <div class="center-dot"></div>
+    
+    <script>
+        const mouseX = document.getElementById('mouseX');
+        const mouseY = document.getElementById('mouseY');
+        const normX = document.getElementById('normX');
+        const normY = document.getElementById('normY');
+        
+        document.addEventListener('mousemove', (event) => {
+            const centerX = window.innerWidth / 2;
+            const centerY = window.innerHeight / 2;
+            
+            const normalizedX = (event.clientX - centerX) / centerX;
+            const normalizedY = (event.clientY - centerY) / centerY;
+            
+            mouseX.textContent = event.clientX;
+            mouseY.textContent = event.clientY;
+            normX.textContent = normalizedX.toFixed(3);
+            normY.textContent = normalizedY.toFixed(3);
+            
+            // Color code the values
+            normX.style.color = normalizedX < -0.1 ? '#f0f' : normalizedX > 0.1 ? '#0ff' : '#fff';
+            normY.style.color = normalizedY < -0.1 ? '#f0f' : normalizedY > 0.1 ? '#0ff' : '#fff';
+        });
+    </script>
+</body>
+</html>

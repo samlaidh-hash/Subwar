@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Simple Cobra Test</title>
+    <style>
+        body { margin: 0; background: #001133; font-family: monospace; }
+        #info { position: absolute; top: 10px; left: 10px; color: #00ff00; background: rgba(0,0,0,0.7); padding: 10px; }
+    </style>
+</head>
+<body>
+    <div id="info">
+        <h3>Simple Cobra Test</h3>
+        <p>Status: <span id="status">Loading...</span></p>
+        <p>Debug: <span id="debug">-</span></p>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+
+    <script>
+        let scene, camera, renderer, cobra;
+
+        async function init() {
+            console.log('🚢 Starting simple cobra test...');
+
+            try {
+                // Basic Three.js setup
+                scene = new THREE.Scene();
+                scene.background = new THREE.Color(0x001133);
+
+                camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+                camera.position.set(10, 5, 10);
+                camera.lookAt(0, 0, 0);
+
+                renderer = new THREE.WebGLRenderer();
+                renderer.setSize(window.innerWidth, window.innerHeight);
+                document.body.appendChild(renderer.domElement);
+
+                // Add light
+                const light = new THREE.AmbientLight(0x404040, 0.8);
+                scene.add(light);
+
+                document.getElementById('status').textContent = 'Loading cobra3.json...';
+                console.log('📁 Loading cobra3.json...');
+
+                // Load JSON directly
+                const response = await fetch('models/cobra3.json');
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+                }
+
+                const data = await response.json();
+                console.log('✅ JSON loaded successfully');
+                console.log('Data keys:', Object.keys(data));
+                console.log('Vertices length:', data.vertices?.length);
+                console.log('Indices length:', data.indices?.length);
+
+                document.getElementById('debug').textContent = `${data.vertices?.length || 0} vertices, ${data.indices?.length || 0} indices`;
+
+                if (!data.vertices || !data.indices) {
+                    throw new Error('Missing vertices or indices in JSON data');
+                }
+
+                // Create geometry directly
+                const geometry = new THREE.BufferGeometry();
+
+                // Convert vertices array to Float32Array
+                const vertices = new Float32Array(data.vertices);
+                geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3));
+
+                // Try different approaches for indices based on the data
+                console.log('First 20 indices:', data.indices.slice(0, 20));
+
+                // Simple approach: just use vertices without indices (points to triangles)
+                if (data.indices.length % 3 === 0) {
+                    const indices = new Uint16Array(data.indices);
+                    geometry.setIndex(indices);
+                    console.log('✅ Using indexed geometry');
+                } else {
+                    console.log('⚠️ Indices not divisible by 3, using non-indexed geometry');
+                }
+
+                geometry.computeVertexNormals();
+
+                // Create material
+                const material = new THREE.MeshBasicMaterial({
+                    color: 0x00ff00,
+                    wireframe: true,
+                    side: THREE.DoubleSide
+                });
+
+                // Create mesh
+                cobra = new THREE.Mesh(geometry, material);
+                cobra.position.set(0, 0, 0);
+                scene.add(cobra);
+
+                document.getElementById('status').textContent = 'Cobra loaded! ✅';
+                console.log('✅ Cobra mesh created and added to scene');
+
+                // Start animation
+                animate();
+
+            } catch (error) {
+                console.error('❌ Error:', error);
+                document.getElementById('status').textContent = `Error: ${error.message}`;
+
+                // Fallback cube
+                const cubeGeom = new THREE.BoxGeometry(2, 2, 2);
+                const cubeMat = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+                cobra = new THREE.Mesh(cubeGeom, cubeMat);
+                scene.add(cobra);
+                animate();
+            }
+        }
+
+        function animate() {
+            requestAnimationFrame(animate);
+
+            if (cobra) {
+                cobra.rotation.y += 0.01;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        window.addEventListener('load', init);
+    </script>
+</body>
+</html>

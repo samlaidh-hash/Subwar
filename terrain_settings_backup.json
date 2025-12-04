@@ -1,0 +1,39 @@
+{
+  "terrain_backup": {
+    "date_saved": "2025-09-14",
+    "description": "Backup of original terrain settings before creating random 10x10km jagged seabed",
+    "procedural_terrain_settings": {
+      "terrainSize": 200000,
+      "segments": 127,
+      "maxDepth": -6622,
+      "minDepth": -50,
+      "algorithm": "perlin",
+      "wireframe_default": false,
+      "useShader_default": true
+    },
+    "game_js_settings": {
+      "terrain_generation": {
+        "algorithm": "perlin",
+        "seed": 0.5,
+        "roughness": 0.5,
+        "size": 200000,
+        "segments": 127
+      },
+      "camera_far_plane": 500000
+    },
+    "bathymetry_data": {
+      "using_monterey_canyon": true,
+      "data_file": "data/monterey_canyon_bathymetry.js",
+      "depth_range": "50m to 6622m",
+      "coverage": "200km x 200km"
+    },
+    "shader_enhancements": {
+      "multi_level_coloring": true,
+      "contour_lines": true,
+      "shimmer_effect": true,
+      "slope_enhancement": true,
+      "gamma_correction": 0.9,
+      "brightness_multiplier": 1.2
+    }
+  }
+}

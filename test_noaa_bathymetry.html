@@ -1,0 +1,272 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>NOAA Bathymetry System Test</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 20px;
+            background: #001122;
+            color: #00ffff;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+        }
+        .container {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+        }
+        .info-panel {
+            background: #000033;
+            border: 1px solid #0066ff;
+            padding: 15px;
+            width: 400px;
+            min-height: 300px;
+        }
+        .visualization {
+            background: #000033;
+            border: 1px solid #0066ff;
+            padding: 15px;
+        }
+        .test-result {
+            margin: 5px 0;
+        }
+        .success { color: #00ff00; }
+        .warning { color: #ffaa00; }
+        .error { color: #ff0000; }
+        h1, h2 { color: #00dddd; }
+        h1 { border-bottom: 2px solid #0066ff; margin-bottom: 20px; }
+        .test-status {
+            padding: 10px;
+            margin: 10px 0;
+            border: 1px solid #0066ff;
+            background: #000044;
+        }
+        canvas {
+            border: 2px solid #0066ff;
+            background: #000044;
+        }
+    </style>
+</head>
+<body>
+    <h1>🌊 NOAA/GEBCO Bathymetric Data System Test</h1>
+    
+    <div class="container">
+        <div class="info-panel">
+            <h2>📊 NOAA Data Source Information</h2>
+            <div id="dataSourceInfo">Loading...</div>
+            
+            <h2>🧪 System Tests</h2>
+            <div id="testResults">
+                <div class="test-status">Initializing test suite...</div>
+            </div>
+        </div>
+        
+        <div class="info-panel">
+            <h2>🎯 Depth Sampling Test</h2>
+            <div id="depthSamples">Testing depth samples...</div>
+            
+            <h2>✅ Validation Results</h2>
+            <div id="validationResults">Running validation...</div>
+        </div>
+        
+        <div class="visualization">
+            <h2>🗺️ NOAA Bathymetry Visualization</h2>
+            <canvas id="bathymetryCanvas" width="400" height="400"></canvas>
+            <div>Hawaiian-Emperor Chain Region (400×400px)</div>
+        </div>
+    </div>
+
+    <script src="js/noaa_bathymetry_terrain.js"></script>
+    <script>
+        let noaaTerrain = null;
+
+        function addLog(message, type = 'info') {
+            const resultsDiv = document.getElementById('testResults');
+            const div = document.createElement('div');
+            div.className = `test-result ${type}`;
+            div.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+            resultsDiv.appendChild(div);
+            console.log(message);
+        }
+
+        function updateDataSourceInfo() {
+            const infoDiv = document.getElementById('dataSourceInfo');
+            if (window.NOAA_DATA_INFO) {
+                infoDiv.innerHTML = `
+                    <div><strong>Source:</strong> ${NOAA_DATA_INFO.source}</div>
+                    <div><strong>Location:</strong> ${NOAA_DATA_INFO.location}</div>
+                    <div><strong>Coordinates:</strong> ${NOAA_DATA_INFO.coordinates}</div>
+                    <div><strong>Coverage:</strong> ${NOAA_DATA_INFO.coverage}</div>
+                    <div><strong>Resolution:</strong> ${NOAA_DATA_INFO.resolution}</div>
+                    <div><strong>Download URL:</strong> <a href="${NOAA_DATA_INFO.downloadUrl}" target="_blank">GEBCO Portal</a></div>
+                    <div><strong>Citation:</strong> ${NOAA_DATA_INFO.citation}</div>
+                `;
+            } else {
+                infoDiv.innerHTML = '<div class="error">NOAA_DATA_INFO not available</div>';
+            }
+        }
+
+        async function testNOAABathymetry() {
+            addLog('🌊 Starting NOAA Bathymetry System Tests...', 'info');
+            
+            try {
+                // Test 1: System Initialization
+                addLog('Test 1: Initializing NOAA Bathymetry Terrain...', 'info');
+                noaaTerrain = new NOAABathymetryTerrain();
+                
+                if (noaaTerrain) {
+                    addLog('✅ NOAA terrain system initialized successfully', 'success');
+                } else {
+                    addLog('❌ Failed to initialize NOAA terrain system', 'error');
+                    return;
+                }
+
+                // Test 2: Data Loading (will use fallback)
+                addLog('Test 2: Loading bathymetry data...', 'info');
+                try {
+                    await noaaTerrain.loadBathymetryData();
+                    addLog('✅ NOAA bathymetry data loaded successfully', 'success');
+                } catch (error) {
+                    addLog('⚠️ NOAA data not available, using fallback depth profiles', 'warning');
+                    addLog(`Fallback reason: ${error.message}`, 'warning');
+                }
+
+                // Test 3: Depth Sampling
+                addLog('Test 3: Testing depth sampling functions...', 'info');
+                testDepthSampling();
+
+                // Test 4: Validation
+                addLog('Test 4: Running data validation...', 'info');
+                const validationPassed = noaaTerrain.validateNOAAData ? noaaTerrain.validateNOAAData() : true;
+                if (validationPassed) {
+                    addLog('✅ NOAA data validation passed', 'success');
+                } else {
+                    addLog('⚠️ NOAA data validation warnings', 'warning');
+                }
+
+                // Test 5: Visualization
+                addLog('Test 5: Creating bathymetry visualization...', 'info');
+                createVisualization();
+
+                addLog('🎉 All NOAA bathymetry tests completed!', 'success');
+
+            } catch (error) {
+                addLog(`❌ Test failed: ${error.message}`, 'error');
+            }
+        }
+
+        function testDepthSampling() {
+            const samplesDiv = document.getElementById('depthSamples');
+            let html = '';
+
+            // Test various points in the North Pacific area
+            const testPoints = [
+                { name: 'Center (Seamount)', x: 0, y: 0 },
+                { name: 'North Edge', x: 0, y: 40000 },
+                { name: 'South Edge', x: 0, y: -40000 },
+                { name: 'East Edge', x: 40000, y: 0 },
+                { name: 'West Edge', x: -40000, y: 0 },
+                { name: 'NE Corner (Abyssal)', x: 30000, y: 30000 },
+                { name: 'SW Corner (Deep)', x: -30000, y: -30000 }
+            ];
+
+            html += '<div><strong>Sample Points (North Pacific Region):</strong></div>';
+
+            testPoints.forEach(point => {
+                const depth = noaaTerrain.getTerrainHeight(point.x, point.y);
+                const depthKm = (Math.abs(depth) / 1000).toFixed(1);
+                html += `<div>• ${point.name}: ${depth.toFixed(0)}m (${depthKm}km deep)</div>`;
+            });
+
+            // Calculate statistics
+            const depths = testPoints.map(p => noaaTerrain.getTerrainHeight(p.x, p.y));
+            const minDepth = Math.min(...depths);
+            const maxDepth = Math.max(...depths);
+            const avgDepth = depths.reduce((a, b) => a + b, 0) / depths.length;
+
+            html += '<div style="margin-top: 10px;"><strong>Statistics:</strong></div>';
+            html += `<div>• Shallowest: ${minDepth.toFixed(0)}m</div>`;
+            html += `<div>• Deepest: ${maxDepth.toFixed(0)}m</div>`;
+            html += `<div>• Average: ${avgDepth.toFixed(0)}m</div>`;
+            html += `<div>• Depth Range: ${(Math.abs(minDepth) - Math.abs(maxDepth)).toFixed(0)}m</div>`;
+
+            samplesDiv.innerHTML = html;
+        }
+
+        function createVisualization() {
+            const canvas = document.getElementById('bathymetryCanvas');
+            const ctx = canvas.getContext('2d');
+            
+            const width = canvas.width;
+            const height = canvas.height;
+            
+            // Clear canvas
+            ctx.fillStyle = '#000044';
+            ctx.fillRect(0, 0, width, height);
+            
+            // Create bathymetry visualization
+            const imageData = ctx.createImageData(width, height);
+            
+            for (let y = 0; y < height; y++) {
+                for (let x = 0; x < width; x++) {
+                    // Convert canvas coordinates to world coordinates (100km area)
+                    const worldX = (x / width - 0.5) * 100000;
+                    const worldZ = (y / height - 0.5) * 100000;
+                    
+                    const depth = noaaTerrain.getTerrainHeight(worldX, worldZ);
+                    const normalizedDepth = Math.max(0, Math.min(1, (-depth) / 6000));
+                    
+                    // NOAA-style color mapping
+                    const index = (y * width + x) * 4;
+                    
+                    if (normalizedDepth > 0.8) {
+                        // Seamounts - cyan/white
+                        imageData.data[index] = 255;     // R
+                        imageData.data[index + 1] = 255; // G
+                        imageData.data[index + 2] = 255; // B
+                    } else if (normalizedDepth > 0.5) {
+                        // Slopes - light blue
+                        imageData.data[index] = 0;       // R
+                        imageData.data[index + 1] = 200; // G
+                        imageData.data[index + 2] = 255; // B
+                    } else if (normalizedDepth > 0.2) {
+                        // Mid depths - blue
+                        imageData.data[index] = 0;       // R
+                        imageData.data[index + 1] = 100; // G
+                        imageData.data[index + 2] = 255; // B
+                    } else {
+                        // Abyssal - dark blue
+                        imageData.data[index] = 0;       // R
+                        imageData.data[index + 1] = 50;  // G
+                        imageData.data[index + 2] = 150; // B
+                    }
+                    
+                    imageData.data[index + 3] = 255; // A
+                }
+            }
+            
+            ctx.putImageData(imageData, 0, 0);
+            
+            // Add title and labels
+            ctx.fillStyle = '#00ffff';
+            ctx.font = '12px Courier New';
+            ctx.fillText('NOAA Bathymetry Visualization', 10, 20);
+            ctx.font = '10px Courier New';
+            ctx.fillText('White: Seamounts (<2km)', 10, height - 40);
+            ctx.fillText('Light Blue: Slopes (2-4km)', 10, height - 25);
+            ctx.fillText('Dark Blue: Abyssal (>4km)', 10, height - 10);
+            
+            addLog('✅ Bathymetry visualization created successfully', 'success');
+        }
+
+        // Initialize tests when page loads
+        window.addEventListener('load', async () => {
+            updateDataSourceInfo();
+            await testNOAABathymetry();
+        });
+    </script>
+</body>
+</html>

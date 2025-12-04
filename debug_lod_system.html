@@ -1,0 +1,131 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Debug LOD System</title>
+    <style>
+        body { margin: 0; background: #000; color: #0f0; font-family: monospace; }
+        #debug { position: absolute; top: 10px; left: 10px; background: rgba(0,0,0,0.8); padding: 10px; max-width: 600px; }
+        #debug pre { margin: 5px 0; }
+    </style>
+</head>
+<body>
+    <div id="debug">
+        <h3>LOD System Debug</h3>
+        <div id="status">Loading...</div>
+        <pre id="log"></pre>
+    </div>
+
+    <script src="https://unpkg.com/three@0.149.0/build/three.min.js"></script>
+    <script src="js/ocean.js"></script>
+    <script src="js/submarine.js"></script>
+    <script src="js/game.js"></script>
+
+    <script>
+        let logDiv = document.getElementById('log');
+        let statusDiv = document.getElementById('status');
+
+        function log(message) {
+            console.log(message);
+            logDiv.innerHTML += message + '\n';
+        }
+
+        function updateStatus(message) {
+            statusDiv.textContent = message;
+        }
+
+        async function debugLODSystem() {
+            try {
+                updateStatus('Starting LOD system debug...');
+
+                log('1. Checking ocean environment...');
+                log('   window.oceanEnvironment exists: ' + !!window.oceanEnvironment);
+                log('   typeof window.oceanEnvironment: ' + typeof window.oceanEnvironment);
+
+                if (window.oceanEnvironment) {
+                    const oceanEnv = window.oceanEnvironment();
+                    log('   oceanEnvironment() returns: ' + !!oceanEnv);
+
+                    if (oceanEnv) {
+                        log('   terrainChunks exists: ' + !!oceanEnv.terrainChunks);
+                        log('   terrainChunks size: ' + (oceanEnv.terrainChunks ? oceanEnv.terrainChunks.size : 'N/A'));
+                        log('   updateTerrainLOD exists: ' + !!oceanEnv.updateTerrainLOD);
+                        log('   passiveRange: ' + oceanEnv.passiveRange);
+                        log('   activeSonarRange: ' + oceanEnv.activeSonarRange);
+                        log('   drawDistance: ' + oceanEnv.drawDistance);
+
+                        // Check if terrain chunks have been generated
+                        if (oceanEnv.terrainChunks && oceanEnv.terrainChunks.size > 0) {
+                            log('   ✅ Terrain chunks found: ' + oceanEnv.terrainChunks.size);
+
+                            // Check visibility of first few chunks
+                            let visibleCount = 0;
+                            let hiddenCount = 0;
+                            oceanEnv.terrainChunks.forEach((chunk, key) => {
+                                if (chunk.visible) visibleCount++;
+                                else hiddenCount++;
+                            });
+                            log('   Visible chunks: ' + visibleCount);
+                            log('   Hidden chunks: ' + hiddenCount);
+                        } else {
+                            log('   ❌ No terrain chunks found');
+                        }
+                    }
+                }
+
+                log('\n2. Checking submarine...');
+                log('   window.playerSubmarine exists: ' + !!window.playerSubmarine);
+                log('   typeof window.playerSubmarine: ' + typeof window.playerSubmarine);
+
+                if (window.playerSubmarine) {
+                    const submarine = window.playerSubmarine();
+                    log('   playerSubmarine() returns: ' + !!submarine);
+
+                    if (submarine) {
+                        log('   submarine.mesh exists: ' + !!submarine.mesh);
+                        if (submarine.mesh) {
+                            const pos = submarine.mesh.position;
+                            log('   submarine position: (' + pos.x.toFixed(1) + ', ' + pos.y.toFixed(1) + ', ' + pos.z.toFixed(1) + ')');
+                        }
+                    }
+                }
+
+                log('\n3. Checking updateOcean function...');
+                log('   window.updateOcean exists: ' + !!window.updateOcean);
+                log('   typeof window.updateOcean: ' + typeof window.updateOcean);
+
+                log('\n4. Testing manual LOD update...');
+                if (window.oceanEnvironment && window.playerSubmarine) {
+                    const oceanEnv = window.oceanEnvironment();
+                    const submarine = window.playerSubmarine();
+
+                    if (oceanEnv && oceanEnv.updateTerrainLOD && submarine && submarine.mesh) {
+                        log('   Calling updateTerrainLOD manually...');
+                        oceanEnv.updateTerrainLOD(submarine.mesh.position);
+                        log('   ✅ Manual LOD update completed');
+
+                        // Check visibility after update
+                        if (oceanEnv.terrainChunks) {
+                            let visibleCount = 0;
+                            oceanEnv.terrainChunks.forEach((chunk, key) => {
+                                if (chunk.visible) visibleCount++;
+                            });
+                            log('   Visible chunks after update: ' + visibleCount);
+                        }
+                    }
+                }
+
+                updateStatus('Debug complete - check log above');
+
+            } catch (error) {
+                log('❌ ERROR: ' + error.message);
+                updateStatus('Error occurred');
+            }
+        }
+
+        // Wait for game initialization then debug
+        setTimeout(() => {
+            debugLODSystem();
+        }, 3000);
+    </script>
+</body>
+</html>
