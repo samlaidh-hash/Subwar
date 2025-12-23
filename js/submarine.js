@@ -3792,8 +3792,8 @@ class Submarine {
         case 'KeyR':
             this.performSonarPing();
             break;
-        case 'KeyN':
-            this.cycleSonarMode(); // Active/Passive/Silent only (N key)
+        case 'KeyM':
+            this.cycleSonarMode(); // Active/Passive/Silent only (M key)
             break;
         case 'KeyQ':
             this.toggleQMADSystem();
@@ -3961,6 +3961,18 @@ class Submarine {
     }
 
     handleMouseMove(event) {
+        // Don't process mouse movement if scenario overlay is visible
+        const scenarioOverlay = document.getElementById('scenarioOverlay');
+        if (scenarioOverlay) {
+            const computedStyle = window.getComputedStyle(scenarioOverlay);
+            const isVisible = computedStyle.display !== 'none' && 
+                             !scenarioOverlay.classList.contains('hidden') &&
+                             computedStyle.visibility !== 'hidden';
+            if (isVisible) {
+                return; // Overlay is blocking - don't process mouse movement
+            }
+        }
+
         // Record mouse movement time for auto-drift
         this.maneuverIcon.lastMouseMoveTime = Date.now();
 

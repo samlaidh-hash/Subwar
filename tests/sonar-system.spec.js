@@ -49,29 +49,29 @@ test.describe('Sonar System Tests', () => {
         console.log('✓ Sonar initialized in Passive mode');
     });
 
-    test('should cycle through sonar modes (S key)', async () => {
+    test('should cycle through sonar modes (M key)', async () => {
         // Initial mode should be Passive
         let sonarMode = await page.evaluate(() => window.playerSubmarine()?.sonarMode);
         expect(sonarMode).toBe('Passive');
 
-        // Press S to cycle to Silent
-        await page.keyboard.press('s');
+        // Press M to cycle to Silent
+        await page.keyboard.press('M');
         await page.waitForTimeout(200);
 
         sonarMode = await page.evaluate(() => window.playerSubmarine()?.sonarMode);
         expect(sonarMode).toBe('Silent');
         console.log('✓ Cycled to Silent mode');
 
-        // Press S to cycle to Active
-        await page.keyboard.press('s');
+        // Press M to cycle to Active
+        await page.keyboard.press('M');
         await page.waitForTimeout(200);
 
         sonarMode = await page.evaluate(() => window.playerSubmarine()?.sonarMode);
         expect(sonarMode).toBe('Active');
         console.log('✓ Cycled to Active mode');
 
-        // Press S to cycle back to Passive
-        await page.keyboard.press('s');
+        // Press M to cycle back to Passive
+        await page.keyboard.press('M');
         await page.waitForTimeout(200);
 
         sonarMode = await page.evaluate(() => window.playerSubmarine()?.sonarMode);
@@ -80,23 +80,23 @@ test.describe('Sonar System Tests', () => {
     });
 
     test('should update sonar UI when mode changes', async () => {
-        // Check initial UI
-        let sonarText = await page.textContent('#sonar-mode');
+        // Check initial UI - text is in #sonar element inside #sonarMode
+        let sonarText = await page.textContent('#sonar');
         expect(sonarText).toContain('Passive');
 
         // Cycle mode
-        await page.keyboard.press('s');
+        await page.keyboard.press('M');
         await page.waitForTimeout(200);
 
-        sonarText = await page.textContent('#sonar-mode');
+        sonarText = await page.textContent('#sonar');
         expect(sonarText).toContain('Silent');
         console.log('✓ Sonar UI updates correctly');
     });
 
     test('should perform manual sonar ping (R key) in Active mode', async () => {
         // Switch to Active mode
-        await page.keyboard.press('s'); // Passive -> Silent
-        await page.keyboard.press('s'); // Silent -> Active
+        await page.keyboard.press('M'); // Passive -> Silent
+        await page.keyboard.press('M'); // Silent -> Active
         await page.waitForTimeout(200);
 
         // Record ping before
@@ -145,7 +145,7 @@ test.describe('Sonar System Tests', () => {
 
     test('EXPECTED FAIL: Silent mode should block sonar pinging (bug)', async () => {
         // Switch to Silent mode
-        await page.keyboard.press('s'); // Passive -> Silent
+        await page.keyboard.press('M'); // Passive -> Silent
         await page.waitForTimeout(200);
 
         const sonarMode = await page.evaluate(() => window.playerSubmarine()?.sonarMode);
@@ -204,8 +204,8 @@ test.describe('Sonar System Tests', () => {
             return new Promise((resolve) => {
                 let timeWaited = 0;
                 const checkInterval = setInterval(() => {
-                    const sonarStatus = document.querySelector('#sonar-status');
-                    if (sonarStatus && sonarStatus.textContent.includes('1 contact')) {
+                    const contactsList = document.querySelector('#contactsList');
+                    if (contactsList && contactsList.textContent.includes('contact') && !contactsList.textContent.includes('No contacts')) {
                         clearInterval(checkInterval);
                         resolve(true);
                     }
@@ -227,8 +227,8 @@ test.describe('Sonar System Tests', () => {
 
     test('should detect enemies with manual ping', async () => {
         // Switch to Active mode for testing
-        await page.keyboard.press('s'); // Passive -> Silent
-        await page.keyboard.press('s'); // Silent -> Active
+        await page.keyboard.press('M'); // Passive -> Silent
+        await page.keyboard.press('M'); // Silent -> Active
         await page.waitForTimeout(200);
 
         // Spawn an enemy at 500m
@@ -250,11 +250,18 @@ test.describe('Sonar System Tests', () => {
 
         // Check if enemy was detected
         const contactCount = await page.evaluate(() => {
-            const sonarStatus = document.querySelector('#sonar-status');
-            if (!sonarStatus) return 0;
+            const contactsList = document.querySelector('#contactsList');
+            if (!contactsList) return 0;
 
-            const match = sonarStatus.textContent.match(/(\d+) contact/);
-            return match ? parseInt(match[1]) : 0;
+            // Count contact elements or check text content
+            const contactElements = contactsList.querySelectorAll('.contact');
+            if (contactElements.length > 0) {
+                return contactElements.length;
+            }
+            
+            // Fallback: check text content
+            const match = contactsList.textContent.match(/(\d+) contact/i);
+            return match ? parseInt(match[1]) : (contactsList.textContent.includes('contact') && !contactsList.textContent.includes('No contacts') ? 1 : 0);
         });
 
         expect(contactCount).toBeGreaterThan(0);
@@ -383,7 +390,7 @@ test.describe('Sonar System Tests', () => {
         await page.waitForTimeout(500);
 
         // Check for QMAD detection indicator in UI
-        const qmadText = await page.textContent('#sonar-status');
+        const qmadText = await page.textContent('#contactsList');
 
         console.log(`QMAD status: ${qmadText}`);
         // QMAD should work regardless of sonar mode

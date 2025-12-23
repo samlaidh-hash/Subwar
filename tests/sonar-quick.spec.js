@@ -50,7 +50,7 @@ test.describe('Quick Sonar Bug Verification', () => {
         console.log('  ✓ Defaults to Passive mode\n');
 
         // === TEST 2: Check mode cycling ===
-        await page.keyboard.press('s');
+        await page.keyboard.press('M');
         await page.waitForTimeout(300);
 
         const afterFirstCycle = await page.evaluate(() => window.playerSubmarine()?.sonarMode);

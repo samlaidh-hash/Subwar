@@ -875,7 +875,9 @@ function handleMouseUp(event) {
 }
 
 function handleMouseMove(event) {
-    if (gameState.mouse.rightClickActive && gameState.mouse.isDown) {
+    // Only handle camera mouse movement when right-click is active AND game is running
+    // Don't interfere with submarine maneuver control
+    if (gameState.mouse.rightClickActive && gameState.mouse.isDown && gameState.isRunning) {
         const deltaX = event.clientX - gameState.mouse.x;
         const deltaY = event.clientY - gameState.mouse.y;
 
@@ -895,6 +897,7 @@ function handleMouseMove(event) {
         gameState.mouse.x = event.clientX;
         gameState.mouse.y = event.clientY;
     }
+    // Let submarine handleMouseMove process normal mouse movement for maneuvering
 }
 
 // Camera mouse movement handler for submarine
