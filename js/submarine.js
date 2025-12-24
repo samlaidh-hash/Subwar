@@ -149,7 +149,7 @@ const SUBMARINE_SPECIFICATIONS = {
 
     TYPHOON: {
         // Physical Characteristics (updated from SUBMARINE_SPECIFICATIONS.txt)
-        hullLength: 24, // 24 meters
+        hullLength: 12, // 12 meters (halved from 24m)
         hullWidth: 10, // 10 meters
         hullHeight: 4, // 4 meters
         displacement: 1800, // 1800 tons
@@ -2309,7 +2309,7 @@ class Submarine {
         // Scale and orient for submarine use
         // Cobra width (24 units) becomes Tornado length, maintain proportions
         const cobraWidth = 24; // Distance from left wing to right wing
-        const tornadoLength = 5; // Desired submarine length
+        const tornadoLength = 2.5; // Desired submarine length (12m, halved from 24m/5 units)
         const scale = tornadoLength / cobraWidth;
 
         cobra.scale.set(scale, scale, scale);
@@ -4162,8 +4162,8 @@ class Submarine {
         case 'KeyR':
             this.performSonarPing();
             break;
-        case 'KeyM':
-            this.cycleSonarMode(); // Active/Passive only (M key)
+        case 'KeyO':
+            this.cycleSonarMode(); // Active/Passive only (O key for sOnar)
             break;
         case 'KeyQ':
             this.toggleQMADSystem();
@@ -4828,11 +4828,50 @@ class Submarine {
         // Calculate distance from center for dead zone
         const iconDistance = Math.sqrt(this.maneuverIcon.x * this.maneuverIcon.x + this.maneuverIcon.y * this.maneuverIcon.y);
         const inDeadZone = iconDistance <= this.maneuverIcon.deadZoneRadius;
+        
+        // Check if mouse is over reticle (very small threshold for stabilization)
+        const reticleThreshold = 0.05; // Very small threshold - mouse must be almost exactly centered
+        const isOverReticle = iconDistance <= reticleThreshold;
 
         // Get camera if available
         const camera = window.gameState ? window.gameState.camera : null;
 
-        if (!inDeadZone && camera) {
+        // If over reticle or in dead zone, stabilize submarine (straight and level)
+        if (isOverReticle || inDeadZone) {
+            // Gradually return to straight and level flight
+            const stabilizationSpeed = isOverReticle ? 2.0 : 1.0; // Faster when over reticle
+            
+            // Stabilize pitch (return to 0)
+            if (Math.abs(this.mesh.rotation.x) > 0.001) {
+                this.mesh.rotation.x = THREE.MathUtils.lerp(this.mesh.rotation.x, 0, deltaTime * stabilizationSpeed);
+            } else {
+                this.mesh.rotation.x = 0;
+            }
+            
+            // Stabilize roll (return to 0)
+            if (Math.abs(this.mesh.rotation.z) > 0.001) {
+                this.mesh.rotation.z = THREE.MathUtils.lerp(this.mesh.rotation.z, 0, deltaTime * stabilizationSpeed);
+            } else {
+                this.mesh.rotation.z = 0;
+            }
+            
+            // Stabilize yaw (keep current heading, but stop any drift)
+            // Don't change yaw when over reticle or in dead zone - maintain current heading
+            
+            // Ensure maneuver icon is exactly centered when over reticle
+            if (isOverReticle && (Math.abs(this.maneuverIcon.x) > 0.001 || Math.abs(this.maneuverIcon.y) > 0.001)) {
+                this.maneuverIcon.x = 0;
+                this.maneuverIcon.y = 0;
+                const centerX = window.innerWidth / 2;
+                const centerY = window.innerHeight / 2;
+                this.maneuverIcon.screenX = centerX;
+                this.maneuverIcon.screenY = centerY;
+                if (this.maneuverIconElement) {
+                    this.maneuverIconElement.style.left = (centerX - 10) + 'px';
+                    this.maneuverIconElement.style.top = (centerY - 10) + 'px';
+                }
+            }
+        } else if (camera) {
             // STEP 1: Convert screen position to world point (like ShipInput.TurnTowardsPoint)
             // Project icon position to a point in world space
             const aimDistance = 500; // Distance ahead to project aim point
@@ -4873,15 +4912,24 @@ class Submarine {
             let pitchInput = Math.max(-1, Math.min(1, localTargetNorm.y));
             let yawInput = Math.max(-1, Math.min(1, localTargetNorm.z));
 
+            // Apply dead zone threshold to prevent tiny inputs from causing drift
+            const inputThreshold = 0.01; // Ignore inputs smaller than this
+            if (Math.abs(pitchInput) < inputThreshold) pitchInput = 0;
+            if (Math.abs(yawInput) < inputThreshold) yawInput = 0;
+
             // DEBUG: Log values occasionally
             if (Math.random() < 0.01) {
                 console.log(`🎮 Control Debug: icon=(${this.maneuverIcon.x.toFixed(2)}, ${this.maneuverIcon.y.toFixed(2)}) localNorm=(${localTargetNorm.x.toFixed(2)}, ${localTargetNorm.y.toFixed(2)}, ${localTargetNorm.z.toFixed(2)}) pitch=${pitchInput.toFixed(2)} yaw=${yawInput.toFixed(2)}`);
             }
 
-            // STEP 4: Apply rotation based on inputs
+            // STEP 4: Apply rotation based on inputs (only if inputs are significant)
             // NOTE: Due to submarine model being rotated 90° on Z-axis, pitch is Z rotation
-            this.mesh.rotation.z += pitchInput * pitchSensitivity * deltaTime;
-            this.mesh.rotation.y += yawInput * yawSensitivity * deltaTime;
+            if (Math.abs(pitchInput) > inputThreshold) {
+                this.mesh.rotation.z += pitchInput * pitchSensitivity * deltaTime;
+            }
+            if (Math.abs(yawInput) > inputThreshold) {
+                this.mesh.rotation.y += yawInput * yawSensitivity * deltaTime;
+            }
 
             // Clamp pitch to reasonable limits
             this.mesh.rotation.z = Math.max(Math.min(this.mesh.rotation.z, Math.PI / 3), -Math.PI / 3);

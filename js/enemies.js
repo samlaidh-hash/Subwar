@@ -647,6 +647,33 @@ class EnemyManager {
         return this.enemies.filter(enemy => !enemy.isDestroyed());
     }
 
+    // Spawn enemy at specific position relative to player (for testing)
+    spawnEnemyAtPosition(position, type = 'attack') {
+        const enemy = new EnemySubmarine(this.scene, position, type);
+        this.enemies.push(enemy);
+        console.log(`🎯 Spawned ${type} submarine at (${position.x.toFixed(1)}, ${position.y.toFixed(1)}, ${position.z.toFixed(1)})`);
+        return enemy;
+    }
+
+    // Spawn enemy 400m ahead of player submarine (for testing)
+    spawnEnemyAhead(playerSubmarine, distance = 400, type = 'attack') {
+        if (!playerSubmarine || !playerSubmarine.mesh) {
+            console.warn('Cannot spawn enemy - player submarine not found');
+            return null;
+        }
+
+        // Get player position and forward direction
+        const playerPos = playerSubmarine.mesh.position.clone();
+        const forwardDirection = new THREE.Vector3(1, 0, 0); // Forward is +X
+        forwardDirection.applyQuaternion(playerSubmarine.mesh.quaternion);
+        
+        // Calculate spawn position 400m ahead
+        const spawnPos = playerPos.clone().add(forwardDirection.multiplyScalar(distance));
+        spawnPos.y = playerPos.y; // Same depth as player
+
+        return this.spawnEnemyAtPosition(spawnPos, type);
+    }
+
     cleanup() {
         this.enemies.forEach(enemy => {
             if (enemy.mesh && enemy.mesh.parent) {
@@ -687,3 +714,21 @@ window.initEnemies = initEnemies;
 window.updateEnemies = updateEnemies;
 window.getEnemySubmarines = getEnemySubmarines;
 window.enemyManager = () => enemyManager;
+
+// Global function to spawn enemy 400m ahead of player (for testing)
+window.spawnEnemyAhead = function(distance = 400, type = 'attack') {
+    const manager = window.enemyManager();
+    const playerSub = window.playerSubmarine ? window.playerSubmarine() : null;
+    
+    if (!manager) {
+        console.error('❌ Enemy manager not initialized');
+        return null;
+    }
+    
+    if (!playerSub) {
+        console.error('❌ Player submarine not found');
+        return null;
+    }
+    
+    return manager.spawnEnemyAhead(playerSub, distance, type);
+};

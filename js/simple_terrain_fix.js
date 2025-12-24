@@ -2300,6 +2300,11 @@ class SimpleTerrain {
                 // Apply sensor visibility (0 = invisible, 1 = visible)
                 float finalAlpha = visibility;
 
+                // Discard fragments with very low alpha to prevent color artifacts
+                if (finalAlpha < 0.01) {
+                    discard;
+                }
+
                 if (wireframeMode) {
                     // Enhanced wireframe with depth coloring and sensor visibility
                     gl_FragColor = vec4(baseColor * 1.2, 0.9 * finalAlpha);

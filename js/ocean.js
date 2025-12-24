@@ -2855,26 +2855,24 @@ class Ocean {
             let visibilityAlpha = 1.0;
 
             if (this.isSonarPingActive()) {
-                // Active sonar ping: 2km range with fade timing
-                const dx = chunk.centerX - playerPosition.x;
-                const dz = chunk.centerZ - playerPosition.z;
-                const angle = Math.atan2(dz, dx);
-
-                // Get submarine facing direction (assume positive X is forward)
-                const submarineFacing = 0; // This should be actual submarine rotation
-                const relativeAngle = angle - submarineFacing;
-                const normalizedAngle = ((relativeAngle + Math.PI) % (2 * Math.PI)) - Math.PI;
-
-                // Check if in rear 90-degree blind spot (-45 to +45 degrees behind)
-                const isInBlindSpot = Math.abs(normalizedAngle) > (Math.PI - Math.PI/4);
-
-                if (distance <= this.activeSonarRange && !isInBlindSpot) {
+                // Active sonar ping: 6000m range with fade timing
+                const pingAlpha = this.getSonarPingAlpha();
+                
+                // Only show chunks if ping alpha is significant (above threshold)
+                if (distance <= this.activeSonarRange && pingAlpha > 0.01) {
                     shouldBeVisible = true;
-                    visibilityAlpha = this.getSonarPingAlpha(); // Apply fade alpha
+                    visibilityAlpha = pingAlpha;
+                } else if (distance <= this.passiveRange) {
+                    // Always visible within passive range
+                    shouldBeVisible = true;
+                    visibilityAlpha = 1.0;
                 }
             } else {
                 // Default: 500m sphere around submarine
-                shouldBeVisible = distance <= this.passiveRange;
+                if (distance <= this.passiveRange) {
+                    shouldBeVisible = true;
+                    visibilityAlpha = 1.0;
+                }
             }
 
             if (shouldBeVisible && !chunk.visible) {
