@@ -144,3 +144,4 @@ The enemy submarines will:
 5. Evade when damaged
 6. Retreat when critically damaged
 
+

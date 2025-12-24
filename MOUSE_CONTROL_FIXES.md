@@ -66,3 +66,4 @@
 - **Overlay still visible**: Check CSS - overlay might have `display: flex` instead of `none`
 - **Event not firing**: Check if event listeners are registered after submarine is created
 
+

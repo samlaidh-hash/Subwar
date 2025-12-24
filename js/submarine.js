@@ -1956,7 +1956,7 @@ class Submarine {
         const scale = tornadoLength / cobraWidth;
 
         cobra.scale.set(scale, scale, scale);
-        cobra.rotation.y = Math.PI / 2; // Rotate 90 degrees in Y axis
+        cobra.rotation.y = 0; // Face forward (no rotation)
         cobra.position.set(0, 0, 0);
 
         group.add(cobra);
@@ -1970,7 +1970,7 @@ class Submarine {
         });
         const wireframe = new THREE.Mesh(cobraGeometry, wireframeMaterial);
         wireframe.scale.set(scale, scale, scale);
-        wireframe.rotation.y = Math.PI / 2;
+        wireframe.rotation.y = 0; // Face forward (no rotation)
         wireframe.position.set(0, 0, 0);
 
         group.add(wireframe);

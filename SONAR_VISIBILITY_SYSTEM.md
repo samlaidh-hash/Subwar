@@ -80,3 +80,4 @@
 
 The system now provides clear visibility mechanics: default 500m visibility with optional active pings that extend range temporarily.
 
+

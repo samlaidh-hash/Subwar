@@ -48,3 +48,4 @@ Tests should now pass with the fixes applied:
 - ✅ Test files updated to use 'M' key
 - ✅ UI element IDs verified (see below)
 
+

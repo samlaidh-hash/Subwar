@@ -49,29 +49,77 @@ class SimpleTerrain {
     }
 
     calculateNoisePattern(x, z, baseDepth) {
-        // Multi-scale noise pattern for realistic terrain variation
+        // Smoothed multi-scale noise pattern for less jagged terrain
 
-        // Base noise using multiple octaves for natural randomness
-        const noise1 = Math.sin(x * 0.001 + 47.3) * Math.cos(z * 0.0012 + 23.7); // Large scale
-        const noise2 = Math.sin(x * 0.003 + 12.1) * Math.cos(z * 0.0035 + 89.2); // Medium scale
-        const noise3 = Math.sin(x * 0.008 + 67.8) * Math.cos(z * 0.0074 + 34.5); // Fine scale
-        const noise4 = Math.sin(x * 0.015 + 91.4) * Math.cos(z * 0.0166 + 78.9); // Detail scale
+        // Base noise using multiple octaves with smoother frequencies
+        const noise1 = Math.sin(x * 0.0005 + 47.3) * Math.cos(z * 0.0006 + 23.7); // Large scale (reduced frequency)
+        const noise2 = Math.sin(x * 0.0015 + 12.1) * Math.cos(z * 0.0017 + 89.2); // Medium scale (reduced frequency)
+        const noise3 = Math.sin(x * 0.004 + 67.8) * Math.cos(z * 0.0037 + 34.5); // Fine scale (reduced frequency)
+        const noise4 = Math.sin(x * 0.008 + 91.4) * Math.cos(z * 0.0083 + 78.9); // Detail scale (reduced frequency)
 
-        // Combine noise layers with different weights
-        const combinedNoise = (noise1 * 0.4 + noise2 * 0.3 + noise3 * 0.2 + noise4 * 0.1);
+        // Combine noise layers with smoother weighting (more weight on large scale)
+        const combinedNoise = (noise1 * 0.5 + noise2 * 0.3 + noise3 * 0.15 + noise4 * 0.05);
 
-        // Calculate depth-based variance modifier (10% variance becomes larger at greater depths)
+        // Calculate depth-based variance modifier (reduced from 10% to 5% for smoother terrain)
         const depthMagnitude = Math.abs(baseDepth);
-        const variancePercent = 0.1; // ±10% base variance
+        const variancePercent = 0.05; // ±5% base variance (reduced from 10%)
 
-        // Noisier nodes get greater depth changes (exponential scaling)
+        // Reduced intensity multiplier for smoother transitions
         const noiseIntensity = Math.abs(combinedNoise);
-        const intensityMultiplier = 1.0 + (noiseIntensity * 2.0); // 1x to 3x multiplier based on noise
+        const intensityMultiplier = 1.0 + (noiseIntensity * 1.0); // 1x to 2x multiplier (reduced from 3x)
 
         // Calculate final variance: base depth × variance × noise intensity × combined noise
         const noiseVariance = depthMagnitude * variancePercent * intensityMultiplier * combinedNoise;
 
         return noiseVariance;
+    }
+
+    smoothTerrain(geometry, widthSegments, heightSegments) {
+        // Smooth terrain by averaging neighboring vertices to reduce jagged peaks
+        const vertices = geometry.attributes.position.array;
+        const smoothedHeights = new Float32Array(vertices.length / 3);
+        
+        // First pass: calculate smoothed heights
+        for (let i = 0; i < vertices.length; i += 3) {
+            const vertexIndex = i / 3;
+            const row = Math.floor(vertexIndex / (widthSegments + 1));
+            const col = vertexIndex % (widthSegments + 1);
+            
+            let sum = vertices[i + 1]; // Current height
+            let count = 1;
+            
+            // Average with neighboring vertices (4-connected)
+            if (row > 0) {
+                const neighborIndex = (row - 1) * (widthSegments + 1) + col;
+                sum += vertices[neighborIndex * 3 + 1];
+                count++;
+            }
+            if (row < heightSegments) {
+                const neighborIndex = (row + 1) * (widthSegments + 1) + col;
+                sum += vertices[neighborIndex * 3 + 1];
+                count++;
+            }
+            if (col > 0) {
+                const neighborIndex = row * (widthSegments + 1) + (col - 1);
+                sum += vertices[neighborIndex * 3 + 1];
+                count++;
+            }
+            if (col < widthSegments) {
+                const neighborIndex = row * (widthSegments + 1) + (col + 1);
+                sum += vertices[neighborIndex * 3 + 1];
+                count++;
+            }
+            
+            // Weighted average: 60% current, 40% neighbors (preserves major features while smoothing)
+            smoothedHeights[vertexIndex] = vertices[i + 1] * 0.6 + (sum / count) * 0.4;
+        }
+        
+        // Second pass: apply smoothed heights
+        for (let i = 0; i < vertices.length; i += 3) {
+            vertices[i + 1] = smoothedHeights[i / 3];
+        }
+        
+        console.log('✅ Terrain smoothing applied to reduce jagged peaks');
     }
 
     createEmergencyTerrain() {
@@ -286,9 +334,12 @@ class SimpleTerrain {
             }
         }
         
+        // Apply smoothing pass to reduce jagged peaks
+        this.smoothTerrain(geometry, widthSegments, heightSegments);
+        
         geometry.attributes.position.needsUpdate = true;
         geometry.computeVertexNormals(); // Recalculate normals
-        console.log('✅ Height variations applied AFTER rotation');
+        console.log('✅ Height variations applied AFTER rotation and smoothed');
         
         // Enhanced depth-based shader material with textures for all terrain features
         const material = this.createTexturedTerrainShader();
@@ -2187,16 +2238,12 @@ class SimpleTerrain {
             uniform float passiveRange;
             uniform float activeSonarRange;
             uniform bool isActiveSonarActive;
-            uniform sampler2D sandTexture;
-            uniform sampler2D mudTexture;
-            uniform sampler2D rockTexture;
-            uniform sampler2D combinedTexture;
             varying vec3 vPosition;
             varying vec3 vNormal;
             varying float vDepth;
             varying vec2 vUv;
             
-            // Depth-based color zones for easy navigation
+            // Simplified depth-based color zones (no texture sampling for performance)
             vec3 getDepthColor(float depth) {
                 // Continental Shelf: Light blue-green (shallow water)
                 if (depth > -200.0) {
@@ -2220,77 +2267,20 @@ class SimpleTerrain {
                 }
             }
             
-            // Get texture based on depth and terrain type
-            vec3 getTerrainTexture(float depth, float slope) {
-                vec2 tiledUv = vUv * 50.0; // Tile textures across terrain
-                
-                // Continental Shelf: Sand texture
-                if (depth > -200.0) {
-                    vec3 sand = texture2D(sandTexture, tiledUv).rgb;
-                    return sand * 0.8 + getDepthColor(depth) * 0.2;
-                }
-                // Continental Slope: Mix of sand and mud
-                else if (depth > -2000.0) {
-                    float factor = (depth + 2000.0) / 1800.0;
-                    vec3 sand = texture2D(sandTexture, tiledUv).rgb;
-                    vec3 mud = texture2D(mudTexture, tiledUv).rgb;
-                    vec3 blended = mix(sand, mud, factor);
-                    return blended * 0.7 + getDepthColor(depth) * 0.3;
-                }
-                // Abyssal Plain: Mud texture with rock on steep slopes
-                else if (depth > -6000.0) {
-                    vec3 mud = texture2D(mudTexture, tiledUv).rgb;
-                    vec3 rock = texture2D(rockTexture, tiledUv).rgb;
-                    // Use rock texture on steep slopes (canyons, ridges)
-                    float rockMix = smoothstep(0.3, 0.8, slope);
-                    vec3 surface = mix(mud, rock, rockMix);
-                    return surface * 0.6 + getDepthColor(depth) * 0.4;
-                }
-                // Deep Trench: Rock texture with mud patches
-                else {
-                    vec3 rock = texture2D(rockTexture, tiledUv).rgb;
-                    vec3 mud = texture2D(mudTexture, tiledUv).rgb;
-                    // More rock on steep walls, mud on flat floor
-                    float mudMix = 1.0 - slope; // More mud on flat areas
-                    vec3 surface = mix(rock, mud, mudMix * 0.5);
-                    return surface * 0.5 + getDepthColor(depth) * 0.5;
-                }
-            }
-            
-            // Add contour lines for depth visualization
-            float getContourLines(float depth) {
-                float contourSpacing = 200.0; // Contour every 200m
-                float modDepth = mod(abs(depth), contourSpacing);
-                float lineWidth = 10.0;
-                
-                if (modDepth < lineWidth || modDepth > (contourSpacing - lineWidth)) {
-                    return 0.3; // Bright contour line
-                }
-                return 0.0;
-            }
-            
             void main() {
-                // Calculate slope for texture selection
+                // Calculate slope for shading
                 float slope = 1.0 - abs(dot(vNormal, vec3(0.0, 1.0, 0.0)));
                 
-                // Get textured color based on depth and terrain type
-                vec3 texturedColor = getTerrainTexture(vDepth, slope);
+                // Get depth-based color (no texture sampling for performance)
+                vec3 baseColor = getDepthColor(vDepth);
                 
-                // Add subtle underwater caustics effect
-                float caustics = sin(vPosition.x * 0.01 + time) * sin(vPosition.z * 0.008 + time * 0.7) * 0.1;
-                texturedColor += vec3(caustics * 0.2, caustics * 0.3, caustics * 0.1);
-                
-                // Add contour lines for depth reference
-                float contour = getContourLines(vDepth);
-                texturedColor += vec3(contour * 0.8, contour * 0.9, contour * 1.0);
-                
-                // Enhanced slope-based shading for better 3D perception
-                vec3 slopeShading = vec3(slope * 0.3);
-                texturedColor += slopeShading;
+                // Add subtle slope-based shading for better 3D perception
+                vec3 slopeShading = vec3(slope * 0.2);
+                baseColor += slopeShading;
                 
                 // Depth fog for distance perception
                 float fogFactor = clamp(abs(vDepth) / 8000.0, 0.0, 0.4);
-                texturedColor = mix(texturedColor, vec3(0.0, 0.1, 0.3), fogFactor);
+                baseColor = mix(baseColor, vec3(0.0, 0.1, 0.3), fogFactor);
 
                 // SENSOR-BASED VISIBILITY CALCULATION
                 float distanceToSubmarine = distance(vPosition.xz, submarinePosition.xz);
@@ -2311,20 +2301,15 @@ class SimpleTerrain {
 
                 if (wireframeMode) {
                     // Enhanced wireframe with depth coloring and sensor visibility
-                    gl_FragColor = vec4(texturedColor * 1.2, 0.9 * finalAlpha);
+                    gl_FragColor = vec4(baseColor * 1.2, 0.9 * finalAlpha);
                 } else {
-                    // Solid mode with textures and sensor visibility
-                    gl_FragColor = vec4(texturedColor, finalAlpha);
+                    // Solid mode with depth-based colors and sensor visibility
+                    gl_FragColor = vec4(baseColor, finalAlpha);
                 }
             }
         `;
         
-        // Create textures for terrain features
-        const sandTexture = this.createSandTexture();
-        const mudTexture = this.createMudTexture();
-        const rockTexture = this.createRockTexture();
-        const combinedTexture = this.createCombinedSeafloorTexture();
-        
+        // Simplified shader material without textures for better performance
         const material = new THREE.ShaderMaterial({
             vertexShader: vertexShader,
             fragmentShader: fragmentShader,
@@ -2334,11 +2319,7 @@ class SimpleTerrain {
                 submarinePosition: { value: new THREE.Vector3(0, 0, 0) },
                 passiveRange: { value: 500.0 },
                 activeSonarRange: { value: 2000.0 },
-                isActiveSonarActive: { value: false },
-                sandTexture: { value: sandTexture },
-                mudTexture: { value: mudTexture },
-                rockTexture: { value: rockTexture },
-                combinedTexture: { value: combinedTexture }
+                isActiveSonarActive: { value: false }
             },
             wireframe: this.wireframeMode,
             side: THREE.FrontSide,
