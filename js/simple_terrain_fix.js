@@ -2238,6 +2238,7 @@ class SimpleTerrain {
             uniform float passiveRange;
             uniform float activeSonarRange;
             uniform bool isActiveSonarActive;
+            uniform float sonarFadeAlpha;
             varying vec3 vPosition;
             varying vec3 vNormal;
             varying float vDepth;
@@ -2290,10 +2291,10 @@ class SimpleTerrain {
                 if (distanceToSubmarine <= passiveRange) {
                     visibility = 1.0;
                 }
-                // Active sonar ping: 2km range with timing-based fade
+                // Active sonar ping: 6000m range with timing-based fade
                 else if (isActiveSonarActive && distanceToSubmarine <= activeSonarRange) {
-                    // Note: Timing-based fade is handled in JavaScript, shader just checks range
-                    visibility = 1.0;
+                    // Apply fade alpha from JavaScript (1.0 = fully visible, 0.0 = invisible)
+                    visibility = sonarFadeAlpha;
                 }
 
                 // Apply sensor visibility (0 = invisible, 1 = visible)
@@ -2318,13 +2319,15 @@ class SimpleTerrain {
                 wireframeMode: { value: this.wireframeMode },
                 submarinePosition: { value: new THREE.Vector3(0, 0, 0) },
                 passiveRange: { value: 500.0 },
-                activeSonarRange: { value: 2000.0 },
-                isActiveSonarActive: { value: false }
+                activeSonarRange: { value: 6000.0 },
+                isActiveSonarActive: { value: false },
+                sonarFadeAlpha: { value: 1.0 } // Alpha for sonar ping fade (1.0 = fully visible, 0.0 = invisible)
             },
             wireframe: this.wireframeMode,
             side: THREE.FrontSide,
             transparent: true,
-            depthWrite: true,
+            alphaTest: 0.01, // Discard fragments with alpha < 0.01 (fully invisible)
+            depthWrite: false, // Don't write depth for transparent fragments
             depthTest: true
         });
         
@@ -2369,6 +2372,14 @@ class SimpleTerrain {
                     window.oceanInstance.isSonarPingActive() : 
                     (window.oceanInstance.isActiveSonarActive || false);
                 this.shaderMaterial.uniforms.isActiveSonarActive.value = isActive;
+                
+                // Update fade alpha based on sonar ping timing
+                if (window.oceanInstance.getSonarPingAlpha) {
+                    this.shaderMaterial.uniforms.sonarFadeAlpha.value = window.oceanInstance.getSonarPingAlpha();
+                } else {
+                    // Default to fully visible if active, invisible if not
+                    this.shaderMaterial.uniforms.sonarFadeAlpha.value = isActive ? 1.0 : 0.0;
+                }
                 
                 // Update ranges
                 if (window.oceanInstance.passiveRange !== undefined) {

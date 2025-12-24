@@ -866,6 +866,22 @@ const TORPEDO_SPECIFICATIONS = {
         maxRange: 8000, // meters
         loadTime: 30000, // 30 seconds load time (torpedo type change time)
         restrictedTo: [] // All subs can carry (removed restrictions)
+    },
+    DN: { // Drone Torpedo
+        name: 'Drone',
+        damage: 0, // No damage - reconnaissance only
+        maxSpeed: 100, // knots - moderate speed
+        scavSpeed: 100, // Same speed throughout
+        maneuverability: 0.0, // No maneuverability - travels straight
+        lockTime: 0, // No lock required
+        passiveLockTime: 0, // No lock required
+        terminalRange: 0, // Not applicable
+        maxRange: Infinity, // Travels until map edge or terrain collision
+        loadTime: 30000, // 30 seconds load time
+        restrictedTo: [], // All subs can carry
+        isDrone: true, // Flag to identify drone torpedoes
+        activationRange: 1000, // 1km - when bubble rendering starts
+        bubbleRadius: 2000 // 2km diameter bubble around drone
     }
 };
 
@@ -890,6 +906,19 @@ class AudioManager {
         this.engineOscillator = null;
         this.ambientSources = [];
         this.activeSources = new Set();
+        
+        // Sound file cache
+        this.soundCache = new Map();
+        this.soundDirectory = 'SOUNDS/';
+        
+        // Active sound loops
+        this.activeSonarLoop = null;
+        this.ambienceLoop = null;
+        this.deepAmbienceLoop = null;
+        this.proximityLoop = null;
+        
+        // Torpedo ping timers
+        this.torpedoPingTimers = new Map(); // Map of torpedo ID -> ping timer data
         
         // Engine sound parameters
         this.engineParams = {
@@ -928,9 +957,114 @@ class AudioManager {
             // Set initial volumes
             this.updateVolumes();
             
+            // Preload sound files
+            this.preloadSounds();
+            
             console.log('🔊 AudioManager initialized successfully');
         } catch (error) {
             console.warn('AudioManager: Web Audio API not supported', error);
+        }
+    }
+    
+    // Preload common sound files
+    preloadSounds() {
+        const soundsToPreload = [
+            'active_constant_pinging',
+            'active_single_ping',
+            'torpedo_launch',
+            'underwater_ambience',
+            'deep_underwater_ambience',
+            'knuckle',
+            'underwater_explosion',
+            'underwater_impact',
+            'hit',
+            'proximity'
+        ];
+        
+        soundsToPreload.forEach(soundName => {
+            this.loadSoundFile(soundName);
+        });
+    }
+    
+    // Load sound file (supports .wav and .mp3)
+    async loadSoundFile(filename) {
+        if (this.soundCache.has(filename)) {
+            return this.soundCache.get(filename);
+        }
+        
+        return new Promise((resolve, reject) => {
+            // Try .wav first, then .mp3
+            const extensions = ['.wav', '.mp3'];
+            let currentExtension = 0;
+            
+            const tryLoad = () => {
+                const fullPath = this.soundDirectory + filename + extensions[currentExtension];
+                const audio = new Audio();
+                
+                audio.addEventListener('canplaythrough', () => {
+                    this.soundCache.set(filename, audio);
+                    resolve(audio);
+                });
+                
+                audio.addEventListener('error', () => {
+                    currentExtension++;
+                    if (currentExtension < extensions.length) {
+                        tryLoad();
+                    } else {
+                        console.warn(`Failed to load sound file: ${filename} (tried .wav and .mp3)`);
+                        reject(new Error(`Could not load ${filename}`));
+                    }
+                });
+                
+                audio.src = fullPath;
+                audio.load();
+            };
+            
+            tryLoad();
+        });
+    }
+    
+    // Play sound file (one-shot)
+    async playSoundFile(filename, volume = 1.0, loop = false) {
+        try {
+            let audio = this.soundCache.get(filename);
+            if (!audio) {
+                audio = await this.loadSoundFile(filename);
+            }
+            
+            // Clone audio for one-shot playback (allows overlapping sounds)
+            const audioClone = audio.cloneNode();
+            audioClone.volume = Math.max(0, Math.min(1, volume)) * this.volumes.sfx;
+            audioClone.loop = loop;
+            
+            // Connect to SFX gain node if possible
+            if (this.audioContext && audioClone.setSinkId) {
+                // Modern browsers
+                audioClone.play().catch(err => console.warn(`Failed to play ${filename}:`, err));
+            } else {
+                // Fallback for older browsers
+                audioClone.play().catch(err => console.warn(`Failed to play ${filename}:`, err));
+            }
+            
+            // Track active source
+            this.activeSources.add(audioClone);
+            audioClone.addEventListener('ended', () => {
+                this.activeSources.delete(audioClone);
+            });
+            
+            return audioClone;
+        } catch (error) {
+            console.warn(`Failed to play sound file ${filename}:`, error);
+            return null;
+        }
+    }
+    
+    // Stop a specific sound file
+    stopSoundFile(audioInstance) {
+        if (audioInstance) {
+            audioInstance.pause();
+            audioInstance.currentTime = 0;
+            this.activeSources.delete(audioInstance);
         }
     }
     
@@ -1020,14 +1154,235 @@ class AudioManager {
     
     // Sound effect methods
     playTorpedoLaunch() {
-        this.playSoundEffect({
-            type: 'noise',
-            frequency: 150,
-            duration: 0.8,
-            volume: 0.4,
-            filterSweep: { start: 300, end: 100 }
-        });
+        // Play torpedo launch sound file
+        this.playSoundFile('torpedo_launch', 0.8);
         console.log('🚀 Torpedo launch sound played');
+    }
+    
+    // Start active sonar constant pinging loop
+    startActiveSonarPinging() {
+        if (this.activeSonarLoop) return; // Already playing
+        
+        this.playSoundFile('active_constant_pinging', 0.6, true).then(audio => {
+            if (audio) {
+                this.activeSonarLoop = audio;
+            }
+        });
+        console.log('📡 Active sonar constant pinging started');
+    }
+    
+    // Stop active sonar constant pinging
+    stopActiveSonarPinging() {
+        if (this.activeSonarLoop) {
+            this.stopSoundFile(this.activeSonarLoop);
+            this.activeSonarLoop = null;
+            console.log('📡 Active sonar constant pinging stopped');
+        }
+    }
+    
+    // Play single active ping
+    playActiveSinglePing() {
+        this.playSoundFile('active_single_ping', 0.7);
+        console.log('📡 Active single ping played');
+    }
+    
+    // Start ambience (underwater_ambience down to 3000m, then fade to deep_underwater_ambience)
+    startAmbience(depth) {
+        const depthThreshold = -3000; // 3000m depth
+        
+        if (depth >= depthThreshold) {
+            // Above 3000m - play underwater_ambience
+            if (!this.ambienceLoop) {
+                this.playSoundFile('underwater_ambience', 0.5, true).then(audio => {
+                    if (audio) {
+                        this.ambienceLoop = audio;
+                    }
+                });
+            }
+            // Stop deep ambience if playing
+            if (this.deepAmbienceLoop) {
+                this.stopSoundFile(this.deepAmbienceLoop);
+                this.deepAmbienceLoop = null;
+            }
+        } else {
+            // Below 3000m - fade to deep_underwater_ambience
+            const fadeProgress = Math.min(1, Math.abs(depth - depthThreshold) / 1000); // Fade over 1km
+            
+            // Start deep ambience if not playing
+            if (!this.deepAmbienceLoop) {
+                this.playSoundFile('deep_underwater_ambience', 0.5 * fadeProgress, true).then(audio => {
+                    if (audio) {
+                        this.deepAmbienceLoop = audio;
+                    }
+                });
+            }
+            
+            // Fade ambience volumes
+            if (this.ambienceLoop) {
+                this.ambienceLoop.volume = 0.5 * (1 - fadeProgress);
+            }
+            if (this.deepAmbienceLoop) {
+                this.deepAmbienceLoop.volume = 0.5 * fadeProgress;
+            }
+        }
+    }
+    
+    // Play knuckle sound (2 seconds)
+    playKnuckle() {
+        this.playSoundFile('knuckle', 0.7).then(audio => {
+            if (audio && audio.duration > 2) {
+                // Stop after 2 seconds if longer
+                setTimeout(() => {
+                    this.stopSoundFile(audio);
+                }, 2000);
+            }
+        });
+        console.log('🌀 Knuckle sound played (2 seconds)');
+    }
+    
+    // Play underwater explosion (submarine/structure implosion)
+    playUnderwaterExplosion() {
+        this.playSoundFile('underwater_explosion', 0.8);
+        console.log('💥 Underwater explosion sound played');
+    }
+    
+    // Play underwater impact (sub collision)
+    playUnderwaterImpact() {
+        this.playSoundFile('underwater_impact', 0.7);
+        console.log('💥 Underwater impact sound played');
+    }
+    
+    // Play hit sound (torpedo hits but doesn't destroy)
+    playHit() {
+        this.playSoundFile('hit', 0.6);
+        console.log('💥 Hit sound played');
+    }
+    
+    // Start proximity sound (fades with distance, starts at 1000m)
+    updateProximitySound(distance) {
+        const proximityRange = 1000; // Start at 1000m
+        
+        if (distance <= proximityRange) {
+            // Calculate volume based on distance (closer = louder)
+            const volume = Math.max(0.1, 1.0 - (distance / proximityRange));
+            
+            if (!this.proximityLoop) {
+                this.playSoundFile('proximity', volume, true).then(audio => {
+                    if (audio) {
+                        this.proximityLoop = audio;
+                    }
+                });
+            } else {
+                // Update volume smoothly
+                this.proximityLoop.volume = volume * this.volumes.sfx;
+            }
+        } else {
+            // Stop proximity sound if too far
+            if (this.proximityLoop) {
+                this.stopSoundFile(this.proximityLoop);
+                this.proximityLoop = null;
+            }
+        }
+    }
+    
+    // Start torpedo ping sound (distance-based ping rate)
+    startTorpedoPing(torpedoId, distanceToTarget, hasTarget = true) {
+        // Stop existing ping for this torpedo
+        this.stopTorpedoPing(torpedoId);
+        
+        if (!hasTarget || distanceToTarget > 2000) {
+            // Too far or no target - don't ping
+            return;
+        }
+        
+        // Calculate ping interval: starts at 3 seconds (2km), reduces to 0.2 seconds (close)
+        // Linear interpolation
+        const maxDistance = 2000; // 2km
+        const minDistance = 50; // 50m (very close)
+        const maxInterval = 3.0; // 3 seconds
+        const minInterval = 0.2; // 0.2 seconds
+        
+        const clampedDistance = Math.max(minDistance, Math.min(maxDistance, distanceToTarget));
+        const pingInterval = maxInterval - ((maxInterval - minInterval) * (1 - (clampedDistance - minDistance) / (maxDistance - minDistance)));
+        
+        // Store ping timer data
+        const pingData = {
+            torpedoId: torpedoId,
+            interval: pingInterval,
+            lastPingTime: Date.now(),
+            audioInstance: null,
+            targetDistance: distanceToTarget,
+            hasTarget: hasTarget
+        };
+        
+        // Play first ping immediately
+        this.playTorpedoPingSound(torpedoId, pingData);
+        
+        this.torpedoPingTimers.set(torpedoId, pingData);
+    }
+    
+    // Play individual torpedo ping sound
+    playTorpedoPingSound(torpedoId, pingData) {
+        this.playSoundFile('active_single_pings', 0.5).then(audio => {
+            if (audio && pingData) {
+                pingData.audioInstance = audio;
+                pingData.lastPingTime = Date.now();
+            }
+        });
+    }
+    
+    // Update torpedo ping (call every frame to update ping rate)
+    updateTorpedoPing(torpedoId, distanceToTarget, hasTarget = true) {
+        const pingData = this.torpedoPingTimers.get(torpedoId);
+        if (!pingData) {
+            // Start ping if in range
+            if (hasTarget && distanceToTarget <= 2000) {
+                this.startTorpedoPing(torpedoId, distanceToTarget, hasTarget);
+            }
+            return;
+        }
+        
+        // Update target distance
+        pingData.targetDistance = distanceToTarget;
+        pingData.hasTarget = hasTarget;
+        
+        // If target lost or too far, slow down and stop
+        if (!hasTarget || distanceToTarget > 2000) {
+            // Gradually increase interval until it stops
+            pingData.interval = Math.min(10, pingData.interval * 1.1); // Slow down gradually
+            
+            // Stop if interval gets too long
+            if (pingData.interval >= 10) {
+                this.stopTorpedoPing(torpedoId);
+                return;
+            }
+        } else {
+            // Recalculate ping interval based on distance
+            const maxDistance = 2000;
+            const minDistance = 50;
+            const maxInterval = 3.0;
+            const minInterval = 0.2;
+            
+            const clampedDistance = Math.max(minDistance, Math.min(maxDistance, distanceToTarget));
+            pingData.interval = maxInterval - ((maxInterval - minInterval) * (1 - (clampedDistance - minDistance) / (maxDistance - minDistance)));
+        }
+        
+        // Check if it's time for next ping
+        const timeSinceLastPing = Date.now() - pingData.lastPingTime;
+        if (timeSinceLastPing >= pingData.interval * 1000) {
+            this.playTorpedoPingSound(torpedoId, pingData);
+        }
+    }
+    
+    // Stop torpedo ping
+    stopTorpedoPing(torpedoId) {
+        const pingData = this.torpedoPingTimers.get(torpedoId);
+        if (pingData) {
+            if (pingData.audioInstance) {
+                this.stopSoundFile(pingData.audioInstance);
+            }
+            this.torpedoPingTimers.delete(torpedoId);
+        }
     }
     
     playTorpedoExplosion(distance = 1000) {
@@ -1718,7 +2073,8 @@ class Submarine {
         this.torpedoStorage = {
             LT: specs.torpedoTubes * 4,  // Light torpedoes - most common
             MT: specs.torpedoTubes * 3,  // Medium torpedoes
-            HT: specs.canCarryHeavyTorpedoes ? specs.torpedoTubes * 2 : 0 // Heavy torpedoes
+            HT: specs.canCarryHeavyTorpedoes ? specs.torpedoTubes * 2 : 0, // Heavy torpedoes
+            DN: specs.torpedoTubes * 1  // Drone torpedoes - 1 per launcher
         };
 
         // Currently selected launcher
@@ -1807,26 +2163,27 @@ class Submarine {
 
     initializeDefaultLoadouts() {
         // Set up default torpedo loadouts for each launcher (torpedoes only)
+        // Slot 6 (index 5) contains DN (Drone) by default
         const defaultLoadouts = [
-            ['HT', 'LT', 'MT', 'LT', 'HT', 'LT'], // Launcher 1: Mixed combat loadout
-            ['LT', 'LT', 'LT', 'MT', 'LT', 'LT'], // Launcher 2: Light torpedo focused
-            ['HT', 'MT', 'MT', 'HT', 'HT', 'MT'], // Launcher 3: Heavy weapons focused
-            ['MT', 'LT', 'LT', 'MT', 'LT', 'MT']  // Launcher 4: Balanced engagement
+            ['HT', 'LT', 'MT', 'LT', 'HT', 'DN'], // Launcher 1: Mixed combat loadout + DN
+            ['LT', 'LT', 'LT', 'MT', 'LT', 'DN'], // Launcher 2: Light torpedo focused + DN
+            ['HT', 'MT', 'MT', 'HT', 'HT', 'DN'], // Launcher 3: Heavy weapons focused + DN
+            ['MT', 'LT', 'LT', 'MT', 'LT', 'DN']  // Launcher 4: Balanced engagement + DN
         ];
 
         this.launchers.forEach((launcher, index) => {
-            const loadout = defaultLoadouts[index] || ['LT', 'LT', 'LT', 'LT', 'LT', 'LT'];
+            const loadout = defaultLoadouts[index] || ['LT', 'LT', 'LT', 'LT', 'LT', 'DN'];
             for (let i = 0; i < 6; i++) {
                 launcher.chambers[i] = loadout[i];
             }
         });
 
-        console.log('Initialized default launcher loadouts');
+        console.log('Initialized default launcher loadouts (DN in slot 6)');
     }
 
     getAvailableTorpedoTypes() {
         const specs = SUBMARINE_SPECIFICATIONS[this.submarineClass];
-        let types = ['MT', 'LT']; // All subs can carry Medium and Light
+        let types = ['MT', 'LT', 'DN']; // All subs can carry Medium, Light, and Drone
         if (specs.canCarryHeavyTorpedoes) {
             types.push('HT');
         }
@@ -4157,7 +4514,19 @@ class Submarine {
         // Update audio systems
         const isAccelerating = Math.abs(this.currentAcceleration) > 0.1;
         this.audioManager.updateEngineSound(this.speed, isAccelerating);
-        this.audioManager.updateAmbientSounds();
+        
+        // Update ambience based on depth (underwater_ambience down to 3000m, then fade to deep_underwater_ambience)
+        const currentDepth = Math.abs(this.mesh.position.y);
+        this.audioManager.startAmbience(-currentDepth); // Pass negative depth (below surface)
+        
+        // Update proximity sound for nearby submarines
+        this.updateProximitySound();
+        
+        // Update drone torpedoes
+        this.updateDrones(deltaTime);
+        
+        // Update torpedo ping sounds
+        this.updateTorpedoPingSounds(deltaTime);
         
         // Update supercavitation (SCAV) mode based on speed
         this.updateSCAVMode(deltaTime);
@@ -4175,6 +4544,11 @@ class Submarine {
         const currentYaw = this.mesh.rotation.y;
         this.turnRate = Math.abs(currentYaw - this.lastYaw) / deltaTime;
         this.lastYaw = currentYaw;
+        
+        // Initialize knuckle flag if not set
+        if (this.knuckleActive === undefined) {
+            this.knuckleActive = false;
+        }
 
         // Update submarine warfare systems
         this.updateWarfareSystems(deltaTime);
@@ -4226,6 +4600,131 @@ class Submarine {
         // Update AI behavior for NPC submarines
         if (this.isNPC && this.ai && this.ai.enabled) {
             this.updateAIBehavior(deltaTime);
+        }
+        
+        // Check for knuckle formation (high turn rate)
+        this.checkKnuckleFormation();
+    }
+    
+    // Update drone torpedoes
+    updateDrones(deltaTime) {
+        if (!this.activeDrones) return;
+        
+        // Update each drone
+        for (let i = this.activeDrones.length - 1; i >= 0; i--) {
+            const drone = this.activeDrones[i];
+            if (!drone.update(deltaTime)) {
+                // Drone destroyed or left map - remove from list
+                this.activeDrones.splice(i, 1);
+                continue;
+            }
+            
+            // Update drone mesh position
+            if (drone.mesh) {
+                drone.mesh.position.copy(drone.position);
+            }
+            
+            // If drone is active, reveal terrain/enemies in bubble
+            if (drone.isActive && drone.getRevealBubble) {
+                const bubble = drone.getRevealBubble();
+                if (bubble && window.oceanInstance) {
+                    // Reveal terrain in bubble (integrate with terrain visibility system)
+                    this.revealTerrainInBubble(bubble.center, bubble.radius);
+                    
+                    // Reveal enemies in bubble (update sonar contacts)
+                    this.revealEnemiesInBubble(bubble.center, bubble.radius);
+                }
+            }
+        }
+    }
+    
+    // Reveal terrain in drone bubble
+    revealTerrainInBubble(center, radius) {
+        // This will be integrated with ocean.js terrain visibility system
+        // For now, we'll trigger a temporary sonar ping effect at the drone location
+        if (window.oceanInstance && window.oceanInstance.updateTerrainLOD) {
+            // Force terrain visibility update at drone position
+            window.oceanInstance.updateTerrainLOD(center);
+        }
+    }
+    
+    // Reveal enemies in drone bubble
+    revealEnemiesInBubble(center, radius) {
+        // Perform sonar sweep at drone location
+        if (window.performAdvancedSonarSweep) {
+            const contacts = window.performAdvancedSonarSweep(
+                center,
+                radius,
+                this.passiveSensitivity,
+                [],
+                'Active' // Drone uses active sonar
+            );
+            
+            // Add contacts to sonar display
+            this.updateSonarContactsDisplay(contacts);
+        }
+    }
+    
+    // Update torpedo ping sounds
+    updateTorpedoPingSounds(deltaTime) {
+        // Get all active torpedoes
+        const allTorpedoes = window.weaponsSystem?.getAllTorpedoes ? window.weaponsSystem.getAllTorpedoes() : [];
+        
+        allTorpedoes.forEach(torpedo => {
+            if (!torpedo || !torpedo.id) return;
+            
+            // Check if torpedo has a target
+            const hasTarget = torpedo.target && torpedo.target.getPosition;
+            let distanceToTarget = Infinity;
+            
+            if (hasTarget) {
+                const targetPos = torpedo.target.getPosition();
+                const torpedoPos = torpedo.position || torpedo.getPosition();
+                if (targetPos && torpedoPos) {
+                    distanceToTarget = torpedoPos.distanceTo(targetPos);
+                }
+            }
+            
+            // Update ping sound for this torpedo
+            this.audioManager.updateTorpedoPing(torpedo.id, distanceToTarget, hasTarget);
+        });
+    }
+    
+    // Update proximity sound for nearby submarines
+    updateProximitySound() {
+        const enemies = window.getEnemySubmarines ? window.getEnemySubmarines() : [];
+        if (enemies.length === 0) {
+            // No enemies - stop proximity sound
+            this.audioManager.updateProximitySound(Infinity);
+            return;
+        }
+        
+        // Find closest enemy
+        let closestDistance = Infinity;
+        enemies.forEach(enemy => {
+            if (enemy && enemy.getPosition) {
+                const distance = this.mesh.position.distanceTo(enemy.getPosition());
+                if (distance < closestDistance) {
+                    closestDistance = distance;
+                }
+            }
+        });
+        
+        // Update proximity sound
+        this.audioManager.updateProximitySound(closestDistance);
+    }
+    
+    // Check for knuckle formation (high turn rate)
+    checkKnuckleFormation() {
+        // Knuckle is formed when turning at high rate (creating cavitation bubble)
+        const knuckleThreshold = 0.5; // radians per second turn rate threshold
+        
+        if (this.turnRate > knuckleThreshold && !this.knuckleActive) {
+            // Knuckle formed - play sound
+            this.audioManager.playKnuckle();
+            this.knuckleActive = true;
+        } else if (this.turnRate <= knuckleThreshold) {
+            this.knuckleActive = false;
         }
 
         // Update off-screen contact indicators
@@ -4805,15 +5304,21 @@ class Submarine {
             return;
         }
 
-        // Check for lock (if required)
-        if (!this.torpedoLockSystem || !this.torpedoLockSystem.isLocked) {
-            console.log('No target lock - cannot fire torpedo');
+        // Check for lock (if required) - DN drones don't need lock
+        const isDrone = torpedoCode === 'DN';
+        if (!isDrone && (!this.torpedoLockSystem || !this.torpedoLockSystem.isLocked)) {
+            console.log('No target lock - cannot fire torpedo (DN drones don\'t need lock)');
             return;
         }
 
-        // Fire the torpedo
-        const torpedoType = this.getFullTorpedoType(torpedoCode);
-        const torpedo = this.createSmartTorpedo(torpedoType, this.torpedoLockSystem.target);
+        // Fire the torpedo (drone or smart torpedo)
+        let torpedo;
+        if (isDrone) {
+            torpedo = this.createDroneTorpedo();
+        } else {
+            const torpedoType = this.getFullTorpedoType(torpedoCode);
+            torpedo = this.createSmartTorpedo(torpedoType, this.torpedoLockSystem.target);
+        }
 
         // Trigger torpedo launch signature spike
         this.torpedoLaunchSignature.active = true;
@@ -4830,6 +5335,16 @@ class Submarine {
         
         // Mark this tube as fired
         this.sequentialFiring.firedTubes.add(tubeNumber);
+        
+        // Reset lock system (only if not a drone)
+        if (!isDrone) {
+            this.torpedoLockSystem = {
+                target: null,
+                lockProgress: 0,
+                lockStartTime: 0,
+                isLocked: false
+            };
+        }
         
         // Move to next tube (1->2->3->4->1)
         this.sequentialFiring.nextTubeToFire = (tubeNumber % 4) + 1;
@@ -5231,12 +5746,123 @@ class Submarine {
         return torpedoData;
     }
     
+    createDroneTorpedo() {
+        // Drone (DN) Torpedo: Travels straight, reveals terrain/enemies in 2km bubble after 1km
+        const launchDirection = this.mesh.getWorldDirection(new THREE.Vector3());
+        const launchPosition = this.getPosition().clone();
+        
+        const droneData = {
+            type: 'DRONE_TORPEDO',
+            code: 'DN',
+            position: launchPosition.clone(),
+            direction: launchDirection.clone(),
+            speed: TORPEDO_SPECIFICATIONS.DN.maxSpeed * 0.514444, // Convert knots to m/s
+            distanceTraveled: 0,
+            activationRange: TORPEDO_SPECIFICATIONS.DN.activationRange, // 1km
+            bubbleRadius: TORPEDO_SPECIFICATIONS.DN.bubbleRadius, // 2km diameter
+            isActive: false, // Becomes true after 1km
+            mesh: null,
+            id: 'drone_' + Date.now() + '_' + Math.random(),
+            destroyed: false,
+            
+            // Map boundaries (will need to get from terrain system)
+            mapBounds: {
+                minX: -35000,
+                maxX: 35000,
+                minZ: -35000,
+                maxZ: 35000
+            },
+            
+            // Update method for game loop
+            update: function(deltaTime) {
+                if (this.destroyed) return false;
+                
+                // Move forward in launch direction
+                const movement = this.direction.clone().multiplyScalar(this.speed * deltaTime);
+                this.position.add(movement);
+                this.distanceTraveled += movement.length();
+                
+                // Activate bubble rendering after 1km
+                if (!this.isActive && this.distanceTraveled >= this.activationRange) {
+                    this.isActive = true;
+                    console.log(`🚁 Drone activated at ${this.distanceTraveled.toFixed(0)}m - Revealing 2km bubble`);
+                }
+                
+                // Check if left map bounds
+                if (this.position.x < this.mapBounds.minX || this.position.x > this.mapBounds.maxX ||
+                    this.position.z < this.mapBounds.minZ || this.position.z > this.mapBounds.maxZ) {
+                    console.log('🚁 Drone left map bounds - removing');
+                    this.destroy();
+                    return false;
+                }
+                
+                // Check terrain collision (simple check - will need terrain height)
+                // TODO: Integrate with terrain collision system
+                
+                return true;
+            },
+            
+            // Reveal terrain/enemies in bubble
+            getRevealBubble: function() {
+                if (!this.isActive) return null;
+                return {
+                    center: this.position.clone(),
+                    radius: this.bubbleRadius // 2km diameter = 1km radius
+                };
+            },
+            
+            destroy: function() {
+                if (this.destroyed) return;
+                this.destroyed = true;
+                
+                // Play implosion sound (no explosion for drones)
+                if (window.playerSubmarine && window.playerSubmarine().audioManager) {
+                    window.playerSubmarine().audioManager.playSoundFile('underwater_explosion');
+                }
+                
+                // Remove from scene
+                if (this.mesh && this.scene) {
+                    this.scene.remove(this.mesh);
+                }
+                
+                // Remove from weapons system
+                if (window.weaponsSystem && window.weaponsSystem.removeTorpedo) {
+                    window.weaponsSystem.removeTorpedo(this.id);
+                }
+            }
+        };
+        
+        // Create visual mesh for drone
+        const droneGeometry = new THREE.BoxGeometry(2, 1, 4);
+        const droneMaterial = new THREE.MeshBasicMaterial({ color: 0x00ffaa }); // Green-cyan
+        droneData.mesh = new THREE.Mesh(droneGeometry, droneMaterial);
+        droneData.mesh.position.copy(launchPosition);
+        droneData.mesh.lookAt(launchPosition.clone().add(launchDirection));
+        droneData.scene = this.scene;
+        this.scene.add(droneData.mesh);
+        
+        // Delegate to weapons system if available
+        if (window.weaponsSystem && window.weaponsSystem.createDroneTorpedo) {
+            return window.weaponsSystem.createDroneTorpedo(droneData);
+        }
+        
+        // Store drone in submarine's active drones list
+        if (!this.activeDrones) {
+            this.activeDrones = [];
+        }
+        this.activeDrones.push(droneData);
+        
+        console.log(`🚁 Drone torpedo launched - will activate at ${droneData.activationRange}m`);
+        return droneData;
+    }
+    
     getTorpedoSpeed(torpedoType) {
         // Base speeds for different torpedo sizes
         const speeds = {
             'LIGHT_TORPEDO': 45,   // m/s
             'MEDIUM_TORPEDO': 35,  // m/s  
-            'HEAVY_TORPEDO': 25    // m/s
+            'HEAVY_TORPEDO': 25,   // m/s
+            'DRONE_TORPEDO': 50    // m/s (100 knots = ~51 m/s)
         };
         return speeds[torpedoType] || 35;
     }
@@ -5303,22 +5929,32 @@ class Submarine {
         }
         
         // Validate that this is actually a torpedo (not a noisemaker or mine)
-        const validTorpedoCodes = ['LT', 'MT', 'HT'];
+        const validTorpedoCodes = ['LT', 'MT', 'HT', 'DN'];
         if (!validTorpedoCodes.includes(currentTorpedoCode)) {
             console.log(`Invalid torpedo code in launcher: ${currentTorpedoCode}`);
             return;
         }
 
-        // Check if we have a lock-on
-        if (!this.torpedoLockSystem || !this.torpedoLockSystem.isLocked) {
-            console.log('No target lock - cannot fire torpedo');
+        // DN (Drone) torpedoes don't require lock-on - they travel straight
+        const isDrone = currentTorpedoCode === 'DN';
+        
+        // Check if we have a lock-on (required for LT/MT/HT, not for DN)
+        if (!isDrone && (!this.torpedoLockSystem || !this.torpedoLockSystem.isLocked)) {
+            console.log('No target lock - cannot fire torpedo (DN drones don\'t need lock)');
             return;
         }
 
         const torpedoType = this.getFullTorpedoType(currentTorpedoCode);
 
-        // Create and launch smart torpedo with integrated safety systems
-        const torpedo = this.createSmartTorpedo(torpedoType, this.torpedoLockSystem.target);
+        // Create and launch torpedo (smart torpedo for LT/MT/HT, drone for DN)
+        let torpedo;
+        if (isDrone) {
+            // DN drones travel straight, no target needed
+            torpedo = this.createDroneTorpedo();
+        } else {
+            // LT/MT/HT torpedoes use smart torpedo system with target
+            torpedo = this.createSmartTorpedo(torpedoType, this.torpedoLockSystem.target);
+        }
 
         // Trigger torpedo launch signature spike
         this.torpedoLaunchSignature.active = true;
@@ -5330,13 +5966,15 @@ class Submarine {
         // Clear current chamber
         launcher.chambers[chamberIndex] = '';
 
-        // Reset lock system
-        this.torpedoLockSystem = {
-            target: null,
-            lockProgress: 0,
-            lockStartTime: 0,
-            isLocked: false
-        };
+        // Reset lock system (only if not a drone)
+        if (!isDrone) {
+            this.torpedoLockSystem = {
+                target: null,
+                lockProgress: 0,
+                lockStartTime: 0,
+                isLocked: false
+            };
+        }
 
         console.log(`${torpedoType} launched from launcher ${this.selectedLauncher}, box ${launcher.currentBox}`);
 
@@ -5918,6 +6556,9 @@ class Submarine {
         this.scene.add(knuckleMesh);
         console.log(`💨 Created knuckle at ${this.mesh.position.x}, ${this.mesh.position.z} - lifetime: ${knuckle.lifetime}s, total knuckles: ${this.knuckles.length}`);
 
+        // Play knuckle sound (2 seconds)
+        this.audioManager.playKnuckle();
+
         // Knuckles slow you down significantly
         this.speed *= 0.6;
 
@@ -6375,8 +7016,8 @@ class Submarine {
             // Trigger sonar signature penalty
             this.triggerSonarPing();
             
-            // Play sonar ping sound
-            this.audioManager.playSonarPing();
+            // Play active single ping sound
+            this.audioManager.playActiveSinglePing();
 
             // Activate terrain visibility extension (2km range, 30s visible, fade 30-40s)
             if (window.oceanInstance && window.oceanInstance.activateSonarPing) {
@@ -6392,7 +7033,17 @@ class Submarine {
         // Only Active and Passive modes (Silent mode removed)
         const modes = ['Active', 'Passive'];
         const currentIndex = modes.indexOf(this.sonarMode);
+        const previousMode = this.sonarMode;
         this.sonarMode = modes[(currentIndex + 1) % modes.length];
+        
+        // Update active sonar pinging sound
+        if (this.sonarMode === 'Active' && previousMode !== 'Active') {
+            // Switched to Active mode - start constant pinging
+            this.audioManager.startActiveSonarPinging();
+        } else if (this.sonarMode === 'Passive' && previousMode === 'Active') {
+            // Switched from Active to Passive - stop constant pinging
+            this.audioManager.stopActiveSonarPinging();
+        }
         
         // Sonar mode descriptions
         let modeDescription = '';

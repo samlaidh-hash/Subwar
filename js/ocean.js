@@ -46,7 +46,7 @@ class Ocean {
         this.chunksPerSide = this.terrainSize / this.chunkSize; // 70x70 = 4900 chunks (manageable)
         // Submarine sensor ranges
         this.passiveRange = 500;     // 500m default visibility - everything within 500m visible, beyond invisible
-        this.activeSonarRange = 2000; // 2km active sonar ping range
+        this.activeSonarRange = 6000; // 6km active sonar ping range
         this.maxViewDistance = this.activeSonarRange; // Maximum possible view distance
         this.drawDistance = this.passiveRange; // Default to passive range (500m)
         this.lastSonarPingTime = 0;
@@ -2906,6 +2906,7 @@ class Ocean {
         this.isActiveSonarActive = true;
         console.log('🔊 ACTIVE SONAR PING - Extended range activated for 30 seconds');
         console.log(`📡 Terrain visibility: ${this.passiveRange}m → ${this.activeSonarRange}m (fades 30-40s)`);
+        console.log(`🌊 Visibility updates with each ping, then fades before next ping`);
 
         // Force immediate terrain update
         if (window.playerSubmarine && window.playerSubmarine()) {
