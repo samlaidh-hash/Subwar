@@ -4886,20 +4886,31 @@ class Submarine {
             const screenX = (this.maneuverIcon.x * 0.5 + 0.5) * screenWidth;
             const screenY = (-this.maneuverIcon.y * 0.5 + 0.5) * screenHeight;
 
-            // Create mouse world position by projecting from screen
-            const mouseVector = new THREE.Vector3(
-                (screenX / screenWidth) * 2 - 1,
-                -(screenY / screenHeight) * 2 + 1,
-                0.5
-            );
-            mouseVector.unproject(camera);
-
-            // Create target point at aim distance from submarine
-            const direction = mouseVector.sub(this.mesh.position).normalize();
-            const targetWorldPos = this.mesh.position.clone().add(direction.multiplyScalar(aimDistance));
-
             // STEP 2: Transform target to submarine's local coordinate space
             const worldToLocal = new THREE.Matrix4().copy(this.mesh.matrixWorld).invert();
+            
+            // Check if mouse is very close to center - use forward direction to avoid projection bias
+            let targetWorldPos;
+            const centerThreshold = 0.1; // Increased threshold to prevent bias
+            if (Math.abs(this.maneuverIcon.x) < centerThreshold && Math.abs(this.maneuverIcon.y) < centerThreshold) {
+                // Mouse is very close to center - use forward direction to avoid any projection bias
+                const forwardDir = new THREE.Vector3(1, 0, 0);
+                forwardDir.applyQuaternion(this.mesh.quaternion);
+                targetWorldPos = this.mesh.position.clone().add(forwardDir.multiplyScalar(aimDistance));
+            } else {
+                // Mouse is off-center - use projection
+                const ndcX = (screenX / screenWidth) * 2 - 1;
+                const ndcY = -(screenY / screenHeight) * 2 + 1;
+                
+                // Project to world space using camera
+                const mouseVector = new THREE.Vector3(ndcX, ndcY, 0.5);
+                mouseVector.unproject(camera);
+                
+                // Create target point at aim distance from submarine
+                const direction = mouseVector.sub(this.mesh.position).normalize();
+                targetWorldPos = this.mesh.position.clone().add(direction.multiplyScalar(aimDistance));
+            }
+            
             const localTarget = targetWorldPos.clone().applyMatrix4(worldToLocal);
 
             // STEP 3: Calculate pitch and yaw from local coordinates
@@ -4917,9 +4928,15 @@ class Submarine {
             let yawInput = Math.max(-1, Math.min(1, localTargetNorm.z));
 
             // Apply dead zone threshold to prevent tiny inputs from causing drift
-            const inputThreshold = 0.01; // Ignore inputs smaller than this
+            const inputThreshold = 0.02; // Increased threshold to prevent drift
             if (Math.abs(pitchInput) < inputThreshold) pitchInput = 0;
             if (Math.abs(yawInput) < inputThreshold) yawInput = 0;
+            
+            // Additional check: if mouse is in center threshold, force inputs to zero
+            if (Math.abs(this.maneuverIcon.x) < centerThreshold && Math.abs(this.maneuverIcon.y) < centerThreshold) {
+                pitchInput = 0;
+                yawInput = 0;
+            }
 
             // DEBUG: Log values occasionally
             if (Math.random() < 0.01) {
