@@ -1368,12 +1368,8 @@ class Ocean {
         console.log('Features: Real North Pacific Ocean bathymetry with seamounts, valleys, and underwater ridges');
         console.log(`🎯 Terrain group added to scene with ${terrainGroup.children.length} children at position (0,0,0)`);
         
-        // Force terrain to be visible
-        terrainGroup.visible = true;
-        terrainGroup.children.forEach(child => {
-            child.visible = true;
-        });
-        console.log('🔍 Terrain forced to visible state for debugging');
+        // REMOVED: Force terrain visibility - now controlled by updateTerrainLOD() for proper sensor-based visibility
+        // Terrain visibility is now limited to 500m passive / 6000m active ranges
         
         // Add a simple test line near submarine (0,0,0) to verify rendering works
         const testPoints = [
@@ -2497,19 +2493,18 @@ class Ocean {
 
     update(deltaTime) {
         // Update LOD terrain system based on player position
+        // Call every frame to ensure visibility updates with sonar pings and player movement
         if (window.playerSubmarine && window.playerSubmarine()) {
             const submarine = window.playerSubmarine();
             if (submarine && submarine.mesh) {
                 const playerPos = submarine.mesh.position;
                 if (this.updateTerrainLOD) {
-                    // Initialize lastPlayerPosition if not set
-                    if (!this.lastPlayerPosition || this.lastPlayerPosition.distanceTo(playerPos) > 100) {
-                        this.updateTerrainLOD(playerPos);
-                        if (!this.lastPlayerPosition) {
-                            this.lastPlayerPosition = new THREE.Vector3();
-                        }
-                        this.lastPlayerPosition.copy(playerPos);
+                    // Update every frame to ensure visibility responds to sonar pings immediately
+                    this.updateTerrainLOD(playerPos);
+                    if (!this.lastPlayerPosition) {
+                        this.lastPlayerPosition = new THREE.Vector3();
                     }
+                    this.lastPlayerPosition.copy(playerPos);
                 }
             }
         }
@@ -2670,7 +2665,7 @@ class Ocean {
                 totalChunks++;
 
                 // CRITICAL FIX: Add chunk to seaFloor immediately, then control visibility via LOD
-                chunkGroup.visible = true; // Start VISIBLE for debugging
+                chunkGroup.visible = false; // Start HIDDEN - will be shown by updateTerrainLOD if within range
                 this.seaFloor.add(chunkGroup);
 
                 // DEBUG: Check if chunk has geometry
@@ -2682,7 +2677,7 @@ class Ocean {
                 const halfChunks = Math.floor(this.chunksPerSide / 2);
                 this.terrainChunks.set(chunkKey, {
                     group: chunkGroup,
-                    visible: true,  // Start visible for debugging
+                    visible: false,  // Start HIDDEN - will be shown by updateTerrainLOD if within range
                     centerX: (chunkX - halfChunks) * this.chunkSize,
                     centerZ: (chunkZ - halfChunks) * this.chunkSize
                 });

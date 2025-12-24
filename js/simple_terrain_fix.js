@@ -344,19 +344,8 @@ class SimpleTerrain {
         // Enhanced depth-based shader material with textures for all terrain features
         const material = this.createTexturedTerrainShader();
 
-        // DEBUG: Also create a textured version for comparison (using MeshStandardMaterial)
-        const texturedMaterial = new THREE.MeshStandardMaterial({
-            map: this.createCombinedSeafloorTexture(),
-            roughness: 0.8,
-            metalness: 0.1,
-            side: THREE.DoubleSide
-        });
-
-        // Create second mesh with textured material for comparison
-        const texturedMesh = new THREE.Mesh(geometry.clone(), texturedMaterial);
-        texturedMesh.position.set(2000, 0, 0); // Offset to side for comparison
-        this.terrainGroup.add(texturedMesh);
-        console.log('🚨 DEBUG: Added textured material terrain mesh at (2000, 0, 0) for comparison');
+        // REMOVED: Second mesh with standard material - was causing visibility issues
+        // All terrain now uses shader material with proper visibility limits
         
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.set(0, 0, 0);
