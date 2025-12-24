@@ -145,3 +145,4 @@ The enemy submarines will:
 6. Retreat when critically damaged
 
 
+

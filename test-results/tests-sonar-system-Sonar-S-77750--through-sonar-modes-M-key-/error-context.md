@@ -1,0 +1,193 @@
+# Page snapshot
+
+```yaml
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - heading "SUB WAR 2060" [level=1] [ref=e4]
+    - heading "Mission Selection" [level=2] [ref=e5]
+    - generic [ref=e6]:
+      - generic [ref=e7] [cursor=pointer]:
+        - generic [ref=e8] [cursor=pointer]:
+          - heading "Patrol Mission" [level=3] [ref=e9] [cursor=pointer]
+          - generic [ref=e10] [cursor=pointer]: "[F1]"
+        - generic [ref=e11] [cursor=pointer]: Patrol the designated area and identify any contacts. A routine mission perfect for honing basic submarine operations and detection skills.
+        - generic [ref=e12] [cursor=pointer]:
+          - generic [ref=e13] [cursor=pointer]: • Patrol assigned area for 5 minutes
+          - generic [ref=e14] [cursor=pointer]: • Identify at least 3 contacts
+        - generic [ref=e15] [cursor=pointer]:
+          - generic [ref=e16] [cursor=pointer]: +100 XP
+          - generic [ref=e17] [cursor=pointer]: +2 Skill Points
+      - generic [ref=e18] [cursor=pointer]:
+        - generic [ref=e19] [cursor=pointer]:
+          - heading "Stealth Operation" [level=3] [ref=e20] [cursor=pointer]
+          - generic [ref=e21] [cursor=pointer]: "[F2]"
+        - generic [ref=e22] [cursor=pointer]: Navigate through hostile waters without being detected. Requires careful speed and depth management to maintain stealth.
+        - generic [ref=e23] [cursor=pointer]:
+          - generic [ref=e24] [cursor=pointer]: • Keep sonar signature below 10dB for 3 minutes
+          - generic [ref=e25] [cursor=pointer]: • Reach the target coordinates
+        - generic [ref=e26] [cursor=pointer]:
+          - generic [ref=e27] [cursor=pointer]: +150 XP
+          - generic [ref=e28] [cursor=pointer]: +3 Skill Points
+      - generic [ref=e29] [cursor=pointer]:
+        - generic [ref=e30] [cursor=pointer]:
+          - heading "Combat Training" [level=3] [ref=e31] [cursor=pointer]
+          - generic [ref=e32] [cursor=pointer]: "[F3]"
+        - generic [ref=e33] [cursor=pointer]: Destroy enemy targets in combat simulation. Test your tactical skills and weapons systems against hostile submarines.
+        - generic [ref=e34] [cursor=pointer]:
+          - generic [ref=e35] [cursor=pointer]: • Destroy 2 enemy submarines
+          - generic [ref=e36] [cursor=pointer]: • Maintain hull integrity above 50%
+        - generic [ref=e37] [cursor=pointer]:
+          - generic [ref=e38] [cursor=pointer]: +200 XP
+          - generic [ref=e39] [cursor=pointer]: +4 Skill Points
+      - generic [ref=e40] [cursor=pointer]:
+        - generic [ref=e41] [cursor=pointer]:
+          - heading "Rescue Mission" [level=3] [ref=e42] [cursor=pointer]
+          - generic [ref=e43] [cursor=pointer]: "[F4]"
+        - generic [ref=e44] [cursor=pointer]: Locate and assist a damaged friendly submarine. Time is critical - use sonar to find them quickly.
+        - generic [ref=e45] [cursor=pointer]:
+          - generic [ref=e46] [cursor=pointer]: • Find the damaged submarine
+          - generic [ref=e47] [cursor=pointer]: • Stay within 50m for 2 minutes to provide aid
+        - generic [ref=e48] [cursor=pointer]:
+          - generic [ref=e49] [cursor=pointer]: +175 XP
+          - generic [ref=e50] [cursor=pointer]: +3 Skill Points
+    - generic [ref=e51]:
+      - heading "Submarine Selection" [level=3] [ref=e52]
+      - generic [ref=e53]:
+        - generic:
+          - generic: TORNADO Class
+          - generic:
+            - generic: "Max Depth: 1,500m"
+            - generic: "Speed: 100 knots"
+            - generic: "Hull: Medium Fighter"
+          - generic: ✅ SUITABLE FOR 1000m SPAWN DEPTH
+        - generic:
+          - generic: TYPHOON Class
+          - generic:
+            - generic: "Max Depth: 1,600m"
+            - generic: "Speed: 80 knots"
+            - generic: "Hull: Heavy Fighter"
+          - generic: ✅ SUITABLE FOR 1000m SPAWN DEPTH
+        - generic:
+          - generic: WHIRLWIND Class
+          - generic:
+            - generic: "Max Depth: 10,000m"
+            - generic: "Speed: 85 knots"
+            - generic: "Hull: Deep Sub"
+          - generic: ✅ SUITABLE FOR 1000m SPAWN DEPTH
+        - generic:
+          - generic: CYCLONE Class
+          - generic:
+            - generic: "Max Depth: 12,000m"
+            - generic: "Speed: 70 knots"
+            - generic: "Hull: Ultra Deep Sub"
+          - generic: ✅ SUITABLE FOR 1000m SPAWN DEPTH
+    - generic [ref=e54]:
+      - button "Start Mission Select mission and submarine first" [disabled]:
+        - generic: Start Mission
+        - generic: Select mission and submarine first
+    - generic [ref=e55]:
+      - generic [ref=e56]: Click a mission card or press F1-F4 to select
+      - generic [ref=e57]: ESC - Start Free Roam Mode
+  - generic [ref=e58]:
+    - generic [ref=e59]:
+      - heading "Sonar Contacts" [level=4] [ref=e60]
+      - generic [ref=e61]:
+        - generic [ref=e62]: "Mode: Active"
+        - generic [ref=e63]: "Power: High (100m)"
+        - generic [ref=e64]: "Rate: Normal (2.0s)"
+      - generic [ref=e66]: R - Single Ping | M - Mode (Active/Passive) | SCAV auto-activates at high speed
+      - generic [ref=e67]: No contacts detected
+    - generic:
+      - generic:
+        - generic: "1"
+        - generic:
+          - generic: HT
+          - generic: HT
+          - generic: HT
+          - generic: HT
+          - generic: HT
+          - generic: HT
+      - generic:
+        - generic: "2"
+        - generic:
+          - generic: LT
+          - generic: LT
+          - generic: LT
+          - generic: LT
+          - generic: LT
+          - generic: LT
+      - generic:
+        - generic: "3"
+        - generic:
+          - generic: HT
+          - generic: HT
+          - generic: HT
+          - generic: HT
+          - generic: HT
+          - generic: HT
+      - generic:
+        - generic: "4"
+        - generic:
+          - generic: MT
+          - generic: MT
+          - generic: MT
+          - generic: MT
+          - generic: MT
+          - generic: MT
+    - generic:
+      - generic:
+        - generic: "N"
+        - generic: E
+        - generic: S
+        - generic: W
+    - generic:
+      - generic:
+        - generic: Tube 1 [MT]
+      - generic:
+        - generic: NOISE
+        - generic: "6"
+      - generic:
+        - generic: SPEED
+        - generic:
+          - generic: ">"
+        - generic:
+          - generic: "0"
+          - generic: "85"
+      - generic:
+        - generic: DEPTH
+        - generic:
+          - generic: 50m
+          - generic: 500m
+          - generic: 1000m
+    - generic:
+      - generic: ▲
+      - generic: ▼
+      - generic: ◄
+      - generic: ►
+    - heading "Mini-Map" [level=4] [ref=e69]
+    - generic [ref=e71]:
+      - heading "Armor & Systems" [level=4] [ref=e72]
+      - generic [ref=e73]:
+        - generic [ref=e74]: Armor HP (O:Oobleck/M:Meta-Material)
+        - generic [ref=e75]: "FORE: 100% (O:50 M:50)"
+        - generic [ref=e76]: "PORT: 100% (O:50 M:50)"
+        - generic [ref=e77]: "STARBOARD: 100% (O:50 M:50)"
+        - generic [ref=e78]: "AFT: 100% (O:50 M:50)"
+        - generic [ref=e79]: "TOP: 100% (O:50 M:50)"
+        - generic [ref=e80]: "BOTTOM: 100% (O:50 M:50)"
+      - generic [ref=e81]:
+        - generic [ref=e82]: Internal Systems HP
+        - generic [ref=e83]: "Hull: 100%"
+        - generic [ref=e84]: "Engines: 100%"
+        - generic [ref=e85]: "Weapons: 100%"
+        - generic [ref=e86]: "Sensors: 100%"
+        - generic [ref=e87]: "Life Support: 100%"
+        - generic [ref=e88]: "Navigation: 100%"
+    - generic [ref=e90]:
+      - text: Mouse Move - Maneuver Icon | Mouse Wheel - Throttle | Left Click - Cannons | Right Click - Rockets
+      - text: SPACE - Launch Torpedo | Keys 1-4 - Select Torpedo Launcher (Tap to cycle chambers) | Key 0 - Deploy Noisemaker | Key 9 - Deploy Mine
+      - text: R - Single Ping | M - Sonar Mode (Active/Passive) | Q - Toggle QMAD System | TAB - Cycle Targets | C - Emergency Repair | - (Minus) - Toggle Towed Array
+      - text: V - Toggle Terrain Wireframe | H - Toggle Thermoclines | B - Terrain Shader Mode | N - Terrain Solid Mode | K - Toggle Camera Mode
+      - text: Shift+1-6 - Emergency Armor Redistribution (Fore/Port/Starboard/Aft/Top/Bottom)
+      - text: F1 - Patrol Mission | F2 - Stealth Operation | F3 - Combat Training | F4 - Rescue Mission
+```

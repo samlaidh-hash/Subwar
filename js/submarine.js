@@ -4601,9 +4601,15 @@ class Submarine {
         if (this.isNPC && this.ai && this.ai.enabled) {
             this.updateAIBehavior(deltaTime);
         }
-        
+
         // Check for knuckle formation (high turn rate)
         this.checkKnuckleFormation();
+        
+        // Update damage control repairs
+        this.updateDamageControl(deltaTime);
+
+        // Update scenarios system
+        this.updateScenariosSystem(deltaTime);
     }
     
     // Update drone torpedoes
@@ -4729,60 +4735,6 @@ class Submarine {
 
         // Update off-screen contact indicators
         this.updateOffScreenIndicators();
-
-
-        // Update damage control repairs
-        this.updateDamageControl(deltaTime);
-
-        // Update scenarios system
-        this.updateScenariosSystem(deltaTime);
-
-        // Apply throttle-based movement (affected by towed array)
-        let effectiveMaxSpeed = this.maxSpeed;
-        if (this.towedArray.deployed) {
-            effectiveMaxSpeed *= this.towedArray.speedPenalty;
-            this.speed = Math.min(Math.abs(this.speed), effectiveMaxSpeed) * Math.sign(this.speed);
-        }
-
-        if (Math.abs(this.speed) > 0.1) {
-            // Speed conversion: knots to meters per second
-            // 1 knot = 0.5144 m/s
-            // With deltaTime in seconds, multiply speed (knots) by 0.5144 to get m/s
-            // Then multiply by deltaTime to get movement per frame
-            const knotsToMetersPerSecond = 0.5144;
-            const moveSpeed = this.speed * knotsToMetersPerSecond * deltaTime;
-
-            // Forward/backward movement
-            const forwardDirection = new THREE.Vector3(1, 0, 0);
-            forwardDirection.applyQuaternion(this.mesh.quaternion);
-            const forwardMovement = forwardDirection.multiplyScalar(moveSpeed);
-
-            // Strafe movement
-            let strafeMovement = new THREE.Vector3(0, 0, 0);
-            if (this.keys.strafeLeft || this.keys.strafeRight) {
-                const strafeDirection = new THREE.Vector3(0, 0, this.keys.strafeLeft ? 1 : -1);
-                strafeDirection.applyQuaternion(this.mesh.quaternion);
-                const strafeSpeed = Math.abs(this.speed) * knotsToMetersPerSecond * deltaTime * 0.5;
-                strafeMovement = strafeDirection.multiplyScalar(strafeSpeed);
-            }
-
-            // Store old position for collision detection
-            const oldPosition = this.mesh.position.clone();
-            this.mesh.position.add(forwardMovement);
-            this.mesh.position.add(strafeMovement);
-
-            // Check collisions
-            this.checkSeabedCollision(oldPosition);
-            this.checkSurfaceCollision();
-
-            // Create wake effect at high speeds
-            if (Math.abs(this.speed) > 6) {
-                this.createWakeEffect();
-            }
-        }
-
-        // Update HUD
-        this.updateHUD();
     }
 
     updateOrientationControl(deltaTime) {
@@ -5968,12 +5920,12 @@ class Submarine {
 
         // Reset lock system (only if not a drone)
         if (!isDrone) {
-            this.torpedoLockSystem = {
-                target: null,
-                lockProgress: 0,
-                lockStartTime: 0,
-                isLocked: false
-            };
+        this.torpedoLockSystem = {
+            target: null,
+            lockProgress: 0,
+            lockStartTime: 0,
+            isLocked: false
+        };
         }
 
         console.log(`${torpedoType} launched from launcher ${this.selectedLauncher}, box ${launcher.currentBox}`);
@@ -7931,7 +7883,7 @@ class Submarine {
             // Increases with depth excess (the further below, the greater the damage)
             const baseDamageRate = 0.01; // 1% per second at crush depth
             const depthMultiplier = 1 + (depthExcess / 100); // +1% per meter below crush depth
-            
+
             // Example: At crushDepth+50m, multiplier = 1.5 (50% more damage)
             // Example: At crushDepth+100m, multiplier = 2.0 (100% more damage)
 
@@ -7953,7 +7905,7 @@ class Submarine {
                 // Critical depth - play hull stress sounds more frequently
                 if (!this.lastHullStressSound || Date.now() - this.lastHullStressSound > 2000) {
                     if (this.audioManager && this.audioManager.playHullStress) {
-                        this.audioManager.playHullStress();
+                    this.audioManager.playHullStress();
                     }
                     this.lastHullStressSound = Date.now();
                 }
@@ -7970,7 +7922,7 @@ class Submarine {
                 // Normal crush depth damage - play hull stress sounds occasionally
                 if (!this.lastHullStressSound || Date.now() - this.lastHullStressSound > 5000) {
                     if (this.audioManager && this.audioManager.playHullStress) {
-                        this.audioManager.playHullStress();
+                    this.audioManager.playHullStress();
                     }
                     this.lastHullStressSound = Date.now();
                 }

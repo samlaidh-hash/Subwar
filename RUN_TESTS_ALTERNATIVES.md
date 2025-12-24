@@ -97,3 +97,4 @@ npx playwright test tests/sonar-quick.spec.js --reporter=list
 **Use Solution 1 (CMD)** - It's the simplest and doesn't require changing system settings!
 
 
+

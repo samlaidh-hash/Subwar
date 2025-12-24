@@ -94,3 +94,4 @@ float finalAlpha = visibility;
 - Verify terrain fades out smoothly from 30-40 seconds
 - Verify each new ping resets visibility and fade timer
 
+
