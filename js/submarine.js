@@ -1665,8 +1665,9 @@ class Submarine {
         this.setupControls();
 
         // Start audio systems
-        this.audioManager.startEngine();
-        this.audioManager.startAmbientSounds();
+        // DISABLED: Engine and ambient sounds (humming noise)
+        // this.audioManager.startEngine();
+        // this.audioManager.startAmbientSounds();
 
         // Initialize AI for NPC submarines
         if (this.isNPC) {
