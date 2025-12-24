@@ -4169,7 +4169,11 @@ class Submarine {
             this.toggleQMADSystem();
             break;
         case 'KeyH':
-            this.adjustSonarRate(-1);
+            // Spawn enemy 400m ahead (for testing)
+            if (window.spawnEnemyAhead) {
+                window.spawnEnemyAhead(400, 'attack');
+                console.log('🎯 Spawned enemy submarine 400m ahead');
+            }
             break;
         case 'Minus':
             this.toggleTowedArray();

@@ -617,8 +617,14 @@ function handleKeyDown(event) {
         event.stopPropagation();
         break;
     case 'KeyH':
-        // Toggle thermoclines (moved from V to H key)
-        console.log('🔧 H key pressed - toggling thermoclines');
+        // Spawn enemy 400m ahead (for testing) - handled by submarine.js
+        // H key now used for enemy spawn instead of thermoclines
+        event.preventDefault();
+        event.stopPropagation();
+        break;
+    case 'KeyU':
+        // Toggle thermoclines (moved from H to U key)
+        console.log('🔧 U key pressed - toggling thermoclines');
         // Fixed: Check if oceanEnvironment() returns a valid object before calling methods
         if (window.oceanEnvironment && typeof window.oceanEnvironment === 'function') {
             const oceanEnv = window.oceanEnvironment();
