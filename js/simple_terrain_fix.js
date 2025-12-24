@@ -290,23 +290,22 @@ class SimpleTerrain {
         geometry.computeVertexNormals(); // Recalculate normals
         console.log('✅ Height variations applied AFTER rotation');
         
-        // Enhanced depth-based shader material for better terrain interaction
-        const material = this.createEnhancedTerrainShader();
+        // Enhanced depth-based shader material with textures for all terrain features
+        const material = this.createTexturedTerrainShader();
 
-        // DEBUG: Also create a simple basic material version for comparison
-        const basicMaterial = new THREE.MeshBasicMaterial({
-            color: 0x00AAAA,
-            wireframe: false,
-            side: THREE.DoubleSide,
-            transparent: true,
-            opacity: 0.8
+        // DEBUG: Also create a textured version for comparison (using MeshStandardMaterial)
+        const texturedMaterial = new THREE.MeshStandardMaterial({
+            map: this.createCombinedSeafloorTexture(),
+            roughness: 0.8,
+            metalness: 0.1,
+            side: THREE.DoubleSide
         });
 
-        // Create second mesh with basic material for testing
-        const basicMesh = new THREE.Mesh(geometry.clone(), basicMaterial);
-        basicMesh.position.set(2000, 0, 0); // Offset to side for comparison
-        this.terrainGroup.add(basicMesh);
-        console.log('🚨 DEBUG: Added basic material terrain mesh at (2000, 0, 0) for comparison');
+        // Create second mesh with textured material for comparison
+        const texturedMesh = new THREE.Mesh(geometry.clone(), texturedMaterial);
+        texturedMesh.position.set(2000, 0, 0); // Offset to side for comparison
+        this.terrainGroup.add(texturedMesh);
+        console.log('🚨 DEBUG: Added textured material terrain mesh at (2000, 0, 0) for comparison');
         
         const mesh = new THREE.Mesh(geometry, material);
         mesh.position.set(0, 0, 0);
@@ -317,19 +316,19 @@ class SimpleTerrain {
         console.log('📊 Mesh material type:', mesh.material.constructor.name);
         console.log('📊 Mesh geometry vertices:', mesh.geometry.attributes.position.count);
 
-        // DEBUG: Add a simple test plane near submarine starting position for visibility test
+        // DEBUG: Add a textured test plane near submarine starting position for visibility test
         const testGeometry = new THREE.PlaneGeometry(1000, 1000);
         testGeometry.rotateX(-Math.PI / 2);
-        const testMaterial = new THREE.MeshBasicMaterial({
-            color: 0xFF0000,
-            side: THREE.DoubleSide,
-            transparent: true,
-            opacity: 0.8
+        const testMaterial = new THREE.MeshStandardMaterial({
+            map: this.createSandTexture(),
+            roughness: 0.7,
+            metalness: 0.0,
+            side: THREE.DoubleSide
         });
         const testMesh = new THREE.Mesh(testGeometry, testMaterial);
         testMesh.position.set(0, -200, 18000); // Near submarine starting position
         this.terrainGroup.add(testMesh);
-        console.log('🚨 DEBUG: Added red test plane at submarine starting area (0, -200, 18000)');
+        console.log('🚨 DEBUG: Added textured test plane at submarine starting area (0, -200, 18000)');
         console.log('🌊 ZONE LAYOUT (North to South):');
         console.log('  📍 Continental Shelf (0-10km): 100-200m depth');
         console.log('  📍 Continental Slope (10-40km): 200-2000m depth');  
@@ -357,11 +356,13 @@ class SimpleTerrain {
         console.log('    ⛰️  East branch: 500m wide, ends at 9.2km depth (2000, 19200)');
         console.log('📊 Total depth range: -100m to -11000m (including trench, seamount tops, and canyon heads)');
         
-        // Add cyan reference plane above the terrain for comparison
+        // Add textured reference plane above the terrain for comparison
         const cyanGeometry = new THREE.PlaneGeometry(this.terrainSize * 0.1, this.terrainSize * 0.1); // 10% of terrain size reference plane
         cyanGeometry.rotateX(-Math.PI / 2);
-        const cyanMaterial = new THREE.MeshBasicMaterial({ 
-            color: 0x00FFFF, 
+        const cyanMaterial = new THREE.MeshStandardMaterial({ 
+            map: this.createCombinedSeafloorTexture(),
+            roughness: 0.6,
+            metalness: 0.0,
             side: THREE.DoubleSide,
             transparent: true,
             opacity: 0.3
@@ -2167,11 +2168,13 @@ class SimpleTerrain {
             varying vec3 vPosition;
             varying vec3 vNormal;
             varying float vDepth;
+            varying vec2 vUv;
             
             void main() {
                 vPosition = position;
                 vNormal = normalize(normalMatrix * normal);
                 vDepth = position.y; // Y is depth after terrain rotation
+                vUv = uv;
                 
                 gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
             }
@@ -2184,9 +2187,14 @@ class SimpleTerrain {
             uniform float passiveRange;
             uniform float activeSonarRange;
             uniform bool isActiveSonarActive;
+            uniform sampler2D sandTexture;
+            uniform sampler2D mudTexture;
+            uniform sampler2D rockTexture;
+            uniform sampler2D combinedTexture;
             varying vec3 vPosition;
             varying vec3 vNormal;
             varying float vDepth;
+            varying vec2 vUv;
             
             // Depth-based color zones for easy navigation
             vec3 getDepthColor(float depth) {
@@ -2212,6 +2220,43 @@ class SimpleTerrain {
                 }
             }
             
+            // Get texture based on depth and terrain type
+            vec3 getTerrainTexture(float depth, float slope) {
+                vec2 tiledUv = vUv * 50.0; // Tile textures across terrain
+                
+                // Continental Shelf: Sand texture
+                if (depth > -200.0) {
+                    vec3 sand = texture2D(sandTexture, tiledUv).rgb;
+                    return sand * 0.8 + getDepthColor(depth) * 0.2;
+                }
+                // Continental Slope: Mix of sand and mud
+                else if (depth > -2000.0) {
+                    float factor = (depth + 2000.0) / 1800.0;
+                    vec3 sand = texture2D(sandTexture, tiledUv).rgb;
+                    vec3 mud = texture2D(mudTexture, tiledUv).rgb;
+                    vec3 blended = mix(sand, mud, factor);
+                    return blended * 0.7 + getDepthColor(depth) * 0.3;
+                }
+                // Abyssal Plain: Mud texture with rock on steep slopes
+                else if (depth > -6000.0) {
+                    vec3 mud = texture2D(mudTexture, tiledUv).rgb;
+                    vec3 rock = texture2D(rockTexture, tiledUv).rgb;
+                    // Use rock texture on steep slopes (canyons, ridges)
+                    float rockMix = smoothstep(0.3, 0.8, slope);
+                    vec3 surface = mix(mud, rock, rockMix);
+                    return surface * 0.6 + getDepthColor(depth) * 0.4;
+                }
+                // Deep Trench: Rock texture with mud patches
+                else {
+                    vec3 rock = texture2D(rockTexture, tiledUv).rgb;
+                    vec3 mud = texture2D(mudTexture, tiledUv).rgb;
+                    // More rock on steep walls, mud on flat floor
+                    float mudMix = 1.0 - slope; // More mud on flat areas
+                    vec3 surface = mix(rock, mud, mudMix * 0.5);
+                    return surface * 0.5 + getDepthColor(depth) * 0.5;
+                }
+            }
+            
             // Add contour lines for depth visualization
             float getContourLines(float depth) {
                 float contourSpacing = 200.0; // Contour every 200m
@@ -2225,48 +2270,60 @@ class SimpleTerrain {
             }
             
             void main() {
-                vec3 baseColor = getDepthColor(vDepth);
+                // Calculate slope for texture selection
+                float slope = 1.0 - abs(dot(vNormal, vec3(0.0, 1.0, 0.0)));
+                
+                // Get textured color based on depth and terrain type
+                vec3 texturedColor = getTerrainTexture(vDepth, slope);
                 
                 // Add subtle underwater caustics effect
                 float caustics = sin(vPosition.x * 0.01 + time) * sin(vPosition.z * 0.008 + time * 0.7) * 0.1;
-                baseColor += vec3(caustics * 0.2, caustics * 0.3, caustics * 0.1);
+                texturedColor += vec3(caustics * 0.2, caustics * 0.3, caustics * 0.1);
                 
                 // Add contour lines for depth reference
                 float contour = getContourLines(vDepth);
-                baseColor += vec3(contour * 0.8, contour * 0.9, contour * 1.0);
+                texturedColor += vec3(contour * 0.8, contour * 0.9, contour * 1.0);
                 
                 // Enhanced slope-based shading for better 3D perception
-                float slope = 1.0 - abs(dot(vNormal, vec3(0.0, 1.0, 0.0)));
                 vec3 slopeShading = vec3(slope * 0.3);
-                baseColor += slopeShading;
+                texturedColor += slopeShading;
                 
                 // Depth fog for distance perception
                 float fogFactor = clamp(abs(vDepth) / 8000.0, 0.0, 0.4);
-                baseColor = mix(baseColor, vec3(0.0, 0.1, 0.3), fogFactor);
+                texturedColor = mix(texturedColor, vec3(0.0, 0.1, 0.3), fogFactor);
 
-                // SENSOR-BASED VISIBILITY CALCULATION (TEMPORARILY DISABLED FOR DEBUG)
+                // SENSOR-BASED VISIBILITY CALCULATION
                 float distanceToSubmarine = distance(vPosition.xz, submarinePosition.xz);
-                float sensorRange = isActiveSonarActive ? activeSonarRange : passiveRange;
-
-                // Calculate visibility fade (smooth transition)
-                float fadeStart = sensorRange * 0.8; // Start fading at 80% of range
-                float visibility = 1.0;
-                if (distanceToSubmarine > fadeStart) {
-                    visibility = 1.0 - smoothstep(fadeStart, sensorRange, distanceToSubmarine);
+                float visibility = 0.0;
+                
+                // Default: 500m visibility
+                if (distanceToSubmarine <= passiveRange) {
+                    visibility = 1.0;
+                }
+                // Active sonar ping: 2km range with timing-based fade
+                else if (isActiveSonarActive && distanceToSubmarine <= activeSonarRange) {
+                    // Note: Timing-based fade is handled in JavaScript, shader just checks range
+                    visibility = 1.0;
                 }
 
-                // Apply sensor visibility (re-enabled now that terrain is working)
-                float finalAlpha = max(visibility, 0.1); // Ensure minimum visibility to prevent black flickering
+                // Apply sensor visibility (0 = invisible, 1 = visible)
+                float finalAlpha = visibility;
 
                 if (wireframeMode) {
                     // Enhanced wireframe with depth coloring and sensor visibility
-                    gl_FragColor = vec4(baseColor * 1.2, 0.9 * finalAlpha);
+                    gl_FragColor = vec4(texturedColor * 1.2, 0.9 * finalAlpha);
                 } else {
-                    // Solid mode with full shading and sensor visibility
-                    gl_FragColor = vec4(baseColor, finalAlpha);
+                    // Solid mode with textures and sensor visibility
+                    gl_FragColor = vec4(texturedColor, finalAlpha);
                 }
             }
         `;
+        
+        // Create textures for terrain features
+        const sandTexture = this.createSandTexture();
+        const mudTexture = this.createMudTexture();
+        const rockTexture = this.createRockTexture();
+        const combinedTexture = this.createCombinedSeafloorTexture();
         
         const material = new THREE.ShaderMaterial({
             vertexShader: vertexShader,
@@ -2277,7 +2334,11 @@ class SimpleTerrain {
                 submarinePosition: { value: new THREE.Vector3(0, 0, 0) },
                 passiveRange: { value: 500.0 },
                 activeSonarRange: { value: 2000.0 },
-                isActiveSonarActive: { value: false }
+                isActiveSonarActive: { value: false },
+                sandTexture: { value: sandTexture },
+                mudTexture: { value: mudTexture },
+                rockTexture: { value: rockTexture },
+                combinedTexture: { value: combinedTexture }
             },
             wireframe: this.wireframeMode,
             side: THREE.FrontSide,
@@ -2289,14 +2350,22 @@ class SimpleTerrain {
         // Store reference for animation updates
         this.shaderMaterial = material;
         
-        console.log('🎨 Enhanced depth-based terrain shader created with:');
-        console.log('  💙 Depth-based color zones (shelf → slope → abyss → trench)');
+        console.log('🎨 Enhanced textured terrain shader created with:');
+        console.log('  🏖️ Sand texture for Continental Shelf');
+        console.log('  🏔️ Mud texture for Continental Slope and Abyssal Plain');
+        console.log('  ⛰️ Rock texture for steep slopes, canyons, and trenches');
+        console.log('  💙 Depth-based color blending');
         console.log('  📏 Contour lines every 200m for depth reference');
         console.log('  🌊 Underwater caustics animation');
-        console.log('  🏔️ Slope-based shading for 3D perception');
+        console.log('  🏔️ Slope-based texture selection');
         console.log('  🌫️ Depth fog for distance visualization');
         
         return material;
+    }
+
+    // NEW: Create textured terrain shader (wrapper for compatibility)
+    createTexturedTerrainShader() {
+        return this.createEnhancedTerrainShader();
     }
 
     update(deltaTime) {
@@ -2313,8 +2382,20 @@ class SimpleTerrain {
             }
 
             // Update active sonar status from ocean environment
-            if (window.oceanInstance && window.oceanInstance.isActiveSonarActive !== undefined) {
-                this.shaderMaterial.uniforms.isActiveSonarActive.value = window.oceanInstance.isActiveSonarActive;
+            if (window.oceanInstance) {
+                // Check if sonar ping is still active (handles 30s visible, fade 30-40s)
+                const isActive = window.oceanInstance.isSonarPingActive ? 
+                    window.oceanInstance.isSonarPingActive() : 
+                    (window.oceanInstance.isActiveSonarActive || false);
+                this.shaderMaterial.uniforms.isActiveSonarActive.value = isActive;
+                
+                // Update ranges
+                if (window.oceanInstance.passiveRange !== undefined) {
+                    this.shaderMaterial.uniforms.passiveRange.value = window.oceanInstance.passiveRange;
+                }
+                if (window.oceanInstance.activeSonarRange !== undefined) {
+                    this.shaderMaterial.uniforms.activeSonarRange.value = window.oceanInstance.activeSonarRange;
+                }
             }
         }
     }

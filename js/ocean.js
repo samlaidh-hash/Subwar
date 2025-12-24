@@ -45,12 +45,13 @@ class Ocean {
         this.chunkSize = 1000; // 1km chunks for performance (sensor range LOD handles detail)
         this.chunksPerSide = this.terrainSize / this.chunkSize; // 70x70 = 4900 chunks (manageable)
         // Submarine sensor ranges
-        this.passiveRange = 2000;    // 2km passive quantum magnetic/gravity sensors (increased for visibility)
-        this.activeSonarRange = 5000; // 5km active sonar range
+        this.passiveRange = 500;     // 500m default visibility - everything within 500m visible, beyond invisible
+        this.activeSonarRange = 2000; // 2km active sonar ping range
         this.maxViewDistance = this.activeSonarRange; // Maximum possible view distance
-        this.drawDistance = this.passiveRange; // Default to passive range
+        this.drawDistance = this.passiveRange; // Default to passive range (500m)
         this.lastSonarPingTime = 0;
-        this.sonarPingDuration = 10000; // 10 seconds sonar visibility after ping
+        this.sonarPingDuration = 30000; // 30 seconds sonar visibility after ping
+        this.sonarPingFadeDuration = 10000; // Fade out over 10 seconds (30-40 seconds total)
         this.isActiveSonarActive = false;
 
         // COMPLEX TERRAIN DEPTHS - Per user specifications (CORRECTED)
@@ -2819,10 +2820,15 @@ class Ocean {
         if (!this.terrainChunks || !playerPosition) return;
 
         // Update current sensor range based on active sonar status
+        // Check if sonar ping is still active (30s visible, fade 30-40s)
         const currentTime = Date.now();
-        if (this.isActiveSonarActive && (currentTime - this.lastSonarPingTime > this.sonarPingDuration)) {
-            this.isActiveSonarActive = false;
-            console.log('🔊 Active sonar range expired, returning to passive sensors');
+        if (this.isActiveSonarActive) {
+            const timeSincePing = currentTime - this.lastSonarPingTime;
+            // Deactivate after 40 seconds (30s visible + 10s fade)
+            if (timeSincePing > this.sonarPingDuration + this.sonarPingFadeDuration) {
+                this.isActiveSonarActive = false;
+                console.log('🔊 Active sonar range expired after 40 seconds, returning to passive sensors');
+            }
         }
 
         // Determine current visibility range
@@ -2846,9 +2852,10 @@ class Ocean {
             );
 
             let shouldBeVisible = false;
+            let visibilityAlpha = 1.0;
 
-            if (this.isActiveSonarActive) {
-                // Active sonar: 2km range with 90-degree rear blind spot
+            if (this.isSonarPingActive()) {
+                // Active sonar ping: 2km range with fade timing
                 const dx = chunk.centerX - playerPosition.x;
                 const dz = chunk.centerZ - playerPosition.z;
                 const angle = Math.atan2(dz, dx);
@@ -2861,9 +2868,12 @@ class Ocean {
                 // Check if in rear 90-degree blind spot (-45 to +45 degrees behind)
                 const isInBlindSpot = Math.abs(normalizedAngle) > (Math.PI - Math.PI/4);
 
-                shouldBeVisible = distance <= this.activeSonarRange && !isInBlindSpot;
+                if (distance <= this.activeSonarRange && !isInBlindSpot) {
+                    shouldBeVisible = true;
+                    visibilityAlpha = this.getSonarPingAlpha(); // Apply fade alpha
+                }
             } else {
-                // Passive sensors: 500m sphere around submarine
+                // Default: 500m sphere around submarine
                 shouldBeVisible = distance <= this.passiveRange;
             }
 
@@ -2894,8 +2904,8 @@ class Ocean {
     activateSonarPing() {
         this.lastSonarPingTime = Date.now();
         this.isActiveSonarActive = true;
-        console.log('🔊 ACTIVE SONAR PING - Extended range activated for 10 seconds');
-        console.log(`📡 Terrain visibility: ${this.passiveRange}m → ${this.activeSonarRange}m`);
+        console.log('🔊 ACTIVE SONAR PING - Extended range activated for 30 seconds');
+        console.log(`📡 Terrain visibility: ${this.passiveRange}m → ${this.activeSonarRange}m (fades 30-40s)`);
 
         // Force immediate terrain update
         if (window.playerSubmarine && window.playerSubmarine()) {
@@ -2904,6 +2914,49 @@ class Ocean {
                 this.updateTerrainLOD(submarine.mesh.position);
             }
         }
+    }
+
+    // Check if active sonar ping is still active (with fade)
+    isSonarPingActive() {
+        if (!this.isActiveSonarActive) return false;
+        
+        const timeSincePing = Date.now() - this.lastSonarPingTime;
+        
+        // Fully visible for 30 seconds
+        if (timeSincePing <= this.sonarPingDuration) {
+            return true;
+        }
+        
+        // Fade out from 30-40 seconds
+        if (timeSincePing <= this.sonarPingDuration + this.sonarPingFadeDuration) {
+            return true; // Still active but will fade
+        }
+        
+        // Beyond 40 seconds - deactivate
+        this.isActiveSonarActive = false;
+        return false;
+    }
+
+    // Get visibility alpha based on sonar ping timing
+    getSonarPingAlpha() {
+        if (!this.isActiveSonarActive) return 0.0;
+        
+        const timeSincePing = Date.now() - this.lastSonarPingTime;
+        
+        // Fully visible for 30 seconds
+        if (timeSincePing <= this.sonarPingDuration) {
+            return 1.0;
+        }
+        
+        // Fade out from 30-40 seconds
+        if (timeSincePing <= this.sonarPingDuration + this.sonarPingFadeDuration) {
+            const fadeProgress = (timeSincePing - this.sonarPingDuration) / this.sonarPingFadeDuration;
+            return 1.0 - fadeProgress; // Fade from 1.0 to 0.0
+        }
+        
+        // Beyond 40 seconds
+        this.isActiveSonarActive = false;
+        return 0.0;
     }
 
     // Terrain visualization controls

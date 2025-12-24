@@ -349,7 +349,12 @@ function updateCamera() {
             }
 
 
-            const offset = new THREE.Vector3(-dynamicDistance, 3, 0);
+            // Position camera behind and above submarine
+            // Behind: negative Z in submarine's local space
+            // Above: positive Y offset
+            const behindDistance = dynamicDistance; // Distance behind submarine
+            const aboveHeight = 5; // Height above submarine (increased from 3)
+            const offset = new THREE.Vector3(0, aboveHeight, -behindDistance);
             offset.applyQuaternion(submarine.mesh.quaternion);
 
             const targetPos = submarinePos.clone().add(offset);

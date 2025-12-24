@@ -5,10 +5,13 @@ class EnemySubmarine {
     constructor(scene, position = new THREE.Vector3(0, -10, 0), type = 'attack') {
         this.scene = scene;
         this.type = type; // 'attack', 'patrol', 'hunter-killer'
+        this.submarineClass = type.toUpperCase(); // For logging/debugging
         this.mesh = null;
         this.position = position.clone();
         this.rotation = new THREE.Euler(0, Math.random() * Math.PI * 2, 0);
         this.velocity = new THREE.Vector3(0, 0, 0);
+        this.destroyed = false; // Initialize destroyed flag
+        this.targetDirection = null; // Initialize target direction
 
         // Submarine stats
         this.health = 100;

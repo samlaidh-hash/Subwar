@@ -1351,7 +1351,7 @@ class Submarine {
         // Reticle control system
         this.firingReticle = {
             position: new THREE.Vector3(0, 0, 0), // Projected ahead of submarine
-            distance: 86 * 4 * 0.3048, // Four submarine lengths ahead (86 feet = TORNADO length)
+            distance: 50, // 50 meters directly ahead of submarine
             // Target lock system
             target: null,
             lockProgress: 0, // 0-1, how close to lock
@@ -1474,6 +1474,11 @@ class Submarine {
         this.accelerationRate = specs.accelerationRate;
         this.maxDepth = specs.crushDepth;
         this.emergencyDepth = specs.emergencyDepth;
+        
+        // Crush depth warning timers
+        this.lastCrushDepthWarning = 0;
+        this.lastCriticalDepthWarning = 0;
+        this.lastHullStressSound = 0;
 
         // Maneuverability characteristics
         this.baseTurnRate = specs.baseTurnRate;
@@ -1587,7 +1592,7 @@ class Submarine {
         };
 
         // Sonar operating modes
-        this.sonarMode = 'Passive'; // Active, Passive, Silent
+        this.sonarMode = 'Passive'; // Active, Passive (Silent mode removed)
         this.sonarPower = 'High';  // High (100m), Medium (50m), Low (25m)
         this.sonarPingRate = 'Normal'; // Fast (1s), Normal (2s), Slow (3s), Very Slow (5s)
         
@@ -1718,6 +1723,13 @@ class Submarine {
 
         // Currently selected launcher
         this.selectedLauncher = 1;
+
+        // Sequential firing system - tracks which tube fires next
+        this.sequentialFiring = {
+            nextTubeToFire: 1, // 1-4, cycles through tubes
+            firedTubes: new Set(), // Track which tubes have been fired
+            allFired: false // True when all 4 tubes have been fired
+        };
 
         // Launcher interaction tracking
         this.launcherInteraction = {
@@ -3794,7 +3806,7 @@ class Submarine {
             this.performSonarPing();
             break;
         case 'KeyM':
-            this.cycleSonarMode(); // Active/Passive/Silent only (M key)
+            this.cycleSonarMode(); // Active/Passive only (M key)
             break;
         case 'KeyQ':
             this.toggleQMADSystem();
@@ -3847,9 +3859,11 @@ class Submarine {
                     this.handleEmergencyArmorRedistribution(facings[digitNum]);
                 }
             } else {
-                // Launcher selection and torpedo cycling
+                // Number keys cycle through torpedoes left to right, one press = one box
                 const launcherNum = parseInt(event.code.replace('Digit', ''));
-                this.handleLauncherSelection(launcherNum);
+                if (launcherNum >= 1 && launcherNum <= 4) {
+                    this.cycleTorpedoBox(launcherNum);
+                }
             }
             break;
         case 'Digit9':
@@ -3866,7 +3880,7 @@ class Submarine {
             break;
         case 'Space':
             event.preventDefault();
-            this.launchTorpedo();
+            this.fireSequentialTorpedo();
             break;
         case 'ArrowUp':
             this.keys.throttleUp = true;
@@ -4016,12 +4030,17 @@ class Submarine {
             // Calculate turn rate multiplier based on distance from reticle
             this.orientationControl.turnRateMultiplier = Math.min(5.0, distance * 6.0); // Max 5x turn rate
 
-            // Calculate target orientation to align reticle with maneuver icon
-            // Yaw: horizontal movement
-            this.orientationControl.targetYaw = -this.maneuverIcon.x * Math.PI * 0.25; // Max 45 degrees
+            // Calculate target orientation - DIRECT mouse control
+            // Left mouse move → rotate left (positive yaw in Three.js)
+            // Right mouse move → rotate right (negative yaw in Three.js)
+            // Up mouse move → pitch up (positive pitch in Three.js)
+            // Down mouse move → pitch down (negative pitch in Three.js)
+            // Note: maneuverIcon.x is positive when mouse is RIGHT of center
+            //       maneuverIcon.y is positive when mouse is BELOW center (screen Y inverted)
+            this.orientationControl.targetYaw = -this.maneuverIcon.x * Math.PI * 0.25; // Left = positive yaw, Right = negative yaw
 
-            // Pitch: vertical movement (inverted for submarine controls) - reduced range to keep more level
-            this.orientationControl.targetPitch = this.maneuverIcon.y * Math.PI * 0.12; // Max 22 degrees (reduced for better control)
+            // Pitch: vertical movement - up = positive pitch (nose up)
+            this.orientationControl.targetPitch = -this.maneuverIcon.y * Math.PI * 0.12; // Up = positive pitch, Down = negative pitch
 
             // Roll: calculated from combined movement for banking effect
             this.orientationControl.targetRoll = -this.maneuverIcon.x * Math.PI * 0.1; // Max 18 degrees roll
@@ -4227,19 +4246,25 @@ class Submarine {
         }
 
         if (Math.abs(this.speed) > 0.1) {
-            const moveSpeed = 1.03; // Realistic speed scaling: 100 knots = 51.44 m/s, scaled to 53.03 m/s for 70km in 22 minutes
+            // Speed conversion: knots to meters per second
+            // 1 knot = 0.5144 m/s
+            // With deltaTime in seconds, multiply speed (knots) by 0.5144 to get m/s
+            // Then multiply by deltaTime to get movement per frame
+            const knotsToMetersPerSecond = 0.5144;
+            const moveSpeed = this.speed * knotsToMetersPerSecond * deltaTime;
 
             // Forward/backward movement
             const forwardDirection = new THREE.Vector3(1, 0, 0);
             forwardDirection.applyQuaternion(this.mesh.quaternion);
-            const forwardMovement = forwardDirection.multiplyScalar(this.speed * moveSpeed);
+            const forwardMovement = forwardDirection.multiplyScalar(moveSpeed);
 
             // Strafe movement
             let strafeMovement = new THREE.Vector3(0, 0, 0);
             if (this.keys.strafeLeft || this.keys.strafeRight) {
                 const strafeDirection = new THREE.Vector3(0, 0, this.keys.strafeLeft ? 1 : -1);
                 strafeDirection.applyQuaternion(this.mesh.quaternion);
-                strafeMovement = strafeDirection.multiplyScalar(Math.abs(this.speed) * moveSpeed * 0.5);
+                const strafeSpeed = Math.abs(this.speed) * knotsToMetersPerSecond * deltaTime * 0.5;
+                strafeMovement = strafeDirection.multiplyScalar(strafeSpeed);
             }
 
             // Store old position for collision detection
@@ -4721,6 +4746,151 @@ class Submarine {
         console.log(`🎯 Launcher ${launcherNumber} - Highlighted box ${launcher.currentBox}`);
     }
 
+    // NEW: Cycle torpedo box left to right, one press = one box
+    cycleTorpedoBox(launcherNumber) {
+        if (launcherNumber < 1 || launcherNumber > this.launchers.length) {
+            return;
+        }
+
+        const launcher = this.launchers[launcherNumber - 1];
+        
+        // If all tubes fired, reload instead
+        if (this.sequentialFiring.allFired) {
+            this.reloadTube(launcherNumber);
+            return;
+        }
+
+        // Start at box 0 if no box highlighted, otherwise move one box right
+        if (launcher.currentBox === -1) {
+            launcher.currentBox = 0;
+        } else {
+            launcher.currentBox++;
+            // Wrap around: after box 6, go back to box 0
+            if (launcher.currentBox > 6) {
+                launcher.currentBox = 0;
+            }
+        }
+
+        console.log(`🎯 Launcher ${launcherNumber} - Box ${launcher.currentBox} highlighted`);
+        this.updateLauncherDisplay();
+    }
+
+    // NEW: Fire torpedoes sequentially (tube 1, then 2, then 3, then 4)
+    fireSequentialTorpedo() {
+        // If all tubes fired, don't fire
+        if (this.sequentialFiring.allFired) {
+            console.log('All tubes fired - reload with number keys');
+            return;
+        }
+
+        const tubeNumber = this.sequentialFiring.nextTubeToFire;
+        const launcher = this.launchers[tubeNumber - 1];
+        
+        if (!launcher) {
+            console.log(`Tube ${tubeNumber} not available`);
+            return;
+        }
+
+        // Check if current box has a torpedo
+        if (launcher.currentBox === 0 || launcher.currentBox === -1) {
+            console.log(`Tube ${tubeNumber} - No torpedo selected in box ${launcher.currentBox}`);
+            return;
+        }
+
+        const chamberIndex = launcher.currentBox - 1;
+        const torpedoCode = launcher.chambers[chamberIndex];
+        
+        if (!torpedoCode || torpedoCode === '') {
+            console.log(`Tube ${tubeNumber} - Box ${launcher.currentBox} is empty`);
+            return;
+        }
+
+        // Check for lock (if required)
+        if (!this.torpedoLockSystem || !this.torpedoLockSystem.isLocked) {
+            console.log('No target lock - cannot fire torpedo');
+            return;
+        }
+
+        // Fire the torpedo
+        const torpedoType = this.getFullTorpedoType(torpedoCode);
+        const torpedo = this.createSmartTorpedo(torpedoType, this.torpedoLockSystem.target);
+
+        // Trigger torpedo launch signature spike
+        this.torpedoLaunchSignature.active = true;
+        this.torpedoLaunchSignature.startTime = Date.now();
+        
+        // Play torpedo launch sound
+        this.audioManager.playTorpedoLaunch();
+
+        // Clear the chamber
+        launcher.chambers[chamberIndex] = '';
+        
+        // Remove highlight from this tube
+        launcher.currentBox = -1;
+        
+        // Mark this tube as fired
+        this.sequentialFiring.firedTubes.add(tubeNumber);
+        
+        // Move to next tube (1->2->3->4->1)
+        this.sequentialFiring.nextTubeToFire = (tubeNumber % 4) + 1;
+        
+        // Check if all tubes fired
+        if (this.sequentialFiring.firedTubes.size >= 4) {
+            this.sequentialFiring.allFired = true;
+            console.log('All 4 tubes fired - reload with number keys');
+        }
+
+        console.log(`${torpedoType} fired from tube ${tubeNumber}, next tube: ${this.sequentialFiring.nextTubeToFire}`);
+        this.updateLauncherDisplay();
+    }
+
+    // NEW: Reload tube when all tubes fired
+    reloadTube(tubeNumber) {
+        if (tubeNumber < 1 || tubeNumber > 4) return;
+        
+        const launcher = this.launchers[tubeNumber - 1];
+        if (!launcher) return;
+
+        // Find first empty chamber and reload
+        for (let i = 0; i < 6; i++) {
+            if (!launcher.chambers[i] || launcher.chambers[i] === '') {
+                // Reload with available torpedo type (prioritize MT)
+                if (this.torpedoStorage.MT > 0) {
+                    launcher.chambers[i] = 'MT';
+                    this.torpedoStorage.MT--;
+                    console.log(`Tube ${tubeNumber} reloaded with MT in chamber ${i + 1}`);
+                } else if (this.torpedoStorage.LT > 0) {
+                    launcher.chambers[i] = 'LT';
+                    this.torpedoStorage.LT--;
+                    console.log(`Tube ${tubeNumber} reloaded with LT in chamber ${i + 1}`);
+                } else if (this.torpedoStorage.HT > 0) {
+                    launcher.chambers[i] = 'HT';
+                    this.torpedoStorage.HT--;
+                    console.log(`Tube ${tubeNumber} reloaded with HT in chamber ${i + 1}`);
+                } else {
+                    console.log(`No torpedoes available to reload tube ${tubeNumber}`);
+                    return;
+                }
+                
+                // Reset firing state if all tubes reloaded
+                if (this.sequentialFiring.firedTubes.has(tubeNumber)) {
+                    this.sequentialFiring.firedTubes.delete(tubeNumber);
+                }
+                
+                if (this.sequentialFiring.firedTubes.size === 0) {
+                    this.sequentialFiring.allFired = false;
+                    this.sequentialFiring.nextTubeToFire = 1;
+                    console.log('All tubes reloaded - ready to fire');
+                }
+                
+                this.updateLauncherDisplay();
+                return;
+            }
+        }
+        
+        console.log(`Tube ${tubeNumber} is full`);
+    }
+
     getCurrentTorpedoCode(launcherNumber) {
         const launcher = this.launchers[launcherNumber - 1];
         // Box 0 is always empty, boxes 1-6 map to chamber indices 0-5
@@ -4765,9 +4935,10 @@ class Submarine {
                     torpedoBox.textContent = torpedoCode;
                 }
                 
-                // Highlight the current box for the selected launcher
-                if (i === launcher.currentBox && launcher.id === this.selectedLauncher) {
-                    torpedoBox.classList.add('selected');
+                // Highlight ALL boxes that are highlighted (yellow highlight)
+                // currentBox >= 0 means a box is highlighted
+                if (i === launcher.currentBox && launcher.currentBox >= 0) {
+                    torpedoBox.classList.add('selected'); // Yellow highlight
                 }
             }
 
@@ -5555,7 +5726,7 @@ class Submarine {
                 }
             } else {
                 targetDetailsElement.textContent = 'No target locked';
-                const sonarStatus = this.firingReticle.sonarLockBonus > 0 ? ' (Active Sonar)' : ' (Silent)';
+                const sonarStatus = this.firingReticle.sonarLockBonus > 0 ? ' (Active Sonar)' : ' (Passive)';
                 lockStatusElement.innerHTML = `Status: <span style="color: #00ff00">Scanning</span>${sonarStatus}`;
             }
         }
@@ -6169,29 +6340,25 @@ class Submarine {
         console.log(`Sonar rate adjusted to level ${this.sonarSettings.rate}`);
     }
 
-    performSonarPing() {
-        // Silent mode: no pinging allowed
-        if (this.sonarMode === 'Silent') {
-            console.log('⚠️ Cannot ping in Silent mode - switch to Active or Passive mode');
-            this.showStatusMessage('Sonar is in Silent mode', 'warning');
-            return;
+    showStatusMessage(message, type = 'info') {
+        // Show status message to user
+        if (window.updateStatus) {
+            window.updateStatus(message);
         }
+        
+        // Also log to console with type indicator
+        const prefix = type === 'critical' ? '🔴' : type === 'warning' ? '⚠️' : 'ℹ️';
+        console.log(`${prefix} ${message}`);
+    }
 
+    performSonarPing() {
+        // Single active sonar ping - works in both Active and Passive modes
         if (window.performAdvancedSonarSweep && this.mesh) {
             // Record sonar ping time for target lock system
             this.firingReticle.lastSonarPing = Date.now();
 
-            // Get current sonar settings - Different ranges per mode
-            // Active mode: Long range (200m - 2km)
-            // Passive mode: Shorter range (100m - 500m)
-            const powerSettings = this.sonarMode === 'Active' ?
-                [200, 500, 1000, 2000] :  // Active: long range
-                [100, 200, 300, 500];      // Passive: short range
-
-            const rateSettings = [1000, 2000, 3000, 5000]; // Cooldown in ms
-
-            const currentRange = powerSettings[this.sonarSettings.power];
-            const currentCooldown = rateSettings[this.sonarSettings.rate];
+            // Active sonar ping: 2km range
+            const currentRange = 2000; // 2km active sonar ping range
 
             // Use advanced sonar system with warfare mechanics
             const contacts = window.performAdvancedSonarSweep(
@@ -6199,7 +6366,7 @@ class Submarine {
                 currentRange,
                 this.passiveSensitivity,
                 this.knuckles,
-                this.sonarMode  // Pass sonar mode to detection function
+                'Active'  // Always use Active mode for ping
             );
 
             this.updateSonarContactsDisplay(contacts);
@@ -6211,13 +6378,10 @@ class Submarine {
             // Play sonar ping sound
             this.audioManager.playSonarPing();
 
-            // Activate terrain visibility extension if using 2km range
-            if (currentRange >= 2000 && window.oceanEnvironment && typeof window.oceanEnvironment === 'function') {
-                const oceanEnv = window.oceanEnvironment();
-                if (oceanEnv && oceanEnv.activateSonarPing) {
-                    oceanEnv.activateSonarPing();
-                    console.log('🔊 R key sonar ping: Extended terrain visibility to 2km');
-                }
+            // Activate terrain visibility extension (2km range, 30s visible, fade 30-40s)
+            if (window.oceanInstance && window.oceanInstance.activateSonarPing) {
+                window.oceanInstance.activateSonarPing();
+                console.log('🔊 R key sonar ping: Extended terrain visibility to 2km for 30 seconds (fades 30-40s)');
             }
 
             console.log(`Advanced sonar ping: ${contacts.length} contacts detected at ${currentRange}m range`);
@@ -6225,7 +6389,8 @@ class Submarine {
     }
 
     cycleSonarMode() {
-        const modes = ['Active', 'Passive', 'Silent'];
+        // Only Active and Passive modes (Silent mode removed)
+        const modes = ['Active', 'Passive'];
         const currentIndex = modes.indexOf(this.sonarMode);
         this.sonarMode = modes[(currentIndex + 1) % modes.length];
         
@@ -6233,13 +6398,10 @@ class Submarine {
         let modeDescription = '';
         switch (this.sonarMode) {
             case 'Active':
-                modeDescription = '(Pings every 2s)';
+                modeDescription = '(Press R for single ping)';
                 break;
             case 'Passive':
-                modeDescription = '(Silent listening - best when stationary)';
-                break;
-            case 'Silent':
-                modeDescription = '(Radio silence)';
+                modeDescription = '(Continuous listening - 500m range)';
                 break;
         }
         
@@ -7089,43 +7251,92 @@ class Submarine {
         // Get submarine crush depth from specifications
         const crushDepth = this.maxDepth || 500; // Use this.maxDepth which is set from specs.crushDepth
 
-        // Check if below crush depth
+        // WARNING: Check if approaching maximum depth (within 10% of crush depth)
+        const warningThreshold = crushDepth * 0.9; // 90% of crush depth
+        if (currentDepth >= warningThreshold && currentDepth < crushDepth) {
+            const depthRemaining = crushDepth - currentDepth;
+            const percentRemaining = ((crushDepth - currentDepth) / (crushDepth - warningThreshold)) * 100;
+            
+            // Show warning message periodically (every 2 seconds)
+            if (!this.lastCrushDepthWarning || Date.now() - this.lastCrushDepthWarning > 2000) {
+                this.showStatusMessage(
+                    `⚠️ APPROACHING MAXIMUM DEPTH! ${Math.round(depthRemaining)}m remaining (${Math.round(percentRemaining)}% margin)`,
+                    'warning'
+                );
+                this.lastCrushDepthWarning = Date.now();
+                
+                // Play warning sound
+                if (this.audioManager && this.audioManager.playHullStress) {
+                    this.audioManager.playHullStress();
+                }
+            }
+        }
+
+        // DAMAGE: Check if below crush depth
         if (currentDepth > crushDepth) {
             const depthExcess = currentDepth - crushDepth;
 
             // Base damage rate: 1% hull HP per second at crush depth
-            // Increases exponentially with depth excess
-            const baseDamageRate = 0.01; // 1% per second
+            // Increases with depth excess (the further below, the greater the damage)
+            const baseDamageRate = 0.01; // 1% per second at crush depth
             const depthMultiplier = 1 + (depthExcess / 100); // +1% per meter below crush depth
+            
+            // Example: At crushDepth+50m, multiplier = 1.5 (50% more damage)
+            // Example: At crushDepth+100m, multiplier = 2.0 (100% more damage)
 
-            // Calculate damage per second with ±20% random variation
+            // Calculate damage per second with random variation (±20%)
             const randomVariation = 0.8 + (Math.random() * 0.4); // 0.8 to 1.2 multiplier
             const damagePerSecond = baseDamageRate * depthMultiplier * randomVariation;
 
-            // Apply damage to hull system
+            // Apply damage to hull system every second
             const damageAmount = damagePerSecond * this.systems.hull.maxHP * deltaTime;
             this.systems.hull.hp = Math.max(0, this.systems.hull.hp - damageAmount);
 
             // Warning messages and hull stress audio
             if (this.systems.hull.hp <= 0) {
+                this.showStatusMessage('💥 HULL IMPLOSION! Submarine destroyed by crushing pressure!', 'critical');
                 console.log('💥 HULL IMPLOSION! Submarine destroyed by crushing pressure!');
                 // Trigger submarine destruction
                 this.triggerImplosion();
             } else if (currentDepth > crushDepth + 50) {
                 // Critical depth - play hull stress sounds more frequently
-                if (!this.lastHullStressSound || Date.now() - this.lastHullStressSound > 3000) {
-                    this.audioManager.playHullStress();
+                if (!this.lastHullStressSound || Date.now() - this.lastHullStressSound > 2000) {
+                    if (this.audioManager && this.audioManager.playHullStress) {
+                        this.audioManager.playHullStress();
+                    }
                     this.lastHullStressSound = Date.now();
+                }
+                // Show critical warning every second
+                if (!this.lastCriticalDepthWarning || Date.now() - this.lastCriticalDepthWarning > 1000) {
+                    this.showStatusMessage(
+                        `🌊 CRITICAL DEPTH! ${Math.round(depthExcess)}m over limit - Taking ${(damagePerSecond * 100).toFixed(1)}% hull damage/sec`,
+                        'critical'
+                    );
+                    this.lastCriticalDepthWarning = Date.now();
                 }
                 console.warn(`🌊 CRITICAL DEPTH! Hull taking ${(damagePerSecond * 100).toFixed(1)}% damage/sec at ${currentDepth.toFixed(0)}m`);
             } else {
                 // Normal crush depth damage - play hull stress sounds occasionally
-                if (!this.lastHullStressSound || Date.now() - this.lastHullStressSound > 8000) {
-                    this.audioManager.playHullStress();
+                if (!this.lastHullStressSound || Date.now() - this.lastHullStressSound > 5000) {
+                    if (this.audioManager && this.audioManager.playHullStress) {
+                        this.audioManager.playHullStress();
+                    }
                     this.lastHullStressSound = Date.now();
+                }
+                // Show warning every 2 seconds
+                if (!this.lastCrushDepthWarning || Date.now() - this.lastCrushDepthWarning > 2000) {
+                    this.showStatusMessage(
+                        `⚠️ EXCEEDING MAXIMUM DEPTH! ${Math.round(depthExcess)}m over limit - Taking ${(damagePerSecond * 100).toFixed(1)}% hull damage/sec`,
+                        'warning'
+                    );
+                    this.lastCrushDepthWarning = Date.now();
                 }
                 console.warn(`⚠️ Below crush depth! Hull damage at ${currentDepth.toFixed(0)}m (crush: ${crushDepth}m)`);
             }
+        } else {
+            // Reset warning timers when safe
+            this.lastCrushDepthWarning = 0;
+            this.lastCriticalDepthWarning = 0;
         }
     }
 
