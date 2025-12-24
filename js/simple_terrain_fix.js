@@ -2289,8 +2289,9 @@ class SimpleTerrain {
                 // Apply sensor visibility (0 = invisible, 1 = visible)
                 float finalAlpha = visibility;
 
-                // Discard fragments with very low alpha to prevent color artifacts
-                if (finalAlpha < 0.01) {
+                // Discard fragments with low alpha to prevent blue color artifacts
+                // Increased threshold to prevent semi-transparent blue terrain from showing
+                if (finalAlpha < 0.1) {
                     discard;
                 }
 

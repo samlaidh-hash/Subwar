@@ -4833,8 +4833,8 @@ class Submarine {
         const iconDistance = Math.sqrt(this.maneuverIcon.x * this.maneuverIcon.x + this.maneuverIcon.y * this.maneuverIcon.y);
         const inDeadZone = iconDistance <= this.maneuverIcon.deadZoneRadius;
         
-        // Check if mouse is over reticle (very small threshold for stabilization)
-        const reticleThreshold = 0.05; // Very small threshold - mouse must be almost exactly centered
+        // Check if mouse is over reticle (larger threshold for stabilization)
+        const reticleThreshold = 0.15; // Increased threshold to prevent steering drift
         const isOverReticle = iconDistance <= reticleThreshold;
 
         // Get camera if available
@@ -4882,38 +4882,38 @@ class Submarine {
             const screenWidth = window.innerWidth;
             const screenHeight = window.innerHeight;
 
+            // STEP 1: Check if mouse is centered FIRST - skip all calculations if centered
+            const centerThreshold = 0.15; // Increased threshold to prevent bias
+            if (Math.abs(this.maneuverIcon.x) < centerThreshold && Math.abs(this.maneuverIcon.y) < centerThreshold) {
+                // Mouse is centered - don't apply any rotation
+                return; // Exit early - no turning needed
+            }
+            
+            // STEP 2: Project mouse position to world space
             // Convert normalized coords (-1 to 1) to screen pixels
             const screenX = (this.maneuverIcon.x * 0.5 + 0.5) * screenWidth;
             const screenY = (-this.maneuverIcon.y * 0.5 + 0.5) * screenHeight;
+            
+            // Convert to normalized device coordinates (NDC: -1 to 1)
+            // Center of screen = (0, 0) in NDC
+            const ndcX = (screenX / screenWidth) * 2 - 1;
+            const ndcY = -(screenY / screenHeight) * 2 + 1;
+            
+            // Project to world space using camera
+            // Use a depth value that represents the aim distance
+            const mouseVector = new THREE.Vector3(ndcX, ndcY, 0.5);
+            mouseVector.unproject(camera);
+            
+            // Create target point at aim distance from submarine
+            // Direction points from submarine toward the projected mouse position
+            const direction = mouseVector.sub(this.mesh.position).normalize();
+            const targetWorldPos = this.mesh.position.clone().add(direction.multiplyScalar(aimDistance));
 
-            // STEP 2: Transform target to submarine's local coordinate space
+            // STEP 3: Transform target to submarine's local coordinate space
             const worldToLocal = new THREE.Matrix4().copy(this.mesh.matrixWorld).invert();
-            
-            // Check if mouse is very close to center - use forward direction to avoid projection bias
-            let targetWorldPos;
-            const centerThreshold = 0.1; // Increased threshold to prevent bias
-            if (Math.abs(this.maneuverIcon.x) < centerThreshold && Math.abs(this.maneuverIcon.y) < centerThreshold) {
-                // Mouse is very close to center - use forward direction to avoid any projection bias
-                const forwardDir = new THREE.Vector3(1, 0, 0);
-                forwardDir.applyQuaternion(this.mesh.quaternion);
-                targetWorldPos = this.mesh.position.clone().add(forwardDir.multiplyScalar(aimDistance));
-            } else {
-                // Mouse is off-center - use projection
-                const ndcX = (screenX / screenWidth) * 2 - 1;
-                const ndcY = -(screenY / screenHeight) * 2 + 1;
-                
-                // Project to world space using camera
-                const mouseVector = new THREE.Vector3(ndcX, ndcY, 0.5);
-                mouseVector.unproject(camera);
-                
-                // Create target point at aim distance from submarine
-                const direction = mouseVector.sub(this.mesh.position).normalize();
-                targetWorldPos = this.mesh.position.clone().add(direction.multiplyScalar(aimDistance));
-            }
-            
             const localTarget = targetWorldPos.clone().applyMatrix4(worldToLocal);
 
-            // STEP 3: Calculate pitch and yaw from local coordinates
+            // STEP 4: Calculate pitch and yaw from local coordinates
             // This is the key Freelancer technique - local coords directly give us rotation inputs
             const pitchSensitivity = 2.0;
             const yawSensitivity = 2.0;
@@ -4924,18 +4924,28 @@ class Submarine {
 
             // Calculate pitch and yaw inputs (clamped -1 to 1)
             // In local space: X=forward, Y=up, Z=right
+            // localTargetNorm.z > 0 means target is to the RIGHT → turn RIGHT (positive yaw)
+            // localTargetNorm.z < 0 means target is to the LEFT → turn LEFT (negative yaw)
             let pitchInput = Math.max(-1, Math.min(1, localTargetNorm.y));
             let yawInput = Math.max(-1, Math.min(1, localTargetNorm.z));
 
             // Apply dead zone threshold to prevent tiny inputs from causing drift
-            const inputThreshold = 0.02; // Increased threshold to prevent drift
+            const inputThreshold = 0.05; // Increased threshold significantly to prevent drift
             if (Math.abs(pitchInput) < inputThreshold) pitchInput = 0;
             if (Math.abs(yawInput) < inputThreshold) yawInput = 0;
             
-            // Additional check: if mouse is in center threshold, force inputs to zero
-            if (Math.abs(this.maneuverIcon.x) < centerThreshold && Math.abs(this.maneuverIcon.y) < centerThreshold) {
-                pitchInput = 0;
-                yawInput = 0;
+            // Verify yawInput sign matches mouse direction
+            // If mouse is RIGHT of center (maneuverIcon.x > 0), yawInput should be POSITIVE (turn right)
+            // If mouse is LEFT of center (maneuverIcon.x < 0), yawInput should be NEGATIVE (turn left)
+            if (Math.abs(yawInput) > inputThreshold) {
+                const expectedSign = Math.sign(this.maneuverIcon.x); // Positive = right, Negative = left
+                const actualSign = Math.sign(yawInput);
+                
+                // If signs don't match, there's a coordinate system issue - correct it
+                if (expectedSign !== 0 && actualSign !== 0 && expectedSign !== actualSign) {
+                    console.warn(`⚠️ Yaw sign mismatch: mouse ${this.maneuverIcon.x > 0 ? 'RIGHT' : 'LEFT'}, yawInput ${yawInput > 0 ? 'POSITIVE' : 'NEGATIVE'} - correcting`);
+                    yawInput = -yawInput; // Flip sign to match mouse direction
+                }
             }
 
             // DEBUG: Log values occasionally
@@ -4943,7 +4953,7 @@ class Submarine {
                 console.log(`🎮 Control Debug: icon=(${this.maneuverIcon.x.toFixed(2)}, ${this.maneuverIcon.y.toFixed(2)}) localNorm=(${localTargetNorm.x.toFixed(2)}, ${localTargetNorm.y.toFixed(2)}, ${localTargetNorm.z.toFixed(2)}) pitch=${pitchInput.toFixed(2)} yaw=${yawInput.toFixed(2)}`);
             }
 
-            // STEP 4: Apply rotation based on inputs (only if inputs are significant)
+            // STEP 5: Apply rotation based on inputs (only if inputs are significant)
             // NOTE: Due to submarine model being rotated 90° on Z-axis, pitch is Z rotation
             if (Math.abs(pitchInput) > inputThreshold) {
                 this.mesh.rotation.z += pitchInput * pitchSensitivity * deltaTime;
