@@ -6,6 +6,8 @@ class Ocean {
         this.scene = scene;
         this.seaFloor = null;
         this.waterPlane = null;
+        this.iceSheet = null;
+        this.enableIceSheet = true;
         this.rocks = [];
         this.debris = [];
         this.kelp = [];
@@ -1658,8 +1660,56 @@ class Ocean {
         this.waterPlane.name = 'waterSurface';
         this.scene.add(this.waterPlane);
 
+        // Optional ice sheet overlay for surface combat/visuals
+        if (this.enableIceSheet) {
+            this.createIceSheetSurface(surfaceSize);
+        }
+
         // Add dual thermoclines at specified depths
         this.createDualThermoclines();
+    }
+
+    createIceSheetSurface(surfaceSize) {
+        const iceGroup = new THREE.Group();
+
+        const iceMaterial = new THREE.LineBasicMaterial({
+            color: 0xe6f7ff, // Pale ice blue
+            linewidth: 1,
+            transparent: true,
+            opacity: 0.45
+        });
+
+        const crackCount = 80;
+        for (let i = 0; i < crackCount; i++) {
+            const start = new THREE.Vector3(
+                (Math.random() - 0.5) * surfaceSize,
+                0,
+                (Math.random() - 0.5) * surfaceSize
+            );
+            const segmentCount = 3 + Math.floor(Math.random() * 4);
+            const points = [start];
+
+            let current = start.clone();
+            for (let s = 0; s < segmentCount; s++) {
+                const angle = Math.random() * Math.PI * 2;
+                const length = 80 + Math.random() * 140;
+                current = new THREE.Vector3(
+                    current.x + Math.cos(angle) * length,
+                    0,
+                    current.z + Math.sin(angle) * length
+                );
+                points.push(current);
+            }
+
+            const crackGeometry = new THREE.BufferGeometry().setFromPoints(points);
+            const crackLine = new THREE.Line(crackGeometry, iceMaterial);
+            iceGroup.add(crackLine);
+        }
+
+        this.iceSheet = iceGroup;
+        this.iceSheet.position.y = 301; // Slightly above water surface to avoid z-fighting
+        this.iceSheet.name = 'iceSheet';
+        this.scene.add(this.iceSheet);
     }
 
     createKelpForest() {

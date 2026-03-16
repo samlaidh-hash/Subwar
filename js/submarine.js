@@ -1739,7 +1739,7 @@ class Submarine {
         
         // Mouse wheel deadzone for precise zero speed control
         this.wheelDeadzone = {
-            range: 2,  // ±2 wheel clicks around zero
+            range: 1,  // Require fewer wheel clicks to leave zero
             inputBuffer: 0  // Count wheel inputs in deadzone
         };
 
@@ -1986,10 +1986,10 @@ class Submarine {
             screenY: window.innerHeight / 2,
             maxDistance: 0.8, // Maximum distance from center (0-1)
             dragTurnThreshold: 0.6, // Distance threshold for drag turns
-            deadZoneRadius: 0.15, // Dead zone radius to prevent continuous movement
+            deadZoneRadius: 0.08, // Slightly smaller dead zone for more responsive steering
             lastMouseMoveTime: Date.now(), // Track last mouse movement
-            driftSpeed: 0.8, // Speed at which icon drifts back to center
-            driftDelay: 500 // Wait 500ms after last mouse movement before drifting
+            driftSpeed: 0.6, // Slightly slower drift back to center
+            driftDelay: 900 // Wait longer after last mouse movement before drifting
         };
 
         // SCAV (Super Cavitation) Mode
@@ -4832,9 +4832,9 @@ class Submarine {
         // Calculate distance from center for dead zone
         const iconDistance = Math.sqrt(this.maneuverIcon.x * this.maneuverIcon.x + this.maneuverIcon.y * this.maneuverIcon.y);
         const inDeadZone = iconDistance <= this.maneuverIcon.deadZoneRadius;
-        
-        // Check if mouse is over reticle (larger threshold for stabilization)
-        const reticleThreshold = 0.15; // Increased threshold to prevent steering drift
+
+        // Check if mouse is over reticle (larger threshold for gentle stabilization)
+        const reticleThreshold = 0.10; // Slightly tighter threshold so small inputs register as steering
         const isOverReticle = iconDistance <= reticleThreshold;
 
         // Get camera if available
@@ -4883,7 +4883,7 @@ class Submarine {
             const screenHeight = window.innerHeight;
 
             // STEP 1: Check if mouse is centered FIRST - skip all calculations if centered
-            const centerThreshold = 0.15; // Increased threshold to prevent bias
+            const centerThreshold = 0.12; // Slightly tighter threshold to improve small steering response
             if (Math.abs(this.maneuverIcon.x) < centerThreshold && Math.abs(this.maneuverIcon.y) < centerThreshold) {
                 // Mouse is centered - don't apply any rotation
                 return; // Exit early - no turning needed
@@ -5111,18 +5111,78 @@ class Submarine {
 
     createScavBubbles() {
         // Create SCAV bubble visual effects
-        // TODO: Implement Three.js particle system for bubble effects
+        this.scavMode.bubbleEffects = [];
+        this.scavMode.bubbleTimer = 0;
         console.log('Creating SCAV bubble effects');
     }
 
     updateScavEffects(deltaTime) {
-        // Update SCAV bubble particle positions and effects
-        // TODO: Update particle system positions relative to submarine
+        if (!this.mesh) return;
+
+        // Spawn bubble particles at a steady rate
+        this.scavMode.bubbleTimer += deltaTime;
+        const spawnInterval = 0.05; // 20 per second
+        if (this.scavMode.bubbleTimer >= spawnInterval) {
+            this.scavMode.bubbleTimer = 0;
+
+            const bubbleGeometry = new THREE.SphereGeometry(0.18 + Math.random() * 0.12, 6, 4);
+            const bubbleMaterial = new THREE.MeshBasicMaterial({
+                color: 0xaaffff,
+                transparent: true,
+                opacity: 0.6,
+                wireframe: true
+            });
+            const bubble = new THREE.Mesh(bubbleGeometry, bubbleMaterial);
+
+            // Position behind the submarine with slight spread
+            const backward = this.mesh.getWorldDirection(new THREE.Vector3()).multiplyScalar(-1);
+            const offset = new THREE.Vector3(
+                (Math.random() - 0.5) * 2,
+                (Math.random() - 0.5) * 1.5,
+                (Math.random() - 0.5) * 2
+            );
+            bubble.position.copy(this.mesh.position)
+                .add(backward.multiplyScalar(2.5))
+                .add(offset);
+
+            this.scene.add(bubble);
+
+            this.scavMode.bubbleEffects.push({
+                mesh: bubble,
+                life: 0,
+                maxLife: 1.2 + Math.random() * 0.6,
+                velocity: backward.multiplyScalar(3 + Math.random() * 2)
+                    .add(new THREE.Vector3(0, 0.3 + Math.random() * 0.6, 0))
+            });
+        }
+
+        // Update bubble lifetimes and positions
+        for (let i = this.scavMode.bubbleEffects.length - 1; i >= 0; i--) {
+            const bubble = this.scavMode.bubbleEffects[i];
+            bubble.life += deltaTime;
+            bubble.mesh.position.add(bubble.velocity.clone().multiplyScalar(deltaTime));
+            bubble.mesh.material.opacity = Math.max(0, 0.6 * (1 - bubble.life / bubble.maxLife));
+
+            if (bubble.life >= bubble.maxLife || bubble.mesh.material.opacity <= 0.05) {
+                this.scene.remove(bubble.mesh);
+                bubble.mesh.geometry.dispose();
+                bubble.mesh.material.dispose();
+                this.scavMode.bubbleEffects.splice(i, 1);
+            }
+        }
     }
 
     clearScavBubbles() {
         // Remove SCAV bubble effects
-        // TODO: Dispose of particle system resources
+        if (!this.scavMode.bubbleEffects) {
+            return;
+        }
+        this.scavMode.bubbleEffects.forEach(bubble => {
+            this.scene.remove(bubble.mesh);
+            bubble.mesh.geometry.dispose();
+            bubble.mesh.material.dispose();
+        });
+        this.scavMode.bubbleEffects = [];
         console.log('Clearing SCAV bubble effects');
     }
 
@@ -5147,7 +5207,10 @@ class Submarine {
         // Fire SCAV rockets using the weapons system
         if (window.weaponsSystem) {
             // Get SCAV rockets weapon type
-            const scavWeapon = window.weaponsSystem.weapons.find(w => w.type.type === 'scav_rocket');
+            const weaponList = Array.isArray(window.weaponsSystem.weapons) ?
+                window.weaponsSystem.weapons :
+                Object.values(window.weaponsSystem.weapons || {});
+            const scavWeapon = weaponList.find(w => w.type && w.type.type === 'scav_rocket');
             
             if (scavWeapon && scavWeapon.ammo > 0) {
                 // Check reload time
@@ -5242,8 +5305,11 @@ class Submarine {
         // Start lock-on system if current chamber has torpedo
         const currentTorpedoCode = this.getCurrentTorpedoCode(launcherNumber);
         if (currentTorpedoCode && currentTorpedoCode !== '') {
-            // TODO: Fix torpedo lock system - temporarily disabled to prevent crash
-            console.log(`Starting ${this.getFullTorpedoType(currentTorpedoCode)} lock-on: 2.0s (Active sonar)`);
+            // DN drone torpedoes do not require lock-on
+            if (currentTorpedoCode !== 'DN') {
+                const torpedoType = this.getFullTorpedoType(currentTorpedoCode);
+                this.startTorpedoLockOn(torpedoType);
+            }
         }
 
         // Update visual display
@@ -5694,6 +5760,7 @@ class Submarine {
         const launchDirection = this.mesh.getWorldDirection(new THREE.Vector3());
         
         const torpedoData = {
+            id: `smart_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
             type: torpedoType,
             target: target,
             position: this.getPosition().clone(),
@@ -5827,8 +5894,15 @@ class Submarine {
                     return false;
                 }
                 
-                // Check terrain collision (simple check - will need terrain height)
-                // TODO: Integrate with terrain collision system
+                // Check terrain collision (simple check against seabed height)
+                if (window.oceanInstance && window.oceanInstance.getSeabedHeight) {
+                    const seabedHeight = window.oceanInstance.getSeabedHeight(this.position.x, this.position.z);
+                    if (this.position.y <= seabedHeight + 1) {
+                        console.log('🚁 Drone impacted seabed - removing');
+                        this.destroy();
+                        return false;
+                    }
+                }
                 
                 return true;
             },
@@ -6860,14 +6934,18 @@ class Submarine {
         // Update timer
         this.passiveDetectionTimer += deltaTime;
 
-        // Perform automatic detection every 3 seconds in Passive mode
-        const detectionInterval = 3000; // 3 seconds
+        // Perform automatic detection every ~1.8 seconds in Passive mode
+        const detectionInterval = 1800; // 1.8 seconds
         if (this.passiveDetectionTimer >= detectionInterval) {
             this.passiveDetectionTimer = 0;
 
             if (window.performAdvancedSonarSweep && this.mesh) {
-                // Passive detection uses shorter range
-                const passiveRange = 500; // 500m passive detection range
+                // Passive detection uses shorter range than active pings
+                const basePassiveRange = 800; // base 800m passive detection range
+                // Slightly extend range when towed array is deployed
+                const passiveRange = this.towedArray && this.towedArray.deployed
+                    ? basePassiveRange * 1.25
+                    : basePassiveRange;
 
                 const contacts = window.performAdvancedSonarSweep(
                     this.mesh.position,

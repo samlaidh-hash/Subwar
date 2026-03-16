@@ -85,3 +85,4 @@ All issues have been fixed:
 
 The game space is correctly scaled with 70km × 70km terrain, and visibility is properly limited to 500m passive / 6km active ranges.
 
+

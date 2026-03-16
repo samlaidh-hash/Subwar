@@ -2077,7 +2077,12 @@ class AdvancedTorpedo {
             if (distance < blastRadius) {
                 console.log(`Proximity blast damage to player submarine: ${proximityDamage}`);
                 if (playerSub.takeDamage) {
-                    playerSub.takeDamage(proximityDamage);
+                    if (playerSub.determineHitFacing) {
+                        const hitFacing = playerSub.determineHitFacing(this.position, this.velocity);
+                        playerSub.takeDamage(proximityDamage, hitFacing);
+                    } else {
+                        playerSub.takeDamage(proximityDamage);
+                    }
                 }
             }
         }
@@ -2090,7 +2095,12 @@ class AdvancedTorpedo {
                 if (distance < blastRadius) {
                     console.log(`Proximity blast damage to enemy submarine: ${proximityDamage}`);
                     if (enemy.takeDamage) {
-                        enemy.takeDamage(proximityDamage);
+                        if (enemy.determineHitFacing) {
+                            const hitFacing = enemy.determineHitFacing(this.position, this.velocity);
+                            enemy.takeDamage(proximityDamage, hitFacing);
+                        } else {
+                            enemy.takeDamage(proximityDamage);
+                        }
                     }
                 }
             });
@@ -2100,9 +2110,14 @@ class AdvancedTorpedo {
     impact(target) {
         console.log(`${this.type.name} torpedo impact! Target hit for ${this.type.damage} damage.`);
 
-        // Apply damage to target
+        // Apply damage to target with directional facing when available
         if (target.takeDamage) {
-            target.takeDamage(this.type.damage);
+            if (target.determineHitFacing) {
+                const hitFacing = target.determineHitFacing(this.position, this.velocity);
+                target.takeDamage(this.type.damage, hitFacing);
+            } else {
+                target.takeDamage(this.type.damage);
+            }
         }
 
         // Create explosion effect
@@ -2519,6 +2534,13 @@ class FighterWeaponsSystem {
         // Active projectiles
         this.projectiles = [];
 
+        // Advanced torpedoes and drones (from submarine launcher system)
+        this.smartTorpedoes = [];
+        this.droneTorpedoes = [];
+
+        // Countermeasures (noisemakers, etc.)
+        this.countermeasures = [];
+
         // Target selection
         this.targets = [];
         this.selectedTarget = null;
@@ -2537,6 +2559,25 @@ class FighterWeaponsSystem {
                 this.projectiles.splice(index, 1);
             }
         });
+
+        // Update advanced smart torpedoes
+        for (let i = this.smartTorpedoes.length - 1; i >= 0; i--) {
+            const torpedo = this.smartTorpedoes[i];
+            if (!torpedo.update(deltaTime)) {
+                this.smartTorpedoes.splice(i, 1);
+            }
+        }
+
+        // Update drone torpedoes
+        for (let i = this.droneTorpedoes.length - 1; i >= 0; i--) {
+            const drone = this.droneTorpedoes[i];
+            if (!drone.update(deltaTime)) {
+                this.droneTorpedoes.splice(i, 1);
+            }
+        }
+
+        // Update countermeasures
+        this.updateCountermeasures();
 
         // Update target lock progress
         this.updateTargetLock(deltaTime);
@@ -2680,6 +2721,90 @@ class FighterWeaponsSystem {
         }
     }
 
+    createSmartTorpedo(torpedoData) {
+        const typeMap = {
+            LIGHT_TORPEDO: 'HS',
+            MEDIUM_TORPEDO: 'ST',
+            HEAVY_TORPEDO: 'HY'
+        };
+        const mappedType = typeMap[torpedoData.type] || 'ST';
+        const launchRotation = this.submarine.mesh.rotation.clone();
+        const torpedo = new AdvancedTorpedo(
+            this.scene,
+            torpedoData.position,
+            launchRotation,
+            mappedType,
+            torpedoData.target
+        );
+        torpedo.id = torpedoData.id || `smart_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        this.smartTorpedoes.push(torpedo);
+        return torpedo;
+    }
+
+    createDroneTorpedo(droneData) {
+        if (!droneData.id) {
+            droneData.id = `drone_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+        }
+        this.droneTorpedoes.push(droneData);
+        return droneData;
+    }
+
+    removeTorpedo(id) {
+        if (!id) return;
+        this.smartTorpedoes = this.smartTorpedoes.filter(torpedo => {
+            if (torpedo.id === id) {
+                torpedo.destroy();
+                return false;
+            }
+            return true;
+        });
+        this.droneTorpedoes = this.droneTorpedoes.filter(drone => {
+            if (drone.id === id) {
+                if (drone.destroy) {
+                    drone.destroy();
+                }
+                return false;
+            }
+            return true;
+        });
+    }
+
+    getActiveTorpedoes() {
+        const projectileTorpedoes = this.projectiles.filter(projectile =>
+            projectile.weaponType && projectile.weaponType.type === 'torpedo'
+        );
+        return [...projectileTorpedoes, ...this.smartTorpedoes];
+    }
+
+    getAllTorpedoes() {
+        const torpedoes = this.getActiveTorpedoes();
+        torpedoes.forEach(torpedo => {
+            if (!torpedo.id) {
+                torpedo.id = `torpedo_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+            }
+        });
+        return [...torpedoes, ...this.droneTorpedoes];
+    }
+
+    addCountermeasure(countermeasure) {
+        if (!countermeasure) return;
+        this.countermeasures.push(countermeasure);
+    }
+
+    getActiveNoisemakers() {
+        return this.countermeasures.filter(countermeasure =>
+            countermeasure.isNoisemaker || countermeasure.classification === 'NOISEMAKER'
+        );
+    }
+
+    updateCountermeasures() {
+        const currentTime = Date.now();
+        this.countermeasures = this.countermeasures.filter(countermeasure => {
+            if (!countermeasure.deployTime || !countermeasure.lifetime) return true;
+            return currentTime - countermeasure.deployTime <= countermeasure.lifetime;
+        });
+    }
+
     // Removed duplicate methods - using the ones with updateHUD() calls above
 
     updateTargets() {
@@ -2767,6 +2892,18 @@ class FighterWeaponsSystem {
     cleanup() {
         this.projectiles.forEach(projectile => projectile.destroy());
         this.projectiles = [];
+
+        this.smartTorpedoes.forEach(torpedo => torpedo.destroy());
+        this.smartTorpedoes = [];
+
+        this.droneTorpedoes.forEach(drone => {
+            if (drone.destroy) {
+                drone.destroy();
+            }
+        });
+        this.droneTorpedoes = [];
+
+        this.countermeasures = [];
     }
 }
 
@@ -2836,6 +2973,20 @@ function applyWeaponPreset(presetNumber) {
     }
 }
 
+function getActiveTorpedoes() {
+    if (!weaponsSystem || !weaponsSystem.getActiveTorpedoes) return [];
+    return weaponsSystem.getActiveTorpedoes();
+}
+
+function getActiveNoisemakers() {
+    if (!weaponsSystem || !weaponsSystem.getActiveNoisemakers) return [];
+    return weaponsSystem.getActiveNoisemakers();
+}
+
+function getWeaponsSystem() {
+    return weaponsSystem;
+}
+
 // Export functions, classes, and constants
 window.initWeapons = initWeapons;
 window.updateWeapons = updateWeapons;
@@ -2847,7 +2998,9 @@ window.weaponsSystem = weaponsSystem; // Make globally accessible
 window.cycleHomingMode = cycleHomingMode;
 window.selectTube = selectTube;
 window.applyWeaponPreset = applyWeaponPreset;
-window.weaponsSystem = () => weaponsSystem;
+window.getActiveTorpedoes = getActiveTorpedoes;
+window.getActiveNoisemakers = getActiveNoisemakers;
+window.getWeaponsSystem = getWeaponsSystem;
 
 // Export weapon types and classes for testing
 window.WEAPON_TYPES = WEAPON_TYPES;

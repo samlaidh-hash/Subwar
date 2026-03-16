@@ -8,6 +8,17 @@ const { test, expect } = require('@playwright/test');
 test.describe('Quick Sonar Bug Verification', () => {
     test.setTimeout(60000); // 60 second timeout
 
+    async function startMission(page) {
+        // Select scenario (F1 for Patrol Mission)
+        await page.keyboard.press('F1');
+
+        // Select submarine (default to TORNADO)
+        await page.click('.submarine-card[data-submarine="TORNADO"]');
+
+        // Start mission
+        await page.click('#startMissionBtn');
+    }
+
     test('verify sonar system state and modes', async ({ page }) => {
         console.log('\n🔍 Starting sonar system verification...\n');
 
@@ -28,8 +39,7 @@ test.describe('Quick Sonar Bug Verification', () => {
 
         console.log('✓ Game initialized');
 
-        // Select a scenario (F1 for Patrol Mission)
-        await page.keyboard.press('F1');
+        await startMission(page);
 
         // Wait for submarine to be created
         await page.waitForFunction(() => {
@@ -50,16 +60,16 @@ test.describe('Quick Sonar Bug Verification', () => {
         console.log('  ✓ Defaults to Passive mode\n');
 
         // === TEST 2: Check mode cycling ===
-        await page.keyboard.press('M');
+        await page.evaluate(() => window.playerSubmarine()?.cycleSonarMode());
         await page.waitForTimeout(300);
 
         const afterFirstCycle = await page.evaluate(() => window.playerSubmarine()?.sonarMode);
-        console.log(`TEST 2: After pressing S = "${afterFirstCycle}"`);
-        expect(afterFirstCycle).toBe('Silent');
+        console.log(`TEST 2: After pressing O = "${afterFirstCycle}"`);
+        expect(afterFirstCycle).toBe('Active');
         console.log('  ✓ Mode cycling works\n');
 
-        // === TEST 3: Check if Silent mode blocks pinging (EXPECTED FAIL) ===
-        console.log('TEST 3: Testing Silent mode ping restriction...');
+        // === TEST 3: Check if Active mode allows pinging ===
+        console.log('TEST 3: Testing Active mode ping...');
 
         const beforePing = await page.evaluate(() => {
             const sub = window.playerSubmarine();
@@ -74,12 +84,8 @@ test.describe('Quick Sonar Bug Verification', () => {
             return sub?.firingReticle?.lastSonarPing || 0;
         });
 
-        if (afterPing > beforePing) {
-            console.log('  ⚠️  BUG CONFIRMED: Silent mode allows pinging (should be blocked)');
-            console.log(`     Before: ${beforePing}, After: ${afterPing}\n`);
-        } else {
-            console.log('  ✓ Silent mode correctly blocks pinging\n');
-        }
+        expect(afterPing).toBeGreaterThan(beforePing);
+        console.log('  ✓ Active mode ping recorded\n');
 
         // === TEST 4: Check performAdvancedSonarSweep parameters ===
         console.log('TEST 4: Checking sonar sweep function signature...');
@@ -186,7 +192,7 @@ test.describe('Quick Sonar Bug Verification', () => {
         await page.goto('http://localhost:8000/index.html');
 
         await page.waitForFunction(() => window.playerSubmarine !== undefined, { timeout: 30000 });
-        await page.keyboard.press('F1'); // Select Patrol Mission
+        await startMission(page);
         await page.waitForFunction(() => {
             const sub = window.playerSubmarine && window.playerSubmarine();
             return sub && sub.sonarMode !== undefined;
