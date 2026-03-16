@@ -956,11 +956,17 @@ class Sealife {
             }
         }
 
-        // Check thermocline blocking (simple implementation)
-        const thermoDepth = 50; // Thermocline at 50m depth
-        if ((fromPos.y > thermoDepth && toPos.y < thermoDepth) ||
-            (fromPos.y < thermoDepth && toPos.y > thermoDepth)) {
-            return Math.random() < 0.3; // 30% chance thermocline blocks
+        // Thermoclines at 200m and 1100m (world Y = -200, -1100); 80% block if ray crosses
+        const thermo1 = -200;
+        const thermo2 = -1100;
+        const crossesThermo1 = (fromPos.y > thermo1 && toPos.y < thermo1) || (fromPos.y < thermo1 && toPos.y > thermo1);
+        const crossesThermo2 = (fromPos.y > thermo2 && toPos.y < thermo2) || (fromPos.y < thermo2 && toPos.y > thermo2);
+        if (crossesThermo1 || crossesThermo2) {
+            return Math.random() < 0.8; // 80% chance thermocline blocks sound
+        }
+
+        if (oceanInstance && oceanInstance.getSmokerBlocksSonar && oceanInstance.getSmokerBlocksSonar(fromPos, toPos)) {
+            return true;
         }
 
         // Check knuckle blocking

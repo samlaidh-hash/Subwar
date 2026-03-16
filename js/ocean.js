@@ -27,6 +27,7 @@ class Ocean {
         this.createKelpForest();
         this.createCoralReefs();
         this.createShipwrecks();
+        this.createHotSmokers();
         this.setupEnvironmentLighting();
         console.log('Ocean environment initialized with water surface, thermoclines and features (terrain handled by simple terrain system)');
     }
@@ -67,6 +68,16 @@ class Ocean {
         this.sheerFaceDepth = -13000; // Sheer face drop from plains to trench
         this.thermoclineDepth1 = -200; // First thermocline at 200m
         this.thermoclineDepth2 = -1100; // Second thermocline at 1100m
+
+        // Abyssal current: runs across plain in +X, plunges as waterfall into trench (hazard)
+        this.currentStripHalfWidth = 5000;   // |z| < 5km
+        this.currentXMin = 0;
+        this.currentXMax = 38000;
+        this.waterfallXStart = 30000;        // Current steepens into waterfall
+        this.waterfallXEnd = 40000;
+        this.currentSpeedPlain = 6;           // m/s in +X on the plain
+        this.waterfallDownwardSpeed = 22;     // m/s downward in waterfall (hazard: can drag below crush)
+        this.waterfallForwardSpeed = 5;       // m/s still toward trench
 
         // LOD system for performance
         this.terrainChunks = new Map();
@@ -2044,6 +2055,142 @@ class Ocean {
         console.log('Created 3 additional shipwreck sites');
     }
 
+    createHotSmokers() {
+        this.hotSmokers = [];
+        const radius = 150;
+        const plumeHeight = 400;
+        const numParticles = 180;
+
+        const ventPositions = [
+            { x: 10000, z: 0, label: 'plain' },
+            { x: 42000, z: 0, label: 'trench' }
+        ];
+
+        ventPositions.forEach((v, idx) => {
+            const seabedY = typeof this.getSeabedHeight === 'function'
+                ? this.getSeabedHeight(v.x, v.z)
+                : (v.label === 'trench' ? -9000 : -5000);
+            const position = new THREE.Vector3(v.x, seabedY, v.z);
+
+            const group = new THREE.Group();
+            group.name = `hotSmoker_${v.label}`;
+
+            const ventGeo = new THREE.CylinderGeometry(15, 25, 20, 8);
+            const ventMat = new THREE.MeshBasicMaterial({
+                color: 0x2a1810,
+                transparent: true,
+                opacity: 0.9
+            });
+            const ventMesh = new THREE.Mesh(ventGeo, ventMat);
+            ventMesh.position.y = 10;
+            group.add(ventMesh);
+
+            const positions = new Float32Array(numParticles * 3);
+            const colors = new Float32Array(numParticles * 3);
+            const speeds = [];
+            for (let i = 0; i < numParticles; i++) {
+                const t = i / numParticles;
+                positions[i * 3] = (Math.random() - 0.5) * radius * 0.8;
+                positions[i * 3 + 1] = Math.random() * plumeHeight * 0.95;
+                positions[i * 3 + 2] = (Math.random() - 0.5) * radius * 0.8;
+                const r = 0.6 + Math.random() * 0.4;
+                const g = 0.2 + Math.random() * 0.2;
+                const b = 0.05;
+                colors[i * 3] = r;
+                colors[i * 3 + 1] = g;
+                colors[i * 3 + 2] = b;
+                speeds.push({
+                    rise: 15 + Math.random() * 25,
+                    driftX: (Math.random() - 0.5) * 8,
+                    driftZ: (Math.random() - 0.5) * 8
+                });
+            }
+            const plumeGeo = new THREE.BufferGeometry();
+            plumeGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            plumeGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+            const plumeMat = new THREE.PointsMaterial({
+                size: 12,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.7,
+                sizeAttenuation: true
+            });
+            const plumeMesh = new THREE.Points(plumeGeo, plumeMat);
+            group.add(plumeMesh);
+
+            group.position.copy(position);
+            this.scene.add(group);
+
+            this.hotSmokers.push({
+                position: position.clone(),
+                radius,
+                plumeHeight,
+                group,
+                plumeMesh,
+                speeds,
+                label: v.label
+            });
+        });
+        console.log(`Created ${this.hotSmokers.length} hot smoker vents (plain + trench)`);
+    }
+
+    updateHotSmokers(deltaTime) {
+        if (!this.hotSmokers) return;
+        const dt = Math.min(deltaTime, 0.1);
+        this.hotSmokers.forEach(smoker => {
+            const pos = smoker.plumeMesh.geometry.attributes.position.array;
+            const baseY = smoker.position.y;
+            for (let i = 0; i < smoker.speeds.length; i++) {
+                pos[i * 3 + 1] += smoker.speeds[i].rise * dt;
+                pos[i * 3] += smoker.speeds[i].driftX * dt;
+                pos[i * 3 + 2] += smoker.speeds[i].driftZ * dt;
+                if (pos[i * 3 + 1] >= smoker.plumeHeight) {
+                    pos[i * 3 + 1] = 0;
+                    pos[i * 3] = (Math.random() - 0.5) * smoker.radius * 0.5;
+                    pos[i * 3 + 2] = (Math.random() - 0.5) * smoker.radius * 0.5;
+                }
+            }
+            smoker.plumeMesh.geometry.attributes.position.needsUpdate = true;
+        });
+    }
+
+    getSmokerBlocksSonar(fromPos, toPos) {
+        if (!this.hotSmokers) return false;
+        const dx = toPos.x - fromPos.x;
+        const dy = toPos.y - fromPos.y;
+        const dz = toPos.z - fromPos.z;
+        const lenXZ = dx * dx + dz * dz;
+        for (const smoker of this.hotSmokers) {
+            const px = smoker.position.x;
+            const pz = smoker.position.z;
+            const r = smoker.radius;
+            const y0 = smoker.position.y;
+            const y1 = smoker.position.y + smoker.plumeHeight;
+            const t = lenXZ < 1e-12
+                ? 0.5
+                : Math.max(0, Math.min(1, ((px - fromPos.x) * dx + (pz - fromPos.z) * dz) / lenXZ));
+            const closestX = fromPos.x + t * dx;
+            const closestZ = fromPos.z + t * dz;
+            const closestY = fromPos.y + t * dy;
+            const dist = Math.sqrt((px - closestX) ** 2 + (pz - closestZ) ** 2);
+            if (dist <= r && closestY >= y0 && closestY <= y1) {
+                return Math.random() < 0.85;
+            }
+        }
+        return false;
+    }
+
+    getSmokerAt(worldX, worldY, worldZ) {
+        if (!this.hotSmokers) return null;
+        for (const smoker of this.hotSmokers) {
+            const dist = Math.sqrt((worldX - smoker.position.x) ** 2 + (worldZ - smoker.position.z) ** 2);
+            if (dist > smoker.radius) continue;
+            if (worldY < smoker.position.y || worldY > smoker.position.y + smoker.plumeHeight) continue;
+            return smoker;
+        }
+        return null;
+    }
+
     createUnderwaterBases() {
         // Create different types of underwater bases
 
@@ -2565,6 +2712,10 @@ class Ocean {
             this.waterPlane.position.y = 300 + Math.sin(Date.now() * 0.0005) * 0.2;
         }
 
+        if (this.hotSmokers && this.updateHotSmokers) {
+            this.updateHotSmokers(deltaTime);
+        }
+
         // Animate thermocline undulation
         if (this.thermoclineData) {
             const time = Date.now() * 0.0003; // Very slow undulation
@@ -2992,6 +3143,32 @@ class Ocean {
                 }
             });
         }
+    }
+
+    getAbyssalCurrentVelocity(worldX, worldY, worldZ) {
+        const out = new THREE.Vector3(0, 0, 0);
+        if (Math.abs(worldZ) > this.currentStripHalfWidth) return out;
+        if (worldX < this.currentXMin || worldX > this.currentXMax) return out;
+        if (worldY > -100) return out; // Near surface: no effect
+
+        if (worldX < this.waterfallXStart) {
+            out.x = this.currentSpeedPlain;
+            return out;
+        }
+        const t = Math.min(1, (worldX - this.waterfallXStart) / (this.waterfallXEnd - this.waterfallXStart));
+        out.x = this.waterfallForwardSpeed;
+        out.y = -this.waterfallDownwardSpeed * t; // Strong downward in waterfall
+        return out;
+    }
+
+    isInAbyssalCurrent(worldX, worldZ) {
+        if (Math.abs(worldZ) > this.currentStripHalfWidth) return false;
+        return worldX >= this.currentXMin && worldX <= this.currentXMax;
+    }
+
+    isInWaterfall(worldX, worldZ) {
+        if (Math.abs(worldZ) > this.currentStripHalfWidth) return false;
+        return worldX >= this.waterfallXStart && worldX <= this.waterfallXEnd;
     }
 
     toggleThermoclines() {

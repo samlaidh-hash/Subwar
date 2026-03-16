@@ -1833,6 +1833,12 @@ class Submarine {
         this.lastCrushDepthWarning = 0;
         this.lastCriticalDepthWarning = 0;
         this.lastHullStressSound = 0;
+        // Abyssal current / waterfall (set each frame when in zone)
+        this.inAbyssalCurrent = false;
+        this.inWaterfall = false;
+        this.lastCurrentWarning = 0;
+        this.lastWaterfallWarning = 0;
+        this.lastHotSmokerWarning = 0;
 
         // Maneuverability characteristics
         this.baseTurnRate = specs.baseTurnRate;
@@ -2288,10 +2294,10 @@ class Submarine {
 
         const cobra = new THREE.Mesh(cobraGeometry, cobraMaterial);
 
-        // Scale and orient for submarine use
-        // Cobra width (24 units) becomes Tornado length, maintain proportions
-        const cobraWidth = 24; // Distance from left wing to right wing
-        const tornadoLength = 2.5; // Desired submarine length (12m, halved from 24m/5 units)
+        // Scale and orient for submarine use (world units = meters; play area 70km)
+        // Cobra width (24 units) becomes submarine length in meters
+        const cobraWidth = 24;
+        const tornadoLength = 70; // ~70m attack sub length (correct scale vs 70km terrain)
         const scale = tornadoLength / cobraWidth;
 
         cobra.scale.set(scale, scale, scale);
@@ -4565,6 +4571,9 @@ class Submarine {
         // Update crush depth damage system
         this.updateCrushDepthDamage(deltaTime);
 
+        // Hot smoker vents: damage and push sub upward
+        this.updateHotSmokerEffects(deltaTime);
+
         // Update thermal layer detection
         this.updateThermalLayerDetection();
 
@@ -4974,6 +4983,25 @@ class Submarine {
             // Check collisions
             this.checkSeabedCollision(oldPosition);
             this.checkSurfaceCollision();
+
+            // Abyssal current / waterfall: can drag sub toward trench and below crush depth
+            const oceanInstance = window.oceanInstance;
+            this.inAbyssalCurrent = false;
+            this.inWaterfall = false;
+            if (oceanInstance && oceanInstance.getAbyssalCurrentVelocity) {
+                this.inAbyssalCurrent = oceanInstance.isInAbyssalCurrent(this.mesh.position.x, this.mesh.position.z);
+                this.inWaterfall = oceanInstance.isInWaterfall(this.mesh.position.x, this.mesh.position.z);
+                const vel = oceanInstance.getAbyssalCurrentVelocity(
+                    this.mesh.position.x, this.mesh.position.y, this.mesh.position.z
+                );
+                if (vel.x !== 0 || vel.y !== 0 || vel.z !== 0) {
+                    const currentDisplacement = vel.clone().multiplyScalar(deltaTime);
+                    const posBefore = this.mesh.position.clone();
+                    this.mesh.position.add(currentDisplacement);
+                    this.checkSeabedCollision(posBefore);
+                    this.checkSurfaceCollision();
+                }
+            }
 
             // Create wake effect at high speeds (or SCAV bubble effects)
             if (this.scavMode.active || Math.abs(this.speed) > 60) {
@@ -6352,6 +6380,19 @@ class Submarine {
 
         // Update sonar signature display
         this.updateSonarSignatureDisplay();
+
+        // Abyssal current / waterfall warnings
+        const now = Date.now();
+        if (this.inWaterfall) {
+            if (now - this.lastWaterfallWarning > 4000) {
+                this.showStatusMessage('WATERFALL — climb and maneuver out or risk being dragged below crush depth!', 'warning');
+                this.lastWaterfallWarning = now;
+            }
+        } else if (this.inAbyssalCurrent && (!this.lastCurrentWarning || now - this.lastCurrentWarning > 15000)) {
+            this.showStatusMessage('Abyssal current — being pushed toward trench.', 'info');
+            this.lastCurrentWarning = this.lastCurrentWarning ? this.lastCurrentWarning : now;
+        }
+        if (!this.inAbyssalCurrent) this.lastCurrentWarning = 0;
     }
 
     updateCompass() {
@@ -7984,6 +8025,28 @@ class Submarine {
             // Reset warning timers when safe
             this.lastCrushDepthWarning = 0;
             this.lastCriticalDepthWarning = 0;
+        }
+    }
+
+    updateHotSmokerEffects(deltaTime) {
+        const oceanInstance = window.oceanInstance;
+        if (!oceanInstance || !oceanInstance.getSmokerAt || !this.mesh) return;
+        const smoker = oceanInstance.getSmokerAt(
+            this.mesh.position.x, this.mesh.position.y, this.mesh.position.z
+        );
+        if (!smoker) return;
+        const upwardSpeed = 8;
+        this.mesh.position.y += upwardSpeed * deltaTime;
+        const hull = this.systems && this.systems.hull;
+        if (hull && hull.maxHP > 0) {
+            const damagePerSecond = 0.008;
+            const amount = hull.maxHP * damagePerSecond * deltaTime;
+            this.takeDamage(amount, 'bottom');
+        }
+        const now = Date.now();
+        if (!this.lastHotSmokerWarning || now - this.lastHotSmokerWarning > 3000) {
+            this.showStatusMessage('Hot vent plume — taking damage! Climb out.', 'warning');
+            this.lastHotSmokerWarning = now;
         }
     }
 

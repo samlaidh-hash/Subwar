@@ -68,7 +68,7 @@ class EnemySubmarine {
             opacity: 0.8
         });
 
-        // Enemy hull outline (slightly different shape than player)
+        // Enemy hull outline (slightly different shape than player); scale to ~70m to match world (units = meters)
         const hullGeometry = new THREE.CylinderGeometry(0.4, 0.3, 3.5, 8);
         const hullEdges = new THREE.EdgesGeometry(hullGeometry);
         const hull = new THREE.LineSegments(hullEdges, vectorMaterial);
@@ -124,6 +124,7 @@ class EnemySubmarine {
         submarineGroup.add(enemyArrow);
 
         this.mesh = submarineGroup;
+        this.mesh.scale.set(20, 20, 20); // ~70m length to match world scale (units = meters)
         this.mesh.position.copy(this.position);
         this.mesh.rotation.copy(this.rotation);
         this.mesh.name = `enemySubmarine_${this.type}`;
