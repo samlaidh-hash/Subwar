@@ -750,6 +750,32 @@ class Sealife {
         }
 
         if (currentTime - this.lastSonarPulse < this.sonarCooldown) {
+            // Still update enemy contacts so visibility stays correct
+            const getEnemySubmarines = window.getEnemySubmarines;
+            if (getEnemySubmarines) {
+                const enemies = getEnemySubmarines();
+                const existingIds = new Set((this.sonarContacts || []).map(c => c.id));
+                enemies.forEach(enemy => {
+                    if (!enemy.mesh || enemy.isDestroyed()) return;
+                    const enemyPos = enemy.getPosition();
+                    const distance = submarinePosition.distanceTo(enemyPos);
+                    if (distance > range) return;
+                    const toPlayer = submarinePosition.clone().sub(enemyPos).normalize();
+                    const enemyForward = new THREE.Vector3(1, 0, 0).applyQuaternion(enemy.mesh.quaternion);
+                    const aspectDot = enemyForward.dot(toPlayer);
+                    const aspectMultiplier = 1 + 0.5 * (1 - aspectDot);
+                    const effectiveSignature = (enemy.baseSonarSignature || 6) * Math.max(0.5, Math.min(2, aspectMultiplier));
+                    const baseChance = effectiveSignature / 10;
+                    const distanceFactor = Math.max(0.2, 1 - distance / (range * 1.2));
+                    const detectionChance = baseChance * distanceFactor * sensitivity * (sonarMode === 'Passive' ? 0.7 : 1.0);
+                    if (Math.random() < detectionChance) {
+                        const bearing = this.calculateBearing(submarinePosition, enemyPos);
+                        const c = { id: enemy.mesh.uuid, enemyId: enemy.mesh.uuid, position: enemyPos.clone(), distance: Math.round(distance * 10) / 10, bearing: Math.round(((bearing % 360) + 360) % 360), strength: Math.min(10, effectiveSignature), classification: distance <= (this.identificationRange || 200) ? 'SUBMARINE' : 'POSSIBLE SUBMARINE', lastUpdate: currentTime };
+                        if (!existingIds.has(c.id)) { this.sonarContacts.push(c); existingIds.add(c.id); }
+                        if (sonarMode === 'Active') enemy.lastPaintedByActiveSonar = currentTime;
+                    }
+                });
+            }
             return this.sonarContacts;
         }
 
@@ -811,9 +837,11 @@ class Sealife {
             if (distance <= range && knuckle.lifetime > 0) {
                 const noiseContact = {
                     id: `knuckle_${Date.now()}`,
+                    position: knuckle.position.clone(),
+                    depth: knuckle.position.y,
                     distance: Math.round(distance),
                     bearing: this.calculateBearing(submarinePosition, knuckle.position),
-                    strength: knuckle.noiseSignature || knuckle.decoyStrength, // Use noise signature if available
+                    strength: knuckle.noiseSignature || knuckle.decoyStrength,
                     classification: 'TURBULENCE',
                     isDecoy: true,
                     isNoisemaker: knuckle.isNoisemaker || false,
@@ -823,6 +851,43 @@ class Sealife {
                 contacts.push(noiseContact);
             }
         });
+
+        // Enemy submarines: only visible when emitting (passive), painted (active), or within QMAD 500m
+        const getEnemySubmarines = window.getEnemySubmarines;
+        if (getEnemySubmarines) {
+            const enemies = getEnemySubmarines();
+            enemies.forEach(enemy => {
+                if (!enemy.mesh || enemy.isDestroyed()) return;
+                const enemyPos = enemy.getPosition();
+                const distance = submarinePosition.distanceTo(enemyPos);
+                if (distance > range) return;
+
+                const toPlayer = submarinePosition.clone().sub(enemyPos).normalize();
+                const enemyForward = new THREE.Vector3(1, 0, 0).applyQuaternion(enemy.mesh.quaternion);
+                const aspectDot = enemyForward.dot(toPlayer);
+                const aspectMultiplier = 1 + 0.5 * (1 - aspectDot);
+                const effectiveSignature = (enemy.baseSonarSignature || 6) * Math.max(0.5, Math.min(2, aspectMultiplier));
+                const baseChance = effectiveSignature / 10;
+                const distanceFactor = Math.max(0.2, 1 - distance / (range * 1.2));
+                const detectionChance = baseChance * distanceFactor * sensitivity * modeMultiplier;
+
+                if (Math.random() < detectionChance) {
+                    const bearing = this.calculateBearing(submarinePosition, enemyPos);
+                    contacts.push({
+                        id: enemy.mesh.uuid,
+                        enemyId: enemy.mesh.uuid,
+                        position: enemyPos.clone(),
+                        depth: enemyPos.y,
+                        distance: Math.round(distance * 10) / 10,
+                        bearing: Math.round(((bearing % 360) + 360) % 360),
+                        strength: Math.min(10, effectiveSignature),
+                        classification: distance <= (this.identificationRange || 200) ? 'SUBMARINE' : 'POSSIBLE SUBMARINE',
+                        lastUpdate: currentTime
+                    });
+                    if (sonarMode === 'Active') enemy.lastPaintedByActiveSonar = currentTime;
+                }
+            });
+        }
 
         // Update ghost contacts
         this.updateGhostContacts();
@@ -983,8 +1048,9 @@ class Sealife {
         const distanceAccuracy = Math.max(1, distance * 0.1);
         const bearingAccuracy = Math.max(2, 10 / this.sonarRange * 50);
 
+        const entityPos = this.getEntityPosition(entity);
         const measuredDistance = distance + (Math.random() - 0.5) * distanceAccuracy;
-        const trueBearing = this.calculateBearing(submarinePos, this.getEntityPosition(entity));
+        const trueBearing = this.calculateBearing(submarinePos, entityPos);
         const measuredBearing = trueBearing + (Math.random() - 0.5) * bearingAccuracy;
 
         let classification = 'UNIDENTIFIED';
@@ -999,6 +1065,8 @@ class Sealife {
 
         return {
             id: entity.id,
+            position: entityPos.clone(),
+            depth: entityPos.y,
             distance: Math.round(Math.max(0, measuredDistance) * 10) / 10,
             bearing: Math.round(((measuredBearing % 360) + 360) % 360),
             strength: Math.min(10, entity.sonarSignature),

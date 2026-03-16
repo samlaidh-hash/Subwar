@@ -42,6 +42,8 @@ class EnemySubmarine {
         this.knownContacts = new Map();
         this.lastPlayerDetection = 0;
         this.playerDetectionTimeout = 30000; // 30 seconds
+        this.lastPaintedByActiveSonar = 0; // When this enemy was last painted by player active sonar (ms)
+        this.baseSonarSignature = 6; // Base acoustic signature for aspect-dependent detection
 
         // Enhanced sensor capability (for recon units)
         this.sensorMultiplier = 1.0; // Default, can be enhanced via mesh userData
@@ -125,6 +127,7 @@ class EnemySubmarine {
         this.mesh.position.copy(this.position);
         this.mesh.rotation.copy(this.rotation);
         this.mesh.name = `enemySubmarine_${this.type}`;
+        this.mesh.userData.enemyRef = this;
         this.scene.add(this.mesh);
     }
 

@@ -1661,7 +1661,6 @@ class Submarine {
         this.speed = 0;
         this.depth = 0;
         this.dragTurnActive = false;
-        this.oobleckRedistributionRate = 1.0; // 1% per second
 
         // Movement state - New control scheme
         this.keys = {
@@ -1680,7 +1679,6 @@ class Submarine {
         // Double-tap detection for drag turns and armor redistribution
         this.lastKeyPress = {};
         this.doubleTapDelay = 300; // milliseconds
-        this.armorRedistributionCooldown = {}; // Per-facing cooldown
 
         // Fixed center submarine positioning
         this.fixedCenter = true; // Submarine stays in center of screen
@@ -1749,6 +1747,7 @@ class Submarine {
         this.knuckles = []; // Turbulence pockets created by sharp turns
         this.knuckleTimer = 0;
         this.knuckleNoiseReduction = 0; // Temporary noise reduction after creating knuckle
+        this.decoyCount = 5; // Decoys (space bar): create knuckle that persists ~5x longer, attracts H/I torpedoes
         this.lastYaw = 0;
         this.turnRate = 0;
 
@@ -1843,41 +1842,6 @@ class Submarine {
         this.dragTurnMultiplier = specs.dragTurnMultiplier;
         this.dragTurnDamageRate = specs.dragTurnDamageRate;
 
-        // Armor system setup with proper specifications
-        this.armor = {
-            fore: {
-                oobleck: specs.oobleckPolymerLayer,
-                metaMaterial: specs.metaMaterialLayer,
-                maxHP: specs.hullArmorHP
-            },
-            port: {
-                oobleck: specs.oobleckPolymerLayer,
-                metaMaterial: specs.metaMaterialLayer,
-                maxHP: specs.hullArmorHP
-            },
-            starboard: {
-                oobleck: specs.oobleckPolymerLayer,
-                metaMaterial: specs.metaMaterialLayer,
-                maxHP: specs.hullArmorHP
-            },
-            aft: {
-                oobleck: specs.oobleckPolymerLayer,
-                metaMaterial: specs.metaMaterialLayer,
-                maxHP: specs.hullArmorHP
-            },
-            top: {
-                oobleck: specs.oobleckPolymerLayer,
-                metaMaterial: specs.metaMaterialLayer,
-                maxHP: specs.hullArmorHP
-            },
-            bottom: {
-                oobleck: specs.oobleckPolymerLayer,
-                metaMaterial: specs.metaMaterialLayer,
-                maxHP: specs.hullArmorHP
-            }
-        };
-        this.armorPenThreshold = specs.hullArmorPenThreshold;
-
         // Internal systems setup
         this.systems = {
             hull: {
@@ -1921,6 +1885,17 @@ class Submarine {
             };
         }
 
+        // Six facing HP: port, starboard, fore, aft, top, bottom. Any facing at 0 = implosion.
+        const maxPerFacing = Math.max(50, Math.floor(specs.hullHP / 6));
+        const facingsList = ['port', 'starboard', 'fore', 'aft', 'top', 'bottom'];
+        this.hullFacingHP = {};
+        facingsList.forEach(f => {
+            this.hullFacingHP[f] = { hp: maxPerFacing, maxHP: maxPerFacing };
+        });
+        this.autorepairMinuteAccum = 0;   // 1% recovery per minute per facing
+        this.equalizationSecondAccum = 0; // up to 1% total HP moved per second to equalize
+        this.health = 100; // HUD: weakest facing % (all start full)
+
         // Sonar signature with class-specific modifiers
         this.sonarSignature = {
             base: specs.sonarSignatureBase,
@@ -1940,7 +1915,8 @@ class Submarine {
             timers: {
                 weaponsFire: 0,
                 torpedoLaunch: 0,
-                sonarPing: 0
+                sonarPing: 0,
+                tubeOpen: 0
             },
             // Store class-specific modifier values for calculations
             classModifiers: specs.sonarModifiers
@@ -1974,9 +1950,8 @@ class Submarine {
         };
         this.lastSonarUpdate = 0;
 
-        // Set health to match hull HP
-        this.health = specs.hullHP;
-        this.maxHealth = specs.hullHP;
+        // Health HUD shows weakest facing % (0-100); set after hullFacingHP init below
+        this.maxHealth = 100;
 
         // Maneuver Icon System
         this.maneuverIcon = {
@@ -2048,6 +2023,9 @@ class Submarine {
                 id: i + 1,
                 chambers: new Array(6).fill(null), // 6 chambers for torpedoes (boxes 1-6)
                 currentBox: -1, // -1 = no box highlighted, 0-6 = box positions
+                topIndex: 0, // Revolver: which slot is at top (firing position), 0-5
+                readyAt: 0, // Timestamp when top slot is ready to fire (after 10s delay)
+                revolverSlots: ['H', 'S', 'I', 'H', 'S', 'I'], // H=Homing, S=SCAV, I=Interceptor
                 cycling: false,
                 lastCycleTime: 0,
                 rotationAnimation: 0 // For visual highlighting animation
@@ -2094,6 +2072,10 @@ class Submarine {
             cycleDelay: 2000, // 2 second delay before selection locks in
             showingInfo: false
         };
+        // Revolver: key hold start time for 2s fire (1-4)
+        this.revolverKeyHold = { 1: 0, 2: 0, 3: 0, 4: 0 };
+        this.REVOLVER_READY_DELAY = 10000; // 10s after rotate before ready
+        this.REVOLVER_FIRE_HOLD = 2000;    // Hold 2s to fire
 
         // Lock-on system
         this.torpedoLockSystem = {
@@ -4212,19 +4194,10 @@ class Submarine {
         case 'Digit6':
         case 'Digit7':
         case 'Digit8':
-            // Check if Shift is held for armor redistribution
-            if (event.shiftKey) {
-                const facings = ['fore', 'port', 'starboard', 'aft', 'top', 'bottom'];
-                const digitNum = parseInt(event.code.replace('Digit', '')) - 1;
-                if (digitNum < facings.length) {
-                    this.handleEmergencyArmorRedistribution(facings[digitNum]);
-                }
-            } else {
-                // Number keys cycle through torpedoes left to right, one press = one box
-                const launcherNum = parseInt(event.code.replace('Digit', ''));
-                if (launcherNum >= 1 && launcherNum <= 4) {
-                    this.cycleTorpedoBox(launcherNum);
-                }
+            // Revolver launcher: key down starts hold timer (release = rotate or fire after 2s)
+            const launcherNum = parseInt(event.code.replace('Digit', ''));
+            if (launcherNum >= 1 && launcherNum <= 4 && this.launchers[launcherNum - 1]) {
+                this.revolverKeyHold[launcherNum] = Date.now();
             }
             break;
         case 'Digit9':
@@ -4241,7 +4214,11 @@ class Submarine {
             break;
         case 'Space':
             event.preventDefault();
-            this.fireSequentialTorpedo();
+            if (this.decoyCount > 0) {
+                this.dropDecoy();
+            } else {
+                this.fireSequentialTorpedo();
+            }
             break;
         case 'ArrowUp':
             this.keys.throttleUp = true;
@@ -4294,6 +4271,27 @@ class Submarine {
         case 'ArrowDown':
             this.keys.throttleDown = false;
             break;
+        case 'Digit1':
+        case 'Digit2':
+        case 'Digit3':
+        case 'Digit4': {
+            const launcherNum = parseInt(event.code.replace('Digit', ''));
+            if (launcherNum < 1 || launcherNum > 4 || !this.launchers[launcherNum - 1]) break;
+            const launcher = this.launchers[launcherNum - 1];
+            const now = Date.now();
+            const held = this.revolverKeyHold[launcherNum] ? (now - this.revolverKeyHold[launcherNum]) : 0;
+            this.revolverKeyHold[launcherNum] = 0;
+            if (held >= this.REVOLVER_FIRE_HOLD && launcher.readyAt && now >= launcher.readyAt) {
+                this.fireRevolverLauncher(launcherNum);
+                launcher.topIndex = (launcher.topIndex + 1) % 6;
+                launcher.readyAt = 0;
+            } else {
+                launcher.topIndex = (launcher.topIndex + 1) % 6;
+                launcher.readyAt = now + this.REVOLVER_READY_DELAY;
+            }
+            this.updateLauncherDisplay();
+            break;
+        }
         }
     }
 
@@ -4557,8 +4555,9 @@ class Submarine {
         // Update submarine warfare systems
         this.updateWarfareSystems(deltaTime);
 
-        // Update oobleck armor redistribution
-        this.updateOobleckRedistribution(deltaTime);
+        // Six-facing HP: autorepair 1%/min, equalize up to 1%/s
+        this.updateFacingHP(deltaTime);
+
 
         // Update system performance based on damage
         this.updateSystemPerformance();
@@ -5465,40 +5464,60 @@ class Submarine {
         return codeMap[code] || 'LIGHT_TORPEDO';
     }
 
+    fireRevolverLauncher(launcherNum) {
+        const launcher = this.launchers[launcherNum - 1];
+        if (!launcher || !window.weaponsSystem) return;
+        const slotType = (launcher.revolverSlots || ['H','S','I','H','S','I'])[launcher.topIndex];
+        const tubeKey = `tube${launcherNum}`;
+        const typeMap = { H: 'MHD_CONVENTIONAL', S: 'SUPERCAVITATING', I: 'INTERCEPTOR_TORPEDOES' };
+        const modeMap = { H: 'ACTIVE', S: 'WIRE_GUIDED', I: 'PASSIVE' };
+        const torpedoType = typeMap[slotType] || 'MHD_CONVENTIONAL';
+        const homingMode = modeMap[slotType] || 'ACTIVE';
+        if (!window.weaponsSystem.tubes[tubeKey]) return;
+        window.weaponsSystem.selectedTube = tubeKey;
+        window.weaponsSystem.tubes[tubeKey].torpedoType = torpedoType;
+        window.weaponsSystem.tubes[tubeKey].homingMode = homingMode;
+        if (window.weaponsSystem.fire()) {
+            this.triggerTorpedoLaunch();
+        }
+    }
+
     updateLauncherDisplay() {
-        // Update visual launcher display for all launchers (7-box system)
+        const now = Date.now();
         this.launchers.forEach((launcher, index) => {
             const launcherRowElement = document.getElementById(`launcher${index + 1}`);
             const launcherContainerElement = launcherRowElement?.parentElement;
             if (!launcherRowElement) return;
 
-            // Update each torpedo box in the row (7 boxes: 0-6)
+            const slots = launcher.revolverSlots || ['H', 'S', 'I', 'H', 'S', 'I'];
+            const topIndex = launcher.topIndex != null ? launcher.topIndex : 0;
+            const readyAt = launcher.readyAt || 0;
+            const isReady = readyAt && now >= readyAt;
+            const inCountdown = readyAt && now < readyAt && now > readyAt - 2000;
+
             for (let i = 0; i <= 6; i++) {
                 const torpedoBox = launcherRowElement.querySelector(`.torpedo-box-${i}`);
                 if (!torpedoBox) continue;
 
-                // Clear all state classes first
-                torpedoBox.classList.remove('selected', 'fired');
-                
-                // Box 0 is always empty (leftmost)
+                torpedoBox.classList.remove('selected', 'fired', 'ready', 'flashing', 'empty');
+
                 if (i === 0) {
                     torpedoBox.classList.add('empty');
                     torpedoBox.textContent = '';
                 } else {
-                    // Boxes 1-6 map to chamber indices 0-5
-                    const chamberIndex = i - 1;
-                    const torpedoCode = launcher.chambers[chamberIndex] || '';
-                    torpedoBox.textContent = torpedoCode;
+                    const slotIdx = (topIndex + (i - 1)) % 6;
+                    torpedoBox.textContent = slots[slotIdx] || '';
+                    if (i === 1) {
+                        if (isReady) torpedoBox.classList.add('ready');
+                        else if (inCountdown) torpedoBox.classList.add('flashing');
+                    }
                 }
-                
-                // Highlight ALL boxes that are highlighted (yellow highlight)
-                // currentBox >= 0 means a box is highlighted
+
                 if (i === launcher.currentBox && launcher.currentBox >= 0) {
-                    torpedoBox.classList.add('selected'); // Yellow highlight
+                    torpedoBox.classList.add('selected');
                 }
             }
 
-            // Update launcher row container selection highlighting
             if (launcherContainerElement) {
                 launcherContainerElement.classList.remove('selected');
                 if (launcher.id === this.selectedLauncher) {
@@ -6308,6 +6327,7 @@ class Submarine {
             window.updateSpeed(Math.round(this.speed));
         }
         if (window.updateHealth) {
+            this.health = this.getFacingHealthPercentage();
             window.updateHealth(this.health);
         }
 
@@ -6323,8 +6343,8 @@ class Submarine {
         // Update target lock display
         this.updateTargetLockDisplay();
 
-        // Update advanced damage system displays
-        this.updateArmorDisplay();
+        // Update hull facing HP display (6 facings, green/orange/red, flash below crush)
+        this.updateFacingDisplay();
         this.updateSystemsDisplay();
 
         // Update compass
@@ -6578,43 +6598,51 @@ class Submarine {
         if (Date.now() - this.knuckleTimer < 2000) return;
         this.knuckleTimer = Date.now();
 
-        // Create visual knuckle (turbulent water effect)
+        const knuckle = this.createKnuckleInternal(8, false);
+        this.knuckles.push(knuckle);
+        this.scene.add(knuckle.mesh);
+
+        console.log(`💨 Created knuckle at ${this.mesh.position.x}, ${this.mesh.position.z} - lifetime: ${knuckle.knuckle.lifetime}s, total knuckles: ${this.knuckles.length}`);
+
+        this.audioManager.playKnuckle();
+        this.speed *= 0.6;
+        this.knuckleNoiseReduction = 0.8;
+        console.log('Knuckle created! Speed reduced - submarine noise dropped immediately for masking.');
+    }
+
+    createKnuckleInternal(maxLifetimeSeconds, isDecoy) {
         const knuckleGeometry = new THREE.SphereGeometry(3, 8, 6);
         const knuckleMaterial = new THREE.MeshBasicMaterial({
-            color: 0x4488ff,
+            color: isDecoy ? 0x88aaff : 0x4488ff,
             transparent: true,
             opacity: 0.6,
             wireframe: true
         });
-
         const knuckleMesh = new THREE.Mesh(knuckleGeometry, knuckleMaterial);
         knuckleMesh.position.copy(this.mesh.position);
-
         const knuckle = {
             mesh: knuckleMesh,
             position: this.mesh.position.clone(),
-            lifetime: 8, // 8 seconds duration
-            maxLifetime: 8,
+            lifetime: maxLifetimeSeconds,
+            maxLifetime: maxLifetimeSeconds,
             sonarBlocking: true,
-            decoyStrength: 4, // Appears as submarine-sized contact
-            noiseSignature: 20, // Strong noise signature to attract torpedoes
-            isNoisemaker: true // Mark as countermeasure
+            decoyStrength: isDecoy ? 6 : 4,
+            noiseSignature: isDecoy ? 25 : 20,
+            isNoisemaker: true,
+            isDecoy: !!isDecoy
         };
+        return knuckle;
+    }
 
+    dropDecoy() {
+        if (this.decoyCount <= 0) return;
+        this.decoyCount--;
+        const maxLifetime = 40; // ~5x longer than turn knuckles (8s)
+        const knuckle = this.createKnuckleInternal(maxLifetime, true);
         this.knuckles.push(knuckle);
-        this.scene.add(knuckleMesh);
-        console.log(`💨 Created knuckle at ${this.mesh.position.x}, ${this.mesh.position.z} - lifetime: ${knuckle.lifetime}s, total knuckles: ${this.knuckles.length}`);
-
-        // Play knuckle sound (2 seconds)
-        this.audioManager.playKnuckle();
-
-        // Knuckles slow you down significantly
-        this.speed *= 0.6;
-
-        // IMMEDIATELY drop submarine's noise signature
-        this.knuckleNoiseReduction = 0.8; // 80% noise reduction for 2 seconds
-        
-        console.log('Knuckle created! Speed reduced - submarine noise dropped immediately for masking.');
+        this.scene.add(knuckle.mesh);
+        if (this.audioManager && this.audioManager.playKnuckle) this.audioManager.playKnuckle();
+        console.log(`Decoy dropped (${this.decoyCount} left). Knuckle persists ${maxLifetime}s, attracts H/I torpedoes.`);
     }
 
     handleEmergencyBlowKey(key) {
@@ -7570,50 +7598,28 @@ class Submarine {
         }
     }
 
+    getFacingHealthPercentage() {
+        // HUD shows weakest facing (0-100)
+        const facings = ['port', 'starboard', 'fore', 'aft', 'top', 'bottom'];
+        let minPct = 100;
+        facings.forEach(f => {
+            const d = this.hullFacingHP[f];
+            const pct = d.maxHP > 0 ? (d.hp / d.maxHP) * 100 : 100;
+            minPct = Math.min(minPct, pct);
+        });
+        return Math.round(minPct);
+    }
+
     takeDamage(amount, hitLocation = 'fore') {
-        // New directional damage system
-        this.applyDirectionalDamage(amount, hitLocation);
-    }
-
-    applyDirectionalDamage(damage, facing) {
-        // Step 1: Apply damage to armor on the hit facing
-        const armor = this.armor[facing];
-        const totalArmorHP = armor.oobleck + armor.metaMaterial;
-        const penThreshold = this.armorPenThreshold;
-
-        if (damage <= penThreshold) {
-            // Damage only affects armor
-            this.damageArmor(facing, damage);
-        } else {
-            // Damage penetrates - affects armor and internal systems
-            this.damageArmor(facing, damage);
-            const excessDamage = damage - Math.min(damage, totalArmorHP);
-
-            if (excessDamage > 0) {
-                this.applyInternalDamage(excessDamage, facing);
-            }
+        // Six-facing HP: hits deplete the facing's HP; any facing at 0 = implosion
+        const facing = (hitLocation && this.hullFacingHP[hitLocation]) ? hitLocation : 'fore';
+        const f = this.hullFacingHP[facing];
+        f.hp = Math.max(0, f.hp - amount);
+        if (f.hp <= 0) {
+            this.implode();
+            return;
         }
-
         this.updateHUD();
-    }
-
-    damageArmor(facing, damage) {
-        const armor = this.armor[facing];
-        let remainingDamage = damage;
-
-        // First damage oobleck layer
-        if (remainingDamage > 0 && armor.oobleck > 0) {
-            const oobleckDamage = Math.min(remainingDamage, armor.oobleck);
-            armor.oobleck -= oobleckDamage;
-            remainingDamage -= oobleckDamage;
-        }
-
-        // Then damage meta-material layer
-        if (remainingDamage > 0 && armor.metaMaterial > 0) {
-            const metaDamage = Math.min(remainingDamage, armor.metaMaterial);
-            armor.metaMaterial -= metaDamage;
-            remainingDamage -= metaDamage;
-        }
     }
 
     applyInternalDamage(damage, facing) {
@@ -7761,93 +7767,46 @@ class Submarine {
         expandShockwave();
     }
 
-    updateOobleckRedistribution(deltaTime) {
-        // Automatic oobleck armor redistribution - 1% per second
-        const redistributionAmount = (this.oobleckRedistributionRate / 100) * 50 * deltaTime; // 50 is max oobleck per facing
+    updateFacingHP(deltaTime) {
+        // Autorepair: every minute each facing recovers 1% of its max HP
+        this.autorepairMinuteAccum += deltaTime;
+        if (this.autorepairMinuteAccum >= 60) {
+            this.autorepairMinuteAccum = 0;
+            const facings = ['port', 'starboard', 'fore', 'aft', 'top', 'bottom'];
+            facings.forEach(f => {
+                const data = this.hullFacingHP[f];
+                const repair = data.maxHP * 0.01;
+                data.hp = Math.min(data.maxHP, data.hp + repair);
+            });
+        }
 
-        const facings = ['fore', 'port', 'starboard', 'aft', 'top', 'bottom'];
-
-        // Calculate total oobleck and average
-        let totalOobleck = 0;
-        facings.forEach(facing => {
-            totalOobleck += this.armor[facing].oobleck;
-        });
-        const averageOobleck = totalOobleck / facings.length;
-
-        // Redistribute from high to low
-        facings.forEach(facing => {
-            const armor = this.armor[facing];
-            const difference = armor.oobleck - averageOobleck;
-
-            if (Math.abs(difference) > 0.1) { // Only redistribute if meaningful difference
-                const redistributeAmount = Math.min(redistributionAmount, Math.abs(difference));
-
-                if (difference > 0) {
-                    // This facing has more than average - give some away
-                    armor.oobleck -= redistributeAmount;
-
-                    // Find facing with least oobleck to give to
-                    let lowestFacing = facings[0];
-                    facings.forEach(checkFacing => {
-                        if (this.armor[checkFacing].oobleck < this.armor[lowestFacing].oobleck) {
-                            lowestFacing = checkFacing;
-                        }
-                    });
-
-                    if (lowestFacing !== facing) {
-                        this.armor[lowestFacing].oobleck += redistributeAmount;
-                        this.armor[lowestFacing].oobleck = Math.min(50, this.armor[lowestFacing].oobleck); // Cap at max
-                    }
+        // Equalization: every second move up to 1% of total HP from high facings to low
+        this.equalizationSecondAccum += deltaTime;
+        if (this.equalizationSecondAccum >= 1) {
+            this.equalizationSecondAccum = 0;
+            const facings = ['port', 'starboard', 'fore', 'aft', 'top', 'bottom'];
+            let total = 0;
+            facings.forEach(f => { total += this.hullFacingHP[f].hp; });
+            const maxTransfer = total * 0.01;
+            const avg = total / facings.length;
+            const order = facings.slice().sort((a, b) => this.hullFacingHP[b].hp - this.hullFacingHP[a].hp);
+            let transferred = 0;
+            for (let i = 0; i < order.length && transferred < maxTransfer; i++) {
+                const highF = order[i];
+                const high = this.hullFacingHP[highF];
+                if (high.hp <= avg) break;
+                for (let j = order.length - 1; j > i && transferred < maxTransfer; j--) {
+                    const lowF = order[j];
+                    const low = this.hullFacingHP[lowF];
+                    if (low.hp >= avg) break;
+                    const give = Math.min(high.hp - avg, avg - low.hp, maxTransfer - transferred);
+                    if (give <= 0) continue;
+                    high.hp -= give;
+                    low.hp += give;
+                    transferred += give;
                 }
             }
-        });
-    }
-
-    emergencyArmorRedistribution(targetFacing) {
-        // Double-tap armor redistribution - double target facing by taking from 4 adjacent
-        const adjacentFacings = this.getAdjacentFacings(targetFacing);
-        const targetArmor = this.armor[targetFacing];
-        const currentOobleck = targetArmor.oobleck;
-        const doubleAmount = Math.min(50, currentOobleck * 2); // Cap at max armor
-        const redistributeAmount = doubleAmount - currentOobleck;
-        const perFacingAmount = redistributeAmount / adjacentFacings.length;
-
-        // Check if we can redistribute (don't drain facings below 10)
-        let canRedistribute = true;
-        adjacentFacings.forEach(facing => {
-            if (this.armor[facing].oobleck - perFacingAmount < 10) {
-                canRedistribute = false;
-            }
-        });
-
-        if (canRedistribute) {
-            // Perform redistribution
-            targetArmor.oobleck = doubleAmount;
-
-            adjacentFacings.forEach(facing => {
-                this.armor[facing].oobleck -= perFacingAmount;
-                this.armor[facing].oobleck = Math.max(0, this.armor[facing].oobleck);
-            });
-
-            console.log(`Emergency armor redistribution: ${targetFacing} doubled!`);
-            return true;
-        } else {
-            console.log('Cannot redistribute armor - adjacent facings too damaged!');
-            return false;
         }
-    }
-
-    getAdjacentFacings(facing) {
-        const adjacencyMap = {
-            fore: ['port', 'starboard', 'top', 'bottom'],
-            aft: ['port', 'starboard', 'top', 'bottom'],
-            port: ['fore', 'aft', 'top', 'bottom'],
-            starboard: ['fore', 'aft', 'top', 'bottom'],
-            top: ['fore', 'aft', 'port', 'starboard'],
-            bottom: ['fore', 'aft', 'port', 'starboard']
-        };
-
-        return adjacencyMap[facing] || [];
     }
 
     determineHitFacing(impactPosition, projectileDirection) {
@@ -7897,30 +7856,6 @@ class Submarine {
             center: this.mesh.position.clone(),
             rotation: this.mesh.quaternion.clone()
         };
-    }
-
-    handleEmergencyArmorRedistribution(facing) {
-        const currentTime = Date.now();
-        const keyCode = `armor_${facing}`;
-
-        // Check cooldown (5 seconds per facing)
-        if (this.armorRedistributionCooldown[facing] &&
-            (currentTime - this.armorRedistributionCooldown[facing]) < 5000) {
-            console.log(`${facing} armor redistribution on cooldown!`);
-            return;
-        }
-
-        // Check for double-tap
-        if (this.lastKeyPress[keyCode] &&
-            (currentTime - this.lastKeyPress[keyCode]) < this.doubleTapDelay) {
-            // Double-tap detected - perform emergency redistribution
-            if (this.emergencyArmorRedistribution(facing)) {
-                this.armorRedistributionCooldown[facing] = currentTime;
-                console.log(`Emergency armor redistribution: ${facing} facing reinforced!`);
-            }
-        }
-
-        this.lastKeyPress[keyCode] = currentTime;
     }
 
     updateSystemPerformance() {
@@ -7992,16 +7927,24 @@ class Submarine {
             const randomVariation = 0.8 + (Math.random() * 0.4); // 0.8 to 1.2 multiplier
             const damagePerSecond = baseDamageRate * depthMultiplier * randomVariation;
 
-            // Apply damage to hull system every second
-            const damageAmount = damagePerSecond * this.systems.hull.maxHP * deltaTime;
-            this.systems.hull.hp = Math.max(0, this.systems.hull.hp - damageAmount);
+            // Apply damage to all six facing HPs (pressure affects whole hull)
+            const facings = ['port', 'starboard', 'fore', 'aft', 'top', 'bottom'];
+            let totalMaxFacing = 0;
+            facings.forEach(f => { totalMaxFacing += this.hullFacingHP[f].maxHP; });
+            const damageAmountTotal = damagePerSecond * totalMaxFacing * deltaTime;
+            const damagePerFacing = damageAmountTotal / 6;
+            let anyZero = false;
+            facings.forEach(f => {
+                const d = this.hullFacingHP[f];
+                d.hp = Math.max(0, d.hp - damagePerFacing);
+                if (d.hp <= 0) anyZero = true;
+            });
 
             // Warning messages and hull stress audio
-            if (this.systems.hull.hp <= 0) {
+            if (anyZero) {
                 this.showStatusMessage('💥 HULL IMPLOSION! Submarine destroyed by crushing pressure!', 'critical');
                 console.log('💥 HULL IMPLOSION! Submarine destroyed by crushing pressure!');
-                // Trigger submarine destruction
-                this.triggerImplosion();
+                this.implode();
             } else if (currentDepth > crushDepth + 50) {
                 // Critical depth - play hull stress sounds more frequently
                 if (!this.lastHullStressSound || Date.now() - this.lastHullStressSound > 2000) {
@@ -8161,6 +8104,13 @@ class Submarine {
             totalNoise *= (this.currentLaunchSignatureMultiplier || 1.0);
         }
 
+        // 8. TUBE OPEN NOISE SPIKE (opening tubes = brief noise, strongest to fore)
+        const tubeOpenTimer = this.sonarSignature.timers.tubeOpen || 0;
+        if (tubeOpenTimer > 0) {
+            totalNoise += 8;
+            this.sonarSignature.timers.tubeOpen = Math.max(0, tubeOpenTimer - deltaTime * 1000);
+        }
+
         // Set current signature (no smoothing for immediate response)
         this.sonarSignature.current = totalNoise;
     }
@@ -8173,6 +8123,7 @@ class Submarine {
     triggerTorpedoLaunch() {
         // Called when torpedoes are launched
         this.sonarSignature.timers.torpedoLaunch = 5000; // 5 seconds
+        this.sonarSignature.timers.tubeOpen = 2000; // 2s tube-open spike (strongest to fore)
     }
 
     triggerSonarPing() {
@@ -8256,47 +8207,51 @@ class Submarine {
         this.updateHUD();
     }
 
-    updateArmorDisplay() {
-        // Update armor facing displays (create elements if they don't exist)
+    updateFacingDisplay() {
+        // Six facings: % remaining. Green 75%+, Orange 26-70%, Red ≤25%. Flash when below crush depth.
         const facings = ['fore', 'port', 'starboard', 'aft', 'top', 'bottom'];
+        const crushDepth = this.maxDepth || 500;
+        const currentDepth = this.mesh ? Math.abs(this.mesh.position.y) : 0;
+        const belowCrush = currentDepth > crushDepth;
+        const flashOn = belowCrush && (Math.sin(Date.now() / 150) > 0);
 
         facings.forEach(facing => {
-            const elementId = `armor-${facing}`;
+            const elementId = `facing-${facing}`;
             let element = document.getElementById(elementId);
-
             if (!element) {
-                // Create armor display element
                 element = document.createElement('div');
                 element.id = elementId;
+                element.className = 'hull-facing';
                 element.style.cssText = `
                     position: absolute;
-                    font-size: 10px;
-                    color: #00ffff;
+                    font-size: 11px;
                     font-family: monospace;
-                    background: rgba(0,0,0,0.7);
-                    padding: 2px;
-                    border: 1px solid #00ffff;
+                    font-weight: bold;
+                    background: rgba(0,0,0,0.75);
+                    padding: 3px 6px;
+                    border: 1px solid #333;
                 `;
-                document.body.appendChild(element);
+                const container = document.getElementById('hullFacingsContainer');
+                if (container) container.appendChild(element);
+                else document.body.appendChild(element);
             }
 
-            const armor = this.armor[facing];
-            const totalArmor = armor.oobleck + armor.metaMaterial;
-            const maxArmor = armor.maxHP;
-            const percentage = Math.round((totalArmor / maxArmor) * 100);
+            const d = this.hullFacingHP[facing];
+            const pct = d ? Math.round((d.hp / d.maxHP) * 100) : 100;
+            element.textContent = `${facing.toUpperCase()}: ${pct}%`;
 
-            element.textContent = `${facing.toUpperCase()}: ${percentage}% (O:${Math.round(armor.oobleck)} M:${Math.round(armor.metaMaterial)})`;
-
-            // Color code based on damage
-            let color = '#00ffff'; // Cyan for healthy
-            if (percentage < 75) color = '#ffff00'; // Yellow for damaged
-            if (percentage < 50) color = '#ff8800'; // Orange for heavily damaged
-            if (percentage < 25) color = '#ff0000'; // Red for critical
-
+            let color = '#00cc00'; // Green 75%+
+            if (pct <= 25) color = '#ff0000'; // Red ≤25%
+            else if (pct <= 70) color = '#ff8800'; // Orange 26-70%
             element.style.color = color;
+            if (belowCrush && flashOn) {
+                element.style.animation = 'none';
+                element.style.backgroundColor = 'rgba(200, 50, 0, 0.5)';
+            } else {
+                element.style.backgroundColor = '';
+            }
         });
 
-        // Position armor displays around screen edges
         const positions = {
             fore: { top: '10px', left: '50%', transform: 'translateX(-50%)' },
             aft: { bottom: '50px', left: '50%', transform: 'translateX(-50%)' },
@@ -8305,12 +8260,9 @@ class Submarine {
             top: { top: '30px', right: '10px' },
             bottom: { bottom: '70px', right: '10px' }
         };
-
         facings.forEach(facing => {
-            const element = document.getElementById(`armor-${facing}`);
-            if (element) {
-                Object.assign(element.style, positions[facing]);
-            }
+            const el = document.getElementById(`facing-${facing}`);
+            if (el) Object.assign(el.style, positions[facing]);
         });
     }
 

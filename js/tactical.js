@@ -49,6 +49,12 @@ class TacticalSystem {
         if (this.minimapCanvas) {
             this.minimapCtx = this.minimapCanvas.getContext('2d');
         }
+
+        // Elite-style radar: sub centre, contacts as balls on sticks (above/on/below depth plane)
+        this.eliteRadarCanvas = document.getElementById('eliteRadarCanvas');
+        if (this.eliteRadarCanvas) {
+            this.eliteRadarCtx = this.eliteRadarCanvas.getContext('2d');
+        }
     }
 
     setupTargetingSystem() {
@@ -356,6 +362,75 @@ class TacticalSystem {
         });
     }
 
+    updateEliteRadar(submarinePos, playerDepth, contacts) {
+        if (!this.eliteRadarCtx || !this.eliteRadarCanvas) return;
+        const canvas = this.eliteRadarCanvas;
+        const ctx = this.eliteRadarCtx;
+        const cx = canvas.width / 2;
+        const cy = canvas.height / 2;
+        const maxRange = 75;
+        const scale = Math.min(cx, cy) * 0.9 / maxRange;
+        const maxStick = 12;
+        const depthScale = 2; // meters per pixel for stick
+
+        ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+        // Horizontal line = depth plane (player's depth)
+        ctx.strokeStyle = '#00ff00';
+        ctx.lineWidth = 1;
+        ctx.setLineDash([3, 3]);
+        ctx.beginPath();
+        ctx.moveTo(0, cy);
+        ctx.lineTo(canvas.width, cy);
+        ctx.stroke();
+        ctx.setLineDash([]);
+
+        // Player sub at centre (small triangle or circle)
+        ctx.fillStyle = '#00ff00';
+        ctx.beginPath();
+        ctx.arc(cx, cy, 3, 0, Math.PI * 2);
+        ctx.fill();
+        ctx.strokeStyle = '#00ff00';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+
+        contacts.forEach(contact => {
+            if (contact.distance > maxRange) return;
+            const bearingRad = (contact.bearing - 90) * Math.PI / 180;
+            const r = contact.distance * scale;
+            const x = cx + Math.cos(bearingRad) * r;
+            const y = cy + Math.sin(bearingRad) * r;
+            const depth = contact.depth != null ? contact.depth : (contact.position ? contact.position.y : 0);
+            const depthDiff = depth - playerDepth;
+
+            let color = '#ffff00';
+            if (contact.isEnemy || (contact.classification && contact.classification.includes('SUB'))) color = '#ff4400';
+            else if (contact.classification === 'TURBULENCE') color = '#88aaff';
+
+            // Stick: above = line up, below = line down
+            const stickLen = Math.min(maxStick, Math.abs(depthDiff) * depthScale);
+            if (stickLen >= 1) {
+                ctx.strokeStyle = color;
+                ctx.lineWidth = 2;
+                ctx.beginPath();
+                if (depthDiff > 0) {
+                    ctx.moveTo(x, y);
+                    ctx.lineTo(x, y - stickLen);
+                } else {
+                    ctx.moveTo(x, y);
+                    ctx.lineTo(x, y + stickLen);
+                }
+                ctx.stroke();
+            }
+
+            // Ball at contact position (on the plane of the radar)
+            ctx.fillStyle = color;
+            ctx.beginPath();
+            ctx.arc(x, y, Math.max(2, (contact.strength || 1) * 0.8), 0, Math.PI * 2);
+            ctx.fill();
+        });
+    }
+
     updateMinimap(submarinePos, submarineRotation) {
         if (!this.minimapCtx) return;
 
@@ -486,6 +561,9 @@ class TacticalSystem {
     update(deltaTime, submarinePos, submarineRotation, contacts) {
         // Update tactical display
         this.updateTacticalDisplay(submarinePos, contacts || []);
+        // Elite-style radar: sub centre, contacts as balls on sticks by depth
+        const playerDepth = submarinePos ? submarinePos.y : 0;
+        this.updateEliteRadar(submarinePos, playerDepth, contacts || []);
 
         // Update minimap
         this.updateMinimap(submarinePos, submarineRotation);

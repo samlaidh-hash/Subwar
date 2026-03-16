@@ -246,6 +246,39 @@ const WEAPON_TYPES = {
     }
 };
 
+// Tube-based torpedo types (revolver H/S/I)
+const TORPEDO_TYPES = {
+    MHD_CONVENTIONAL: {
+        name: 'Homing (H)',
+        speed: 54, // ~100 km/h in knots
+        range: 10000, // 10 km then self-destruct
+        reloadTime: 5000,
+        color: 0xff6600,
+        damage: 120,
+        maneuverability: 0.5
+    },
+    SUPERCAVITATING: {
+        name: 'SCAV (S)',
+        speed: 216, // ~400 km/h in knots
+        range: 15000,
+        reloadTime: 4000,
+        color: 0x00ffff,
+        damage: 80,
+        maneuverability: 0.6,
+        wireGuided: true
+    },
+    INTERCEPTOR_TORPEDOES: {
+        name: 'Interceptor (I)',
+        speed: 81, // ~150 km/h in knots
+        range: 3000,
+        reloadTime: 3000,
+        color: 0x0088ff,
+        damage: 40,
+        maneuverability: 0.9,
+        interceptor: true
+    }
+};
+
 // Base Projectile Class
 class Projectile {
     constructor(scene, position, rotation, weaponType, target = null) {
@@ -2184,6 +2217,281 @@ class AdvancedTorpedo {
     }
 }
 
+// Tube-fired torpedo: S (SCAV wire-guided), H (homing sound), I (interceptor)
+class Torpedo {
+    constructor(scene, launchPosition, launchRotation, torpedoType, homingMode) {
+        this.scene = scene;
+        this.position = launchPosition.clone();
+        this.rotation = launchRotation.clone();
+        this.torpedoTypeKey = torpedoType;
+        this.type = TORPEDO_TYPES[torpedoType] || TORPEDO_TYPES.MHD_CONVENTIONAL;
+        this.homingMode = typeof homingMode === 'string' ? HOMING_MODES[homingMode] : homingMode;
+        if (!this.homingMode) this.homingMode = HOMING_MODES.ACTIVE;
+
+        const knotsToMs = 0.514444;
+        if (torpedoType === 'SUPERCAVITATING') {
+            this.speed = (400 / 3.6); // 400 km/h in m/s
+        } else if (torpedoType === 'INTERCEPTOR_TORPEDOES') {
+            this.speed = (150 / 3.6); // 150 km/h
+        } else {
+            this.speed = (100 / 3.6); // 100 km/h homing
+        }
+
+        this.velocity = new THREE.Vector3(0, 0, 0);
+        this.target = null;
+        this.distanceTraveled = 0;
+        this.lifeTime = 0;
+        this.armed = true;
+        this.mesh = null;
+        this.wireIntact = true;
+        this.forward = new THREE.Vector3(0, 0, 1);
+        this.trailParticles = [];
+        this.active = true;
+
+        // H-type: 10 km then self-destruct; I-type: 10 s if no target
+        this.maxDistance = torpedoType === 'MHD_CONVENTIONAL' ? 10000 : (this.type.range || 10000);
+        this.interceptorNoTargetTime = 10; // seconds for I-type
+
+        this.createTorpedoMesh();
+        this.initializeVelocity();
+
+        if (torpedoType === 'SUPERCAVITATING' && this.wireIntact) {
+            if (window.getWeaponsSystem) window.getWeaponsSystem().activeWireGuidedTorpedo = this;
+        }
+    }
+
+    createTorpedoMesh() {
+        const g = new THREE.Group();
+        const mat = new THREE.LineBasicMaterial({ color: this.type.color, transparent: true, opacity: 0.9 });
+        const bodyGeo = new THREE.CylinderGeometry(0.08, 0.05, 1.2, 6);
+        const body = new THREE.LineSegments(new THREE.EdgesGeometry(bodyGeo), mat);
+        body.rotation.z = Math.PI / 2;
+        g.add(body);
+        this.propeller = new THREE.LineSegments(new THREE.EdgesGeometry(new THREE.CylinderGeometry(0.06, 0.06, 0.03, 4)), mat);
+        this.propeller.position.set(-0.62, 0, 0);
+        this.propeller.rotation.z = Math.PI / 2;
+        g.add(this.propeller);
+        this.mesh = g;
+        this.mesh.position.copy(this.position);
+        this.mesh.rotation.copy(this.rotation);
+        this.scene.add(this.mesh);
+    }
+
+    initializeVelocity() {
+        this.forward.set(0, 0, 1);
+        this.forward.applyEuler(this.rotation);
+        this.velocity.copy(this.forward).multiplyScalar(this.speed);
+    }
+
+    update(deltaTime) {
+        if (!this.active) return false;
+        if (!this.mesh) return false;
+
+        this.lifeTime += deltaTime;
+
+        // S-type wire-guided: apply arrow key steering
+        if (this.torpedoTypeKey === 'SUPERCAVITATING' && this.wireIntact && window.gameState && window.gameState.keys) {
+            const turnRate = 1.2 * deltaTime;
+            if (window.gameState.keys.left) this.rotation.y -= turnRate;
+            if (window.gameState.keys.right) this.rotation.y += turnRate;
+            this.forward.set(0, 0, 1).applyEuler(this.rotation);
+            this.velocity.copy(this.forward).multiplyScalar(this.speed);
+        }
+
+        // H-type: lock nearest sound source ahead (enemies + knuckles)
+        if (this.torpedoTypeKey === 'MHD_CONVENTIONAL') {
+            if (!this.target || !this.target.getPosition) this.acquireHomingTarget();
+        }
+
+        // I-type: lock nearest torpedo
+        if (this.torpedoTypeKey === 'INTERCEPTOR_TORPEDOES') {
+            if (!this.target || !this.target.getPosition) this.acquireInterceptorTarget();
+            if (!this.target && this.lifeTime >= this.interceptorNoTargetTime) {
+                this.selfDestruct();
+                return false;
+            }
+        }
+
+        // Homing steering (H and I)
+        if (this.target && this.target.getPosition && this.torpedoTypeKey !== 'SUPERCAVITATING') {
+            this.steerToward(this.target.getPosition());
+        }
+
+        // Move
+        const move = this.velocity.clone().multiplyScalar(deltaTime);
+        this.position.add(move);
+        this.distanceTraveled += move.length();
+
+        // H-type: 10 km no target -> self-destruct
+        if (this.torpedoTypeKey === 'MHD_CONVENTIONAL' && !this.target && this.distanceTraveled >= this.maxDistance) {
+            this.selfDestruct();
+            return false;
+        }
+
+        this.mesh.position.copy(this.position);
+        this.mesh.rotation.copy(this.rotation);
+        if (this.propeller) this.propeller.rotation.x += this.speed * deltaTime * 0.01;
+
+        if (!this.checkImpacts()) return false;
+        return true;
+    }
+
+    acquireHomingTarget() {
+        const forward = new THREE.Vector3(0, 0, 1).applyEuler(this.rotation);
+        const candidates = [];
+
+        if (window.getEnemySubmarines) {
+            window.getEnemySubmarines().forEach(enemy => {
+                const to = enemy.getPosition().clone().sub(this.position);
+                const dist = to.length();
+                if (dist < 1) return;
+                to.normalize();
+                if (forward.dot(to) > 0.5 && dist <= 8000) {
+                    candidates.push({ getPosition: () => enemy.getPosition(), noiseSignature: 25, dist });
+                }
+            });
+        }
+        const sub = window.getPlayerSubmarine && window.getPlayerSubmarine();
+        if (sub && sub.knuckles) {
+            sub.knuckles.forEach(knuckle => {
+                if (knuckle.lifetime <= 0) return;
+                const to = knuckle.position.clone().sub(this.position);
+                const dist = to.length();
+                if (dist < 1) return;
+                to.normalize();
+                if (forward.dot(to) > 0.5) {
+                    candidates.push({ getPosition: () => knuckle.position.clone(), noiseSignature: knuckle.noiseSignature || knuckle.decoyStrength || 20, dist });
+                }
+            });
+        }
+        if (candidates.length === 0) return;
+        candidates.sort((a, b) => a.dist - b.dist);
+        this.target = candidates[0];
+    }
+
+    acquireInterceptorTarget() {
+        const list = window.getActiveTorpedoes ? window.getActiveTorpedoes() : [];
+        const others = list.filter(t => t !== this && t.position && t !== this.target);
+        let best = null;
+        let bestDist = Infinity;
+        const forward = new THREE.Vector3(0, 0, 1).applyEuler(this.rotation);
+        others.forEach(t => {
+            const pos = t.position || (t.getPosition && t.getPosition());
+            if (!pos) return;
+            const to = pos.clone().sub(this.position);
+            const dist = to.length();
+            to.normalize();
+            if (forward.dot(to) > 0.3 && dist < bestDist) {
+                bestDist = dist;
+                best = t; // store actual torpedo so we can call destroy() on impact
+            }
+        });
+        if (best) this.target = best;
+    }
+
+    steerToward(worldPos) {
+        const dir = worldPos.clone().sub(this.position).normalize();
+        const targetYaw = Math.atan2(dir.x, dir.z);
+        let yawDiff = targetYaw - this.rotation.y;
+        if (yawDiff > Math.PI) yawDiff -= Math.PI * 2;
+        if (yawDiff < -Math.PI) yawDiff += Math.PI * 2;
+        const maxTurn = (this.type.maneuverability || 0.5) * 2.5 * 0.016;
+        this.rotation.y += Math.max(-maxTurn, Math.min(maxTurn, yawDiff));
+        this.forward.set(0, 0, 1).applyEuler(this.rotation);
+        this.velocity.copy(this.forward).multiplyScalar(this.speed);
+    }
+
+    checkImpacts() {
+        if (this.target && this.target.getPosition) {
+            const d = this.position.distanceTo(this.target.getPosition());
+            if (d < 3) {
+                this.impact(this.target);
+                return false;
+            }
+        }
+        if (window.getPlayerSubmarine && window.getPlayerSubmarine().knuckles) {
+            for (const k of window.getPlayerSubmarine().knuckles) {
+                if (k.lifetime > 0 && this.position.distanceTo(k.position) < 4) {
+                    this.explodeOnCountermeasure();
+                    return false;
+                }
+            }
+        }
+        const ocean = window.oceanInstance;
+        if (ocean && ocean.getSeabedHeight && this.position.y <= ocean.getSeabedHeight(this.position.x, this.position.z) + 0.5) {
+            this.impactSeabed();
+            return false;
+        }
+        if (Math.abs(this.position.x) > 50000 || Math.abs(this.position.z) > 50000) {
+            this.destroy();
+            return false;
+        }
+        return true;
+    }
+
+    impact(target) {
+        if (target) {
+            if (typeof target.takeDamage === 'function') target.takeDamage(this.type.damage || 80);
+            if (typeof target.destroy === 'function') target.destroy(); // I-type kills target torpedo
+        }
+        this.createExplosion();
+        this.destroy();
+    }
+
+    impactSeabed() {
+        this.createExplosion();
+        this.destroy();
+    }
+
+    explodeOnCountermeasure() {
+        this.createExplosion();
+        this.destroy();
+    }
+
+    selfDestruct() {
+        this.createExplosion();
+        this.destroy();
+    }
+
+    createExplosion() {
+        const geo = new THREE.SphereGeometry(3, 8, 8);
+        const mat = new THREE.LineBasicMaterial({ color: 0xff4400, transparent: true, opacity: 0.8 });
+        const mesh = new THREE.LineSegments(new THREE.EdgesGeometry(geo), mat);
+        mesh.position.copy(this.position);
+        this.scene.add(mesh);
+        let t = 0;
+        const id = setInterval(() => {
+            t += 0.05;
+            mesh.scale.setScalar(1 + t * 2);
+            mesh.material.opacity = Math.max(0, 0.8 - t);
+            if (t > 1) {
+                this.scene.remove(mesh);
+                mesh.geometry.dispose();
+                mesh.material.dispose();
+                clearInterval(id);
+            }
+        }, 50);
+    }
+
+    getPosition() {
+        return this.position.clone();
+    }
+
+    destroy() {
+        this.active = false;
+        if (window.getWeaponsSystem && window.getWeaponsSystem().activeWireGuidedTorpedo === this) {
+            window.getWeaponsSystem().activeWireGuidedTorpedo = null;
+        }
+        if (this.mesh) {
+            this.scene.remove(this.mesh);
+            this.mesh.traverse(c => {
+                if (c.geometry) c.geometry.dispose();
+                if (c.material) c.material.dispose();
+            });
+        }
+    }
+}
+
 // Weapons System Manager
 class WeaponsSystem {
     constructor(scene, submarine) {
@@ -2224,11 +2532,13 @@ class WeaponsSystem {
         };
 
         this.selectedTube = 'tube1';
+        this.activeWireGuidedTorpedo = null;
 
         // Ammunition
         this.ammunition = {
             MHD_CONVENTIONAL: 8,
-            SUPERCAVITATING: 4
+            SUPERCAVITATING: 4,
+            INTERCEPTOR_TORPEDOES: 6
         };
 
         this.init();
@@ -2440,7 +2750,10 @@ class WeaponsSystem {
         // Update ammunition display
         const ammoElement = document.getElementById('ammunition');
         if (ammoElement) {
-            ammoElement.innerHTML = `Ammo: MHD ${this.ammunition.MHD_CONVENTIONAL} | SC ${this.ammunition.SUPERCAVITATING}`;
+            const m = this.ammunition.MHD_CONVENTIONAL ?? 0;
+            const s = this.ammunition.SUPERCAVITATING ?? 0;
+            const i = this.ammunition.INTERCEPTOR_TORPEDOES ?? 0;
+            ammoElement.innerHTML = `Ammo: H ${m} | S ${s} | I ${i}`;
         }
 
         // Update individual tube status display
@@ -2464,7 +2777,7 @@ class WeaponsSystem {
                 }
 
                 // Torpedo type abbreviation
-                const typeAbbr = tube.torpedoType === 'MHD_CONVENTIONAL' ? 'M' : 'S';
+                const typeAbbr = tube.torpedoType === 'MHD_CONVENTIONAL' ? 'H' : (tube.torpedoType === 'INTERCEPTOR_TORPEDOES' ? 'I' : 'S');
 
                 // Homing mode abbreviation
                 const modeAbbr = {
@@ -2490,11 +2803,28 @@ class WeaponsSystem {
         }
     }
 
+    getActiveTorpedoes() {
+        return this.torpedoes.slice();
+    }
+
+    getAllTorpedoes() {
+        return this.torpedoes.slice();
+    }
+
+    updateTargets() {}
+    cycleTarget() {}
+    cycleWeapon() {}
+    addCountermeasure() {}
+    createSmartTorpedo(data) { return null; }
+    createDroneTorpedo(data) { return null; }
+    removeTorpedo() {}
+
     // Get weapons info for tactical display
     getWeaponsInfo() {
+        const tube = this.tubes[this.selectedTube];
         return {
-            selectedTorpedo: TORPEDO_TYPES[this.selectedTorpedoType],
-            selectedHoming: HOMING_MODES[this.selectedHomingMode],
+            selectedTorpedo: tube ? TORPEDO_TYPES[tube.torpedoType] : null,
+            selectedHoming: tube ? HOMING_MODES[tube.homingMode] : null,
             ammunition: this.ammunition,
             tubes: this.tubes,
             activeTorpedoes: this.torpedoes.length
@@ -2910,14 +3240,14 @@ class FighterWeaponsSystem {
 // Global weapons system instance
 let weaponsSystem = null;
 
-// Initialize weapons system
+// Initialize weapons system (tube-based for revolver H/S/I)
 function initWeapons(scene, submarine) {
     if (weaponsSystem) {
         weaponsSystem.cleanup();
     }
-    weaponsSystem = new FighterWeaponsSystem(scene, submarine);
+    weaponsSystem = new WeaponsSystem(scene, submarine);
     window.weaponsSystem = weaponsSystem; // Make globally accessible
-    console.log('Elite fighter weapons system loaded');
+    console.log('Weapons system loaded (tube-based H/S/I torpedoes)');
     return weaponsSystem;
 }
 
@@ -3014,5 +3344,7 @@ window.SCAVCannonRound = SCAVCannonRound;
 window.SCAVPointDefense = SCAVPointDefense;
 window.WISKRDrone = WISKRDrone;
 window.WeaponsSystem = WeaponsSystem;
+window.Torpedo = Torpedo;
+window.TORPEDO_TYPES = TORPEDO_TYPES;
 
-console.log('Weapons module loaded with high-speed torpedo combat system');
+console.log('Weapons module loaded with tube-based H/S/I torpedoes and decoys');

@@ -110,14 +110,35 @@ function showGameHUD() {
         console.log('✅ Minimap system activated');
     }
 
-    // Show armor systems panel
-    const armorSystems = document.getElementById('armorSystems');
-    if (armorSystems) {
-        armorSystems.style.display = 'block';
-        console.log('✅ Armor systems panel activated');
+    // Show hull facings container (facings created by submarine updateFacingDisplay)
+    const hullFacings = document.getElementById('hullFacingsContainer');
+    if (hullFacings) hullFacings.style.display = 'block';
+
+    // Show Elite-style tactical radar (sub centre, contacts as balls on sticks)
+    const eliteRadar = document.getElementById('eliteRadarContainer');
+    if (eliteRadar) {
+        eliteRadar.style.display = 'block';
+        console.log('✅ Elite tactical radar activated');
+    }
+
+    // Info panel: button click toggles expand/collapse (I key also toggles)
+    const infoToggle = document.getElementById('infoPanelToggle');
+    const infoPanel = document.getElementById('controls');
+    if (infoToggle && infoPanel) {
+        infoToggle.addEventListener('click', () => toggleInfoPanel());
     }
 
     console.log('🎮 Game HUD fully activated');
+}
+
+function toggleInfoPanel() {
+    const panel = document.getElementById('controls');
+    if (!panel) return;
+    const isExpanded = panel.classList.contains('expanded');
+    panel.classList.remove(isExpanded ? 'expanded' : 'collapsed');
+    panel.classList.add(isExpanded ? 'collapsed' : 'expanded');
+    const btn = document.getElementById('infoPanelToggle');
+    if (btn) btn.textContent = isExpanded ? 'Info [I]' : 'Close [I]';
 }
 
 // Initialize Three.js scene, camera, and renderer
@@ -313,6 +334,22 @@ function update(deltaTime = 0.016) {
         }
     }
 
+    // Entity visibility: submarines/entities only visible when emitting (passive), painted (active), or within 500m (QMAD)
+    if (submarinePos && window.getEnemySubmarines) {
+        const enemies = window.getEnemySubmarines();
+        const contacts = (window.playerSubmarine && window.playerSubmarine().currentSonarContacts) ? window.playerSubmarine().currentSonarContacts : [];
+        const now = Date.now();
+        const paintedDuration = 30000;
+        enemies.forEach(enemy => {
+            if (!enemy.mesh) return;
+            const dist = submarinePos.distanceTo(enemy.getPosition());
+            const inQmad = dist <= 500;
+            const inContacts = contacts.some(c => c.id === enemy.mesh.uuid || (c.position && c.position.distanceTo(enemy.getPosition()) < 80));
+            const painted = enemy.lastPaintedByActiveSonar && (now - enemy.lastPaintedByActiveSonar) < paintedDuration;
+            enemy.mesh.visible = inQmad || inContacts || painted;
+        });
+    }
+
     // Update weapons system
     if (window.updateWeapons) {
         window.updateWeapons(deltaTime);
@@ -327,6 +364,19 @@ function updateCamera() {
     if (!gameState.camera) return;
 
     if (gameState.cameraMode === 'follow') {
+        // Follow active wire-guided torpedo (SCAV) if one is in flight
+        const ws = window.getWeaponsSystem && window.getWeaponsSystem();
+        const wireTorp = ws && ws.activeWireGuidedTorpedo && ws.activeWireGuidedTorpedo.active ? ws.activeWireGuidedTorpedo : null;
+        if (wireTorp && wireTorp.position) {
+            const torpPos = wireTorp.position.clone();
+            const behind = 6;
+            const up = 4;
+            const forward = new THREE.Vector3(0, 0, 1).applyEuler(wireTorp.rotation);
+            const offset = new THREE.Vector3(-forward.x * behind, up, -forward.z * behind);
+            gameState.camera.position.lerp(torpPos.clone().add(offset), 0.85);
+            gameState.camera.lookAt(torpPos);
+            return;
+        }
         // Lock camera focus on submarine with dynamic positioning
         if (window.playerSubmarine && window.playerSubmarine()) {
             const submarine = window.playerSubmarine();
@@ -596,10 +646,8 @@ function handleKeyDown(event) {
         }
         break;
     case 'KeyI':
-        // Single active sonar ping
-        if (window.playerSubmarine && window.playerSubmarine()) {
-            window.playerSubmarine().performSonarPing();
-        }
+        event.preventDefault();
+        toggleInfoPanel();
         break;
     case 'KeyV':
         // Toggle terrain wireframe (delegate to terrain system)

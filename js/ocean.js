@@ -2738,22 +2738,27 @@ class Ocean {
         console.log(`🔍 DEBUG: seaFloor children count: ${this.seaFloor.children.length}`);
     }
 
-    // Generate individual terrain chunk
+    // Generate individual terrain chunk (higher resolution near origin for LOD)
     generateTerrainChunk(chunkX, chunkZ, wireframeMaterial) {
         const chunkGroup = new THREE.Group();
 
-        // FIXED: Map chunk coordinates to grid coordinates properly
-        // Each chunk represents a portion of the gridSize, not literal coordinates
-        const gridPointsPerChunk = Math.floor(this.gridSize / this.chunksPerSide);
-        const startX = chunkX * gridPointsPerChunk;
-        const startZ = chunkZ * gridPointsPerChunk;
-        const endX = Math.min(startX + gridPointsPerChunk, this.gridSize);
-        const endZ = Math.min(startZ + gridPointsPerChunk, this.gridSize);
+        const halfChunks = Math.floor(this.chunksPerSide / 2);
+        const centerX = (chunkX - halfChunks) * this.chunkSize;
+        const centerZ = (chunkZ - halfChunks) * this.chunkSize;
+        const distFromOrigin = Math.sqrt(centerX * centerX + centerZ * centerZ);
+        // High-res within 10km, lower res beyond
+        const resolutionScale = distFromOrigin < 10000 ? 2 : 1;
+        const pointsPerChunk = Math.floor(this.gridSize / this.chunksPerSide);
+        const startX = chunkX * pointsPerChunk;
+        const startZ = chunkZ * pointsPerChunk;
+        const endX = Math.min(startX + pointsPerChunk, this.gridSize);
+        const endZ = Math.min(startZ + pointsPerChunk, this.gridSize);
+        const step = resolutionScale === 2 ? 1 : 2;
 
-        // Create horizontal grid lines for this chunk
-        for (let z = startZ; z <= endZ; z++) {
+        // Create horizontal grid lines for this chunk (step for LOD density)
+        for (let z = startZ; z <= endZ; z += step) {
             const points = [];
-            for (let x = startX; x <= endX; x++) {
+            for (let x = startX; x <= endX; x += step) {
                 const worldX = (x / this.gridSize) * this.terrainSize - this.terrainSize / 2;
                 const worldZ = (z / this.gridSize) * this.terrainSize - this.terrainSize / 2;
                 const height = this.heightData[z * (this.gridSize + 1) + x];
@@ -2768,9 +2773,9 @@ class Ocean {
         }
 
         // Create vertical grid lines for this chunk
-        for (let x = startX; x <= endX; x++) {
+        for (let x = startX; x <= endX; x += step) {
             const points = [];
-            for (let z = startZ; z <= endZ; z++) {
+            for (let z = startZ; z <= endZ; z += step) {
                 const worldX = (x / this.gridSize) * this.terrainSize - this.terrainSize / 2;
                 const worldZ = (z / this.gridSize) * this.terrainSize - this.terrainSize / 2;
                 const height = this.heightData[z * (this.gridSize + 1) + x];
@@ -2860,35 +2865,13 @@ class Ocean {
     }
 
 
-    // Update terrain visibility based on submarine sensor ranges
+    // Update terrain visibility and LOD - seabed is always visible (map projection); LOD by distance
     updateTerrainLOD(playerPosition) {
         if (!this.terrainChunks || !playerPosition) return;
 
-        // Update current sensor range based on active sonar status
-        // Check if sonar ping is still active (30s visible, fade 30-40s)
-        const currentTime = Date.now();
-        if (this.isActiveSonarActive) {
-            const timeSincePing = currentTime - this.lastSonarPingTime;
-            // Deactivate after 40 seconds (30s visible + 10s fade)
-            if (timeSincePing > this.sonarPingDuration + this.sonarPingFadeDuration) {
-                this.isActiveSonarActive = false;
-                console.log('🔊 Active sonar range expired after 40 seconds, returning to passive sensors');
-            }
-        }
-
-        // Determine current visibility range
-        this.drawDistance = this.isActiveSonarActive ? this.activeSonarRange : this.passiveRange;
-
-        // Debug: Log sensor status changes
-        if (!this.lodDebugLogged || this.lastDrawDistance !== this.drawDistance) {
-            console.log(`🔍 Sensors: ${this.isActiveSonarActive ? 'ACTIVE SONAR' : 'PASSIVE'} - Range: ${this.drawDistance}m`);
-            console.log(`📊 Total chunks available: ${this.terrainChunks.size}`);
-            this.lodDebugLogged = true;
-            this.lastDrawDistance = this.drawDistance;
-        }
-
+        // Seabed is always fully visible (computer projection from existing maps)
+        const maxTerrainDraw = this.terrainSize * 0.5; // Show full map within half terrain size
         let visibleCount = 0;
-        let hiddenCount = 0;
 
         this.terrainChunks.forEach((chunk, key) => {
             const distance = Math.sqrt(
@@ -2896,29 +2879,8 @@ class Ocean {
                 (playerPosition.z - chunk.centerZ) ** 2
             );
 
-            let shouldBeVisible = false;
-            let visibilityAlpha = 1.0;
-
-            if (this.isSonarPingActive()) {
-                // Active sonar ping: 6000m range with fade timing
-                const pingAlpha = this.getSonarPingAlpha();
-                
-                // Only show chunks if ping alpha is significant (above threshold)
-                if (distance <= this.activeSonarRange && pingAlpha > 0.01) {
-                    shouldBeVisible = true;
-                    visibilityAlpha = pingAlpha;
-                } else if (distance <= this.passiveRange) {
-                    // Always visible within passive range
-                    shouldBeVisible = true;
-                    visibilityAlpha = 1.0;
-                }
-            } else {
-                // Default: 500m sphere around submarine
-                if (distance <= this.passiveRange) {
-                    shouldBeVisible = true;
-                    visibilityAlpha = 1.0;
-                }
-            }
+            // Always show seabed within world bounds
+            const shouldBeVisible = distance <= maxTerrainDraw;
 
             if (shouldBeVisible && !chunk.visible) {
                 chunk.group.visible = true;
@@ -2928,19 +2890,10 @@ class Ocean {
                 chunk.visible = false;
             }
 
-            // Count visibility for debug
-            if (chunk.visible) {
-                visibleCount++;
-            } else {
-                hiddenCount++;
-            }
+            if (chunk.visible) visibleCount++;
         });
 
-        // Debug: Log chunk visibility stats every few seconds
-        if (!this.lastDebugTime || Date.now() - this.lastDebugTime > 3000) {
-            console.log(`🌊 Terrain LOD Status: ${visibleCount} visible, ${hiddenCount} hidden (Range: ${this.drawDistance}m)`);
-            this.lastDebugTime = Date.now();
-        }
+        this.drawDistance = maxTerrainDraw;
     }
 
     // Activate sonar ping for extended terrain visibility
