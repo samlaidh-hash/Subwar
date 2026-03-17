@@ -1498,6 +1498,18 @@ class AdvancedTorpedo {
         this.mesh = torpedoGroup;
         this.mesh.position.copy(this.position);
         this.mesh.rotation.copy(this.rotation);
+
+        // Follow-cam: keep camera behind active SCAV torpedo if selected
+        if (window.gameState && window.gameState.followCamTarget === this && window.gameState.camera) {
+            const camera = window.gameState.camera;
+            const backOffset = 8;
+            const upOffset = 2;
+            const camPos = this.position.clone()
+                .sub(this.forward.clone().multiplyScalar(backOffset))
+                .add(new THREE.Vector3(0, upOffset, 0));
+            camera.position.copy(camPos);
+            camera.lookAt(this.position);
+        }
         this.mesh.name = `torpedo_${this.type.name}`;
         this.scene.add(this.mesh);
     }
@@ -2195,6 +2207,10 @@ class AdvancedTorpedo {
     }
 
     destroy() {
+        // Clear follow-cam if this torpedo was being followed
+        if (window.gameState && window.gameState.followCamTarget === this) {
+            window.gameState.followCamTarget = null;
+        }
         // Clean up trail particles
         this.trailParticles.forEach(particle => {
             this.scene.remove(particle.mesh);
@@ -2225,8 +2241,8 @@ class Torpedo {
         this.rotation = launchRotation.clone();
         this.torpedoTypeKey = torpedoType;
         this.type = TORPEDO_TYPES[torpedoType] || TORPEDO_TYPES.MHD_CONVENTIONAL;
-        this.homingMode = typeof homingMode === 'string' ? HOMING_MODES[homingMode] : homingMode;
-        if (!this.homingMode) this.homingMode = HOMING_MODES.ACTIVE;
+        // Homing mode no longer controls lock; homing is handled directly in update()
+        this.homingMode = null;
 
         const knotsToMs = 0.514444;
         if (torpedoType === 'SUPERCAVITATING') {
@@ -2249,7 +2265,8 @@ class Torpedo {
         this.active = true;
 
         // H-type: 10 km then self-destruct; I-type: 10 s if no target
-        this.maxDistance = torpedoType === 'MHD_CONVENTIONAL' ? 10000 : (this.type.range || 10000);
+        // Use TORPEDO_TYPES range for endurance; I-type is shorter in TORPEDO_TYPES
+        this.maxDistance = this.type.range || 10000;
         this.interceptorNoTargetTime = 10; // seconds for I-type
 
         this.createTorpedoMesh();
@@ -2289,27 +2306,25 @@ class Torpedo {
 
         this.lifeTime += deltaTime;
 
-        // S-type wire-guided: apply arrow key steering
+        // S-type (SCAV) wire-guided: apply arrow key steering
         if (this.torpedoTypeKey === 'SUPERCAVITATING' && this.wireIntact && window.gameState && window.gameState.keys) {
-            const turnRate = 1.2 * deltaTime;
+            const turnRate = 1.5 * deltaTime;
             if (window.gameState.keys.left) this.rotation.y -= turnRate;
             if (window.gameState.keys.right) this.rotation.y += turnRate;
+            if (window.gameState.keys.up) this.rotation.x += turnRate * 0.5;
+            if (window.gameState.keys.down) this.rotation.x -= turnRate * 0.5;
             this.forward.set(0, 0, 1).applyEuler(this.rotation);
             this.velocity.copy(this.forward).multiplyScalar(this.speed);
         }
 
-        // H-type: lock nearest sound source ahead (enemies + knuckles)
+        // H-type: home on nearest sound source ahead (enemies + knuckles)
         if (this.torpedoTypeKey === 'MHD_CONVENTIONAL') {
             if (!this.target || !this.target.getPosition) this.acquireHomingTarget();
         }
 
-        // I-type: lock nearest torpedo
+        // I-type: behave like H-type but with interceptor stats (faster, shorter endurance, less damage)
         if (this.torpedoTypeKey === 'INTERCEPTOR_TORPEDOES') {
-            if (!this.target || !this.target.getPosition) this.acquireInterceptorTarget();
-            if (!this.target && this.lifeTime >= this.interceptorNoTargetTime) {
-                this.selfDestruct();
-                return false;
-            }
+            if (!this.target || !this.target.getPosition) this.acquireHomingTarget();
         }
 
         // Homing steering (H and I)
@@ -2322,8 +2337,9 @@ class Torpedo {
         this.position.add(move);
         this.distanceTraveled += move.length();
 
-        // H-type: 10 km no target -> self-destruct
-        if (this.torpedoTypeKey === 'MHD_CONVENTIONAL' && !this.target && this.distanceTraveled >= this.maxDistance) {
+        // H-type and I-type: self-destruct on endurance limit if no hit
+        if ((this.torpedoTypeKey === 'MHD_CONVENTIONAL' || this.torpedoTypeKey === 'INTERCEPTOR_TORPEDOES') &&
+            this.distanceTraveled >= this.maxDistance) {
             this.selfDestruct();
             return false;
         }

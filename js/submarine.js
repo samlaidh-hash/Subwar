@@ -2022,74 +2022,35 @@ class Submarine {
     initializeTorpedoSystem() {
         const specs = SUBMARINE_SPECIFICATIONS[this.submarineClass];
 
-        // Horizontal Torpedo Box Launchers (7 boxes each: 0 always empty, 1-6 contain torpedoes)
+        // NEW: Simplified central magazine + ready-slot launcher system
+        const launcherCount = specs.launchers || specs.torpedoTubes || 1;
+
+        // Each launcher has a single ready slot, plus loading state
         this.launchers = [];
-        for (let i = 0; i < specs.torpedoTubes; i++) {
+        for (let i = 0; i < launcherCount; i++) {
             this.launchers.push({
                 id: i + 1,
-                chambers: new Array(6).fill(null), // 6 chambers for torpedoes (boxes 1-6)
-                currentBox: -1, // -1 = no box highlighted, 0-6 = box positions
-                topIndex: 0, // Revolver: which slot is at top (firing position), 0-5
-                readyAt: 0, // Timestamp when top slot is ready to fire (after 10s delay)
-                revolverSlots: ['H', 'S', 'I', 'H', 'S', 'I'], // H=Homing, S=SCAV, I=Interceptor
-                cycling: false,
-                lastCycleTime: 0,
-                rotationAnimation: 0 // For visual highlighting animation
+                readyType: null,      // 'H', 'S', or 'I' when loaded and ready
+                loadingType: null,    // 'H', 'S', or 'I' while loading
+                loadStartTime: 0      // timestamp when loading began
             });
         }
 
-        // Torpedo type codes (2-letter system) - torpedoes only
-        this.torpedoCodes = {
-            'LIGHT_TORPEDO': 'LT',
-            'MEDIUM_TORPEDO': 'MT',
-            'HEAVY_TORPEDO': 'HT'
+        // Central torpedo magazine (conceptual) – treat as effectively stocked
+        this.torpedoMagazine = {
+            H: 999, // Homing
+            S: 999, // SCAV
+            I: 999  // Interceptor
         };
 
-        // Initialize default loadouts for each launcher
-        this.initializeDefaultLoadouts();
-        
-        // Initialize visual display
-        setTimeout(() => {
-            this.updateLauncherDisplay();
-        }, 100); // Small delay to ensure DOM is ready
+        // 10 second load time for any torpedo type
+        this.torpedoLoadDuration = 10000;
 
-        // Torpedo storage/inventory - torpedoes only
-        this.torpedoStorage = {
-            LT: specs.torpedoTubes * 4,  // Light torpedoes - most common
-            MT: specs.torpedoTubes * 3,  // Medium torpedoes
-            HT: specs.canCarryHeavyTorpedoes ? specs.torpedoTubes * 2 : 0, // Heavy torpedoes
-            DN: specs.torpedoTubes * 1  // Drone torpedoes - 1 per launcher
-        };
+        // Index of launcher that will fire next when LMB is clicked
+        this.currentFireLauncherIndex = 0;
 
-        // Currently selected launcher
-        this.selectedLauncher = 1;
-
-        // Sequential firing system - tracks which tube fires next
-        this.sequentialFiring = {
-            nextTubeToFire: 1, // 1-4, cycles through tubes
-            firedTubes: new Set(), // Track which tubes have been fired
-            allFired: false // True when all 4 tubes have been fired
-        };
-
-        // Launcher interaction tracking
-        this.launcherInteraction = {
-            lastPressTime: 0,
-            lastPressedLauncher: 0,
-            cycleDelay: 2000, // 2 second delay before selection locks in
-            showingInfo: false
-        };
-        // Revolver: key hold start time for 2s fire (1-4)
-        this.revolverKeyHold = { 1: 0, 2: 0, 3: 0, 4: 0 };
-        this.REVOLVER_READY_DELAY = 10000; // 10s after rotate before ready
-        this.REVOLVER_FIRE_HOLD = 2000;    // Hold 2s to fire
-
-        // Lock-on system
-        this.torpedoLockSystem = {
-            target: null,
-            lockProgress: 0,
-            lockStartTime: 0,
-            isLocked: false
-        };
+        // Index of launcher currently "selected" for HUD display
+        this.currentSelectedLauncherIndex = 0;
 
         // Countermeasures
         this.countermeasures = {
@@ -4200,16 +4161,11 @@ class Submarine {
         case 'Digit6':
         case 'Digit7':
         case 'Digit8':
-            // Revolver launcher: key down starts hold timer (release = rotate or fire after 2s)
-            const launcherNum = parseInt(event.code.replace('Digit', ''));
-            if (launcherNum >= 1 && launcherNum <= 4 && this.launchers[launcherNum - 1]) {
-                this.revolverKeyHold[launcherNum] = Date.now();
-            }
+        case 'Digit9': {
+            const num = parseInt(event.code.replace('Digit', ''), 10);
+            this.handleTorpedoKey(num);
             break;
-        case 'Digit9':
-            // Mine deployment (only for mine-capable submarines)
-            this.deployMine();
-            break;
+        }
         case 'Digit0':
             // Noisemaker deployment
             this.deployNoisemaker();
@@ -4222,15 +4178,13 @@ class Submarine {
             event.preventDefault();
             if (this.decoyCount > 0) {
                 this.dropDecoy();
-            } else {
-                this.fireSequentialTorpedo();
             }
             break;
         case 'ArrowUp':
-            this.keys.throttleUp = true;
-            break;
         case 'ArrowDown':
-            this.keys.throttleDown = true;
+        case 'ArrowLeft':
+        case 'ArrowRight':
+            this.handleArrowKeyForSCAV(event.code);
             break;
         case 'F1':
             event.preventDefault();
@@ -4272,32 +4226,22 @@ class Submarine {
             this.keys.increaseDepth = false;
             break;
         case 'ArrowUp':
-            this.keys.throttleUp = false;
-            break;
         case 'ArrowDown':
-            this.keys.throttleDown = false;
+        case 'ArrowLeft':
+        case 'ArrowRight':
+            // Arrow key releases do not change SCAV steering or follow-cam state
             break;
         case 'Digit1':
         case 'Digit2':
         case 'Digit3':
-        case 'Digit4': {
-            const launcherNum = parseInt(event.code.replace('Digit', ''));
-            if (launcherNum < 1 || launcherNum > 4 || !this.launchers[launcherNum - 1]) break;
-            const launcher = this.launchers[launcherNum - 1];
-            const now = Date.now();
-            const held = this.revolverKeyHold[launcherNum] ? (now - this.revolverKeyHold[launcherNum]) : 0;
-            this.revolverKeyHold[launcherNum] = 0;
-            if (held >= this.REVOLVER_FIRE_HOLD && launcher.readyAt && now >= launcher.readyAt) {
-                this.fireRevolverLauncher(launcherNum);
-                launcher.topIndex = (launcher.topIndex + 1) % 6;
-                launcher.readyAt = 0;
-            } else {
-                launcher.topIndex = (launcher.topIndex + 1) % 6;
-                launcher.readyAt = now + this.REVOLVER_READY_DELAY;
-            }
-            this.updateLauncherDisplay();
+        case 'Digit4':
+        case 'Digit5':
+        case 'Digit6':
+        case 'Digit7':
+        case 'Digit8':
+        case 'Digit9':
+            // Number key releases no longer drive revolver behavior
             break;
-        }
         }
     }
 
@@ -4441,11 +4385,11 @@ class Submarine {
         event.preventDefault();
         if (event.button === 0) { // Left click
             this.mouseState.leftDown = true;
-            // Start continuous cannon fire
-            this.startContinuousFire('cannons');
+            // NEW: Left click fires torpedoes from ready launchers
+            this.fireNextLauncherTorpedo();
         } else if (event.button === 2) { // Right click
             this.mouseState.rightDown = true;
-            // Fire SCAV rockets using weapons system
+            // Fire SCAV rockets using weapons system (unchanged)
             this.fireSCAVRockets();
         }
     }
@@ -4586,8 +4530,8 @@ class Submarine {
         // Update torpedo launch signature effects
         this.updateTorpedoLaunchSignature(deltaTime);
 
-        // Update torpedo lock-on system
-        this.updateTorpedoLockSystem(deltaTime);
+        // Update simplified torpedo loading system (central magazine + ready slots)
+        this.updateTorpedoLoading(deltaTime);
 
         // Update threat warning system
         this.updateThreatWarningSystem(deltaTime);
@@ -4892,7 +4836,7 @@ class Submarine {
             const inputThreshold = 0.03;
 
             // Horizontal input: +1 when mouse is RIGHT of center, -1 when LEFT
-            let yawInput = this.maneuverIcon.x;
+            let yawInput = -this.maneuverIcon.x;
             // Vertical input: +1 when mouse is ABOVE center (nose up), -1 when BELOW
             let pitchInput = -this.maneuverIcon.y;
 
@@ -5246,314 +5190,6 @@ class Submarine {
         }
     }
 
-    handleLauncherSelection(launcherNumber) {
-        if (launcherNumber < 1 || launcherNumber > this.launchers.length) {
-            return; // Invalid launcher number
-        }
-
-        const launcher = this.launchers[launcherNumber - 1];
-        const currentTime = Date.now();
-
-        // Check if this is the same launcher pressed recently for cycling
-        const isSameLauncher = this.launcherInteraction.lastPressedLauncher === launcherNumber;
-        const timeSinceLastPress = currentTime - this.launcherInteraction.lastPressTime;
-        const isSubsequentPress = isSameLauncher && timeSinceLastPress < 5000; // 5 second window
-
-        // Update interaction tracking
-        this.launcherInteraction.lastPressTime = currentTime;
-        this.launcherInteraction.lastPressedLauncher = launcherNumber;
-
-        if (isSameLauncher && timeSinceLastPress < 2000) {
-            // Subsequent press of same launcher within 2 seconds - rotate chamber
-            this.rotateLauncher(launcherNumber);
-            console.log(`Rotating launcher ${launcherNumber} to chamber ${launcher.currentChamber + 1}`);
-        } else {
-            // First press or different launcher - select launcher
-            this.selectedLauncher = launcherNumber;
-            console.log(`Selected launcher ${launcherNumber}: ${this.getCurrentTorpedoCode(launcherNumber)} ready`);
-        }
-
-        // Start lock-on system if current chamber has torpedo
-        const currentTorpedoCode = this.getCurrentTorpedoCode(launcherNumber);
-        if (currentTorpedoCode && currentTorpedoCode !== '') {
-            // DN drone torpedoes do not require lock-on
-            if (currentTorpedoCode !== 'DN') {
-                const torpedoType = this.getFullTorpedoType(currentTorpedoCode);
-                this.startTorpedoLockOn(torpedoType);
-            }
-        }
-
-        // Update visual display
-        this.updateLauncherDisplay();
-    }
-
-    rotateLauncher(launcherNumber) {
-        const launcher = this.launchers[launcherNumber - 1];
-        
-        // If no box is highlighted, start at box 0 (first/leftmost box)
-        if (launcher.currentBox === -1) {
-            launcher.currentBox = 0;
-        } else {
-            // Move highlight one box to the right
-            launcher.currentBox++;
-            // If we're past the rightmost box (6), wrap back to leftmost box (0)
-            if (launcher.currentBox > 6) {
-                launcher.currentBox = 0;
-            }
-        }
-        
-        launcher.rotationAnimation = Date.now(); // For visual highlighting
-        launcher.cycling = true;
-        
-        // Auto-stop cycling after delay
-        setTimeout(() => {
-            launcher.cycling = false;
-        }, this.launcherInteraction.cycleDelay);
-        
-        console.log(`🎯 Launcher ${launcherNumber} - Highlighted box ${launcher.currentBox}`);
-    }
-
-    // NEW: Cycle torpedo box left to right, one press = one box
-    cycleTorpedoBox(launcherNumber) {
-        if (launcherNumber < 1 || launcherNumber > this.launchers.length) {
-            return;
-        }
-
-        const launcher = this.launchers[launcherNumber - 1];
-        
-        // If all tubes fired, reload instead
-        if (this.sequentialFiring.allFired) {
-            this.reloadTube(launcherNumber);
-            return;
-        }
-
-        // Start at box 0 if no box highlighted, otherwise move one box right
-        if (launcher.currentBox === -1) {
-            launcher.currentBox = 0;
-        } else {
-            launcher.currentBox++;
-            // Wrap around: after box 6, go back to box 0
-            if (launcher.currentBox > 6) {
-                launcher.currentBox = 0;
-            }
-        }
-
-        console.log(`🎯 Launcher ${launcherNumber} - Box ${launcher.currentBox} highlighted`);
-        this.updateLauncherDisplay();
-    }
-
-    // NEW: Fire torpedoes sequentially (tube 1, then 2, then 3, then 4)
-    fireSequentialTorpedo() {
-        // If all tubes fired, don't fire
-        if (this.sequentialFiring.allFired) {
-            console.log('All tubes fired - reload with number keys');
-            return;
-        }
-
-        const tubeNumber = this.sequentialFiring.nextTubeToFire;
-        const launcher = this.launchers[tubeNumber - 1];
-        
-        if (!launcher) {
-            console.log(`Tube ${tubeNumber} not available`);
-            return;
-        }
-
-        // Check if current box has a torpedo
-        if (launcher.currentBox === 0 || launcher.currentBox === -1) {
-            console.log(`Tube ${tubeNumber} - No torpedo selected in box ${launcher.currentBox}`);
-            return;
-        }
-
-        const chamberIndex = launcher.currentBox - 1;
-        const torpedoCode = launcher.chambers[chamberIndex];
-        
-        if (!torpedoCode || torpedoCode === '') {
-            console.log(`Tube ${tubeNumber} - Box ${launcher.currentBox} is empty`);
-            return;
-        }
-
-        // Check for lock (if required) - DN drones don't need lock
-        const isDrone = torpedoCode === 'DN';
-        if (!isDrone && (!this.torpedoLockSystem || !this.torpedoLockSystem.isLocked)) {
-            console.log('No target lock - cannot fire torpedo (DN drones don\'t need lock)');
-            return;
-        }
-
-        // Fire the torpedo (drone or smart torpedo)
-        let torpedo;
-        if (isDrone) {
-            torpedo = this.createDroneTorpedo();
-        } else {
-            const torpedoType = this.getFullTorpedoType(torpedoCode);
-            torpedo = this.createSmartTorpedo(torpedoType, this.torpedoLockSystem.target);
-        }
-
-        // Trigger torpedo launch signature spike
-        this.torpedoLaunchSignature.active = true;
-        this.torpedoLaunchSignature.startTime = Date.now();
-        
-        // Play torpedo launch sound
-        this.audioManager.playTorpedoLaunch();
-
-        // Clear the chamber
-        launcher.chambers[chamberIndex] = '';
-        
-        // Remove highlight from this tube
-        launcher.currentBox = -1;
-        
-        // Mark this tube as fired
-        this.sequentialFiring.firedTubes.add(tubeNumber);
-        
-        // Reset lock system (only if not a drone)
-        if (!isDrone) {
-            this.torpedoLockSystem = {
-                target: null,
-                lockProgress: 0,
-                lockStartTime: 0,
-                isLocked: false
-            };
-        }
-        
-        // Move to next tube (1->2->3->4->1)
-        this.sequentialFiring.nextTubeToFire = (tubeNumber % 4) + 1;
-        
-        // Check if all tubes fired
-        if (this.sequentialFiring.firedTubes.size >= 4) {
-            this.sequentialFiring.allFired = true;
-            console.log('All 4 tubes fired - reload with number keys');
-        }
-
-        console.log(`${torpedoType} fired from tube ${tubeNumber}, next tube: ${this.sequentialFiring.nextTubeToFire}`);
-        this.updateLauncherDisplay();
-    }
-
-    // NEW: Reload tube when all tubes fired
-    reloadTube(tubeNumber) {
-        if (tubeNumber < 1 || tubeNumber > 4) return;
-        
-        const launcher = this.launchers[tubeNumber - 1];
-        if (!launcher) return;
-
-        // Find first empty chamber and reload
-        for (let i = 0; i < 6; i++) {
-            if (!launcher.chambers[i] || launcher.chambers[i] === '') {
-                // Reload with available torpedo type (prioritize MT)
-                if (this.torpedoStorage.MT > 0) {
-                    launcher.chambers[i] = 'MT';
-                    this.torpedoStorage.MT--;
-                    console.log(`Tube ${tubeNumber} reloaded with MT in chamber ${i + 1}`);
-                } else if (this.torpedoStorage.LT > 0) {
-                    launcher.chambers[i] = 'LT';
-                    this.torpedoStorage.LT--;
-                    console.log(`Tube ${tubeNumber} reloaded with LT in chamber ${i + 1}`);
-                } else if (this.torpedoStorage.HT > 0) {
-                    launcher.chambers[i] = 'HT';
-                    this.torpedoStorage.HT--;
-                    console.log(`Tube ${tubeNumber} reloaded with HT in chamber ${i + 1}`);
-                } else {
-                    console.log(`No torpedoes available to reload tube ${tubeNumber}`);
-                    return;
-                }
-                
-                // Reset firing state if all tubes reloaded
-                if (this.sequentialFiring.firedTubes.has(tubeNumber)) {
-                    this.sequentialFiring.firedTubes.delete(tubeNumber);
-                }
-                
-                if (this.sequentialFiring.firedTubes.size === 0) {
-                    this.sequentialFiring.allFired = false;
-                    this.sequentialFiring.nextTubeToFire = 1;
-                    console.log('All tubes reloaded - ready to fire');
-                }
-                
-                this.updateLauncherDisplay();
-                return;
-            }
-        }
-        
-        console.log(`Tube ${tubeNumber} is full`);
-    }
-
-    getCurrentTorpedoCode(launcherNumber) {
-        const launcher = this.launchers[launcherNumber - 1];
-        // Box 0 is always empty, boxes 1-6 map to chamber indices 0-5
-        if (launcher.currentBox === 0 || launcher.currentBox === -1) {
-            return ''; // Empty box
-        }
-        return launcher.chambers[launcher.currentBox - 1] || '';
-    }
-
-    getFullTorpedoType(code) {
-        const codeMap = {
-            'LT': 'LIGHT_TORPEDO',
-            'MT': 'MEDIUM_TORPEDO',
-            'HT': 'HEAVY_TORPEDO'
-        };
-        return codeMap[code] || 'LIGHT_TORPEDO';
-    }
-
-    fireRevolverLauncher(launcherNum) {
-        const launcher = this.launchers[launcherNum - 1];
-        if (!launcher || !window.weaponsSystem) return;
-        const slotType = (launcher.revolverSlots || ['H','S','I','H','S','I'])[launcher.topIndex];
-        const tubeKey = `tube${launcherNum}`;
-        const typeMap = { H: 'MHD_CONVENTIONAL', S: 'SUPERCAVITATING', I: 'INTERCEPTOR_TORPEDOES' };
-        const modeMap = { H: 'ACTIVE', S: 'WIRE_GUIDED', I: 'PASSIVE' };
-        const torpedoType = typeMap[slotType] || 'MHD_CONVENTIONAL';
-        const homingMode = modeMap[slotType] || 'ACTIVE';
-        if (!window.weaponsSystem.tubes[tubeKey]) return;
-        window.weaponsSystem.selectedTube = tubeKey;
-        window.weaponsSystem.tubes[tubeKey].torpedoType = torpedoType;
-        window.weaponsSystem.tubes[tubeKey].homingMode = homingMode;
-        if (window.weaponsSystem.fire()) {
-            this.triggerTorpedoLaunch();
-        }
-    }
-
-    updateLauncherDisplay() {
-        const now = Date.now();
-        this.launchers.forEach((launcher, index) => {
-            const launcherRowElement = document.getElementById(`launcher${index + 1}`);
-            const launcherContainerElement = launcherRowElement?.parentElement;
-            if (!launcherRowElement) return;
-
-            const slots = launcher.revolverSlots || ['H', 'S', 'I', 'H', 'S', 'I'];
-            const topIndex = launcher.topIndex != null ? launcher.topIndex : 0;
-            const readyAt = launcher.readyAt || 0;
-            const isReady = readyAt && now >= readyAt;
-            const inCountdown = readyAt && now < readyAt && now > readyAt - 2000;
-
-            for (let i = 0; i <= 6; i++) {
-                const torpedoBox = launcherRowElement.querySelector(`.torpedo-box-${i}`);
-                if (!torpedoBox) continue;
-
-                torpedoBox.classList.remove('selected', 'fired', 'ready', 'flashing', 'empty');
-
-                if (i === 0) {
-                    torpedoBox.classList.add('empty');
-                    torpedoBox.textContent = '';
-                } else {
-                    const slotIdx = (topIndex + (i - 1)) % 6;
-                    torpedoBox.textContent = slots[slotIdx] || '';
-                    if (i === 1) {
-                        if (isReady) torpedoBox.classList.add('ready');
-                        else if (inCountdown) torpedoBox.classList.add('flashing');
-                    }
-                }
-
-                if (i === launcher.currentBox && launcher.currentBox >= 0) {
-                    torpedoBox.classList.add('selected');
-                }
-            }
-
-            if (launcherContainerElement) {
-                launcherContainerElement.classList.remove('selected');
-                if (launcher.id === this.selectedLauncher) {
-                    launcherContainerElement.classList.add('selected');
-                }
-            }
-        });
-    }
 
     showTubeInformation(tubeNumber) {
         const tube = this.torpedoTubes[tubeNumber - 1];
@@ -6003,80 +5639,7 @@ class Submarine {
         else return 1.2; // 20% slower if far from reticle
     }
 
-    launchTorpedo() {
-        // Check if we have a selected launcher and current chamber has torpedo
-        const launcher = this.launchers[this.selectedLauncher - 1];
-        if (!launcher) {
-            console.log(`No launcher ${this.selectedLauncher} available`);
-            return;
-        }
-
-        // Box 0 is always empty, boxes 1-6 contain torpedoes
-        if (launcher.currentBox === 0 || launcher.currentBox === -1) {
-            console.log(`Box ${launcher.currentBox} in launcher ${this.selectedLauncher} is empty`);
-            return;
-        }
-        
-        const chamberIndex = launcher.currentBox - 1; // Box 1-6 maps to chamber 0-5
-        const currentTorpedoCode = launcher.chambers[chamberIndex];
-        if (!currentTorpedoCode || currentTorpedoCode === '') {
-            console.log(`Box ${launcher.currentBox} in launcher ${this.selectedLauncher} is empty`);
-            return;
-        }
-        
-        // Validate that this is actually a torpedo (not a noisemaker or mine)
-        const validTorpedoCodes = ['LT', 'MT', 'HT', 'DN'];
-        if (!validTorpedoCodes.includes(currentTorpedoCode)) {
-            console.log(`Invalid torpedo code in launcher: ${currentTorpedoCode}`);
-            return;
-        }
-
-        // DN (Drone) torpedoes don't require lock-on - they travel straight
-        const isDrone = currentTorpedoCode === 'DN';
-        
-        // Check if we have a lock-on (required for LT/MT/HT, not for DN)
-        if (!isDrone && (!this.torpedoLockSystem || !this.torpedoLockSystem.isLocked)) {
-            console.log('No target lock - cannot fire torpedo (DN drones don\'t need lock)');
-            return;
-        }
-
-        const torpedoType = this.getFullTorpedoType(currentTorpedoCode);
-
-        // Create and launch torpedo (smart torpedo for LT/MT/HT, drone for DN)
-        let torpedo;
-        if (isDrone) {
-            // DN drones travel straight, no target needed
-            torpedo = this.createDroneTorpedo();
-        } else {
-            // LT/MT/HT torpedoes use smart torpedo system with target
-            torpedo = this.createSmartTorpedo(torpedoType, this.torpedoLockSystem.target);
-        }
-
-        // Trigger torpedo launch signature spike
-        this.torpedoLaunchSignature.active = true;
-        this.torpedoLaunchSignature.startTime = Date.now();
-        
-        // Play torpedo launch sound
-        this.audioManager.playTorpedoLaunch();
-
-        // Clear current chamber
-        launcher.chambers[chamberIndex] = '';
-
-        // Reset lock system (only if not a drone)
-        if (!isDrone) {
-        this.torpedoLockSystem = {
-            target: null,
-            lockProgress: 0,
-            lockStartTime: 0,
-            isLocked: false
-        };
-        }
-
-        console.log(`${torpedoType} launched from launcher ${this.selectedLauncher}, box ${launcher.currentBox}`);
-
-        // Update visual display
-        this.updateLauncherDisplay();
-    }
+    // Legacy launchTorpedo() (revolver-based) is no longer used.
 
     autoReloadTube(tubeNumber) {
         const tube = this.torpedoTubes[tubeNumber - 1];
@@ -8533,13 +8096,10 @@ class Submarine {
         // Cycle to next contact
         this.selectedSonarContact = (this.selectedSonarContact + 1) % contacts.length;
 
-        // Start automatic lock-on for selected contact
+        // Start automatic lock-on for selected contact if any launcher has a ready torpedo
         const selectedContact = contacts[this.selectedSonarContact];
-        if (selectedContact && this.selectedLauncher > 0) {
-            const currentTorpedoCode = this.getCurrentTorpedoCode(this.selectedLauncher);
-            if (currentTorpedoCode && currentTorpedoCode !== '') {
-                this.startContactLockOn(selectedContact);
-            }
+        if (selectedContact && this.launchers && this.launchers.some(l => l.readyType)) {
+            this.startContactLockOn(selectedContact);
         }
 
         console.log(`Selected sonar contact ${this.selectedSonarContact + 1}/${contacts.length}`);
@@ -8551,10 +8111,8 @@ class Submarine {
     startContactLockOn(contact) {
         if (!contact) return;
 
-        const currentTorpedoCode = this.getCurrentTorpedoCode(this.selectedLauncher);
-        if (!currentTorpedoCode || currentTorpedoCode === '') return;
-
-        const torpedoType = this.getFullTorpedoType(currentTorpedoCode);
+        // Use a generic homing torpedo spec for lock timing (simplified model)
+        const torpedoType = 'LIGHT_TORPEDO';
         const torpedoSpec = TORPEDO_SPECIFICATIONS[torpedoType];
 
         // Calculate distance from contact to screen center (reticle position)
@@ -8866,29 +8424,173 @@ class Submarine {
             (this.torpedoLaunchSignature.signatureMultiplier - 1.0) * decayFactor;
     }
 
-    updateTorpedoLockSystem(deltaTime) {
-        if (!this.torpedoLockSystem || !this.torpedoLockSystem.target) return;
+    // Legacy torpedo lock system removed – homing is handled per-torpedo in weapons.js
 
-        const currentTime = Date.now();
-        const elapsedTime = currentTime - this.torpedoLockSystem.lockStartTime;
+    // NEW: Central magazine + launcher loading logic
+    updateTorpedoLoading(deltaTime) {
+        if (!this.launchers || this.launchers.length === 0) return;
 
-        // Calculate lock progress (0 to 1)
-        this.torpedoLockSystem.lockProgress = Math.min(1.0, elapsedTime / this.torpedoLockSystem.lockTime);
+        const now = Date.now();
+        let anyLoading = false;
 
-        // Check if fully locked
-        if (this.torpedoLockSystem.lockProgress >= 1.0) {
-            this.torpedoLockSystem.isLocked = true;
+        this.launchers.forEach(launcher => {
+            if (launcher.loadingType) {
+                anyLoading = true;
+                const elapsed = now - launcher.loadStartTime;
+                if (elapsed >= this.torpedoLoadDuration) {
+                    // Finish loading: move from loadingType into readyType
+                    launcher.readyType = launcher.loadingType;
+                    launcher.loadingType = null;
+                    launcher.loadStartTime = 0;
+                }
+            }
+        });
+
+        // While loading, add a bit of extra noise signature
+        if (anyLoading && this.sonarSignature) {
+            this.sonarSignature.current += 2;
+        }
+    }
+
+    // Handle arrow key double-tap for SCAV follow-cam
+    handleArrowKeyForSCAV(code) {
+        if (!window.gameState) window.gameState = {};
+        if (!window.gameState.keys) window.gameState.keys = {};
+        if (!this.arrowKeyTimestamps) this.arrowKeyTimestamps = {};
+
+        const now = Date.now();
+        const last = this.arrowKeyTimestamps[code] || 0;
+        const doubleTapThreshold = 300; // ms
+
+        // Update key state for SCAV steering
+        const keyMap = {
+            ArrowLeft: 'left',
+            ArrowRight: 'right',
+            ArrowUp: 'up',
+            ArrowDown: 'down'
+        };
+        const mapped = keyMap[code];
+        if (mapped) {
+            window.gameState.keys[mapped] = true;
         }
 
-        // If changing launchers, reset lock progress
-        const currentTorpedoCode = this.getCurrentTorpedoCode(this.selectedLauncher);
-        if (!currentTorpedoCode || currentTorpedoCode === '') {
-            this.torpedoLockSystem = {
-                target: null,
-                lockProgress: 0,
-                lockStartTime: 0,
-                isLocked: false
-            };
+        if (now - last < doubleTapThreshold) {
+            // Double-tap detected: toggle follow-cam on active SCAV torpedo
+            const ws = window.getWeaponsSystem ? window.getWeaponsSystem() : null;
+            const activeSCAV = ws ? ws.activeWireGuidedTorpedo : null;
+            if (window.gameState.followCamTarget) {
+                window.gameState.followCamTarget = null;
+            } else if (activeSCAV) {
+                window.gameState.followCamTarget = activeSCAV;
+            }
+        }
+
+        this.arrowKeyTimestamps[code] = now;
+    }
+
+    // Map number keys 1–9 to launcher slots and torpedo types
+    handleTorpedoKey(number) {
+        if (!this.launchers || this.launchers.length === 0) return;
+
+        let launcherIndex = -1;
+        let typeCode = null;
+
+        // Launcher 1: 1=H, 2=S, 3=I
+        if (number >= 1 && number <= 3) {
+            launcherIndex = 0;
+            typeCode = number === 1 ? 'H' : number === 2 ? 'S' : 'I';
+        }
+        // Launcher 2: 4=H, 5=S, 6=I
+        else if (number >= 4 && number <= 6) {
+            launcherIndex = 1;
+            typeCode = number === 4 ? 'H' : number === 5 ? 'S' : 'I';
+        }
+        // Launcher 3: 7=H, 8=S, 9=I
+        else if (number >= 7 && number <= 9) {
+            launcherIndex = 2;
+            typeCode = number === 7 ? 'H' : number === 8 ? 'S' : 'I';
+        }
+
+        if (launcherIndex < 0 || launcherIndex >= this.launchers.length || !typeCode) return;
+
+        this.startTorpedoLoad(launcherIndex, typeCode);
+    }
+
+    startTorpedoLoad(launcherIndex, typeCode) {
+        const launcher = this.launchers[launcherIndex];
+        if (!launcher) return;
+
+        // If same type already ready and not loading, nothing to do
+        if (launcher.readyType === typeCode && !launcher.loadingType) {
+            this.currentSelectedLauncherIndex = launcherIndex;
+            return;
+        }
+
+        // Unload current and start new 10s load
+        launcher.readyType = null;
+        launcher.loadingType = typeCode;
+        launcher.loadStartTime = Date.now();
+
+        // Mark this launcher as selected and next to fire
+        this.currentSelectedLauncherIndex = launcherIndex;
+        this.currentFireLauncherIndex = launcherIndex;
+    }
+
+    // Left-click torpedo firing: cycle launchers 1→2→3 firing any ready slots
+    fireNextLauncherTorpedo() {
+        if (!this.launchers || this.launchers.length === 0) return;
+        if (!window.weaponsSystem || !window.weaponsSystem.tubes) return;
+
+        const typeMap = {
+            H: 'MHD_CONVENTIONAL',
+            S: 'SUPERCAVITATING',
+            I: 'INTERCEPTOR_TORPEDOES'
+        };
+        const modeMap = {
+            H: 'ACTIVE',
+            S: 'WIRE_GUIDED',
+            I: 'PASSIVE'
+        };
+
+        let index = this.currentFireLauncherIndex || 0;
+        let attempts = this.launchers.length;
+
+        while (attempts-- > 0) {
+            const launcher = this.launchers[index];
+            if (launcher && launcher.readyType) {
+                const slotType = launcher.readyType;
+                const torpedoType = typeMap[slotType];
+                const homingMode = modeMap[slotType];
+
+                const tubeKey = `tube${launcher.id}`;
+                const tube = window.weaponsSystem.tubes[tubeKey];
+                if (!tube || !torpedoType) {
+                    // Move on to next launcher
+                    index = (index + 1) % this.launchers.length;
+                    continue;
+                }
+
+                window.weaponsSystem.selectedTube = tubeKey;
+                tube.torpedoType = torpedoType;
+                tube.homingMode = homingMode;
+
+                if (window.weaponsSystem.fire()) {
+                    // Mark launcher empty after firing
+                    launcher.readyType = null;
+                    launcher.loadingType = null;
+                    launcher.loadStartTime = 0;
+
+                    // Trigger launch signature
+                    this.triggerTorpedoLaunch();
+
+                    // Next fire will start from the following launcher
+                    this.currentFireLauncherIndex = (index + 1) % this.launchers.length;
+                    this.currentSelectedLauncherIndex = index;
+                    return;
+                }
+            }
+
+            index = (index + 1) % this.launchers.length;
         }
     }
 
@@ -9015,36 +8717,35 @@ class Submarine {
 
         if (!reticleTubeInfo || !reticleLockStatus) return;
 
-        // Use revolver launcher system instead of old torpedo tube system
-        if (this.selectedLauncher > 0 && this.selectedLauncher <= this.launchers.length) {
-            const launcher = this.launchers[this.selectedLauncher - 1];
-            const currentTorpedoCode = this.getCurrentTorpedoCode(this.selectedLauncher);
-            
-            if (currentTorpedoCode && currentTorpedoCode !== '') {
-                // Show launcher with current torpedo type
-                const torpedoType = this.getFullTorpedoType(currentTorpedoCode);
-                reticleTubeInfo.textContent = `Launcher ${this.selectedLauncher} [${currentTorpedoCode}]`;
+        if (!this.launchers || this.launchers.length === 0) {
+            reticleTubeInfo.textContent = 'No Launchers';
+            reticleTubeInfo.classList.remove('locked');
+            reticleLockStatus.textContent = '';
+            return;
+        }
 
-                // Update lock status
-                if (this.torpedoLockSystem && this.torpedoLockSystem.isLocked) {
-                    reticleTubeInfo.classList.add('locked');
-                    reticleLockStatus.textContent = 'LOCKED';
-                } else if (this.torpedoLockSystem && this.torpedoLockSystem.lockProgress > 0) {
-                    reticleTubeInfo.classList.remove('locked');
-                    const progress = Math.round(this.torpedoLockSystem.lockProgress * 100);
-                    reticleLockStatus.textContent = `Locking... ${progress}%`;
-                } else {
-                    reticleTubeInfo.classList.remove('locked');
-                    reticleLockStatus.textContent = '';
-                }
-            } else {
-                // Show launcher with empty chamber
-                reticleTubeInfo.textContent = `Launcher ${this.selectedLauncher} [Empty]`;
-                reticleTubeInfo.classList.remove('locked');
-                reticleLockStatus.textContent = '';
-            }
+        const now = Date.now();
+        const index = Math.min(this.currentSelectedLauncherIndex || 0, this.launchers.length - 1);
+        const launcher = this.launchers[index];
+
+        // Determine what to show under the reticle based on loading/ready state
+        if (launcher.loadingType) {
+            // Flashing letter while loading
+            const visible = (Math.floor(now / 250) % 2) === 0;
+            reticleTubeInfo.textContent = `Launcher ${launcher.id} [${launcher.loadingType}]`;
+            reticleTubeInfo.style.visibility = visible ? 'visible' : 'hidden';
+            reticleLockStatus.textContent = 'LOADING...';
+            reticleTubeInfo.classList.remove('locked');
+        } else if (launcher.readyType) {
+            // Solid letter when ready to fire
+            reticleTubeInfo.style.visibility = 'visible';
+            reticleTubeInfo.textContent = `Launcher ${launcher.id} [${launcher.readyType}]`;
+            reticleLockStatus.textContent = '';
+            reticleTubeInfo.classList.add('locked');
         } else {
-            reticleTubeInfo.textContent = 'No Launcher Selected';
+            // Empty launcher
+            reticleTubeInfo.style.visibility = 'visible';
+            reticleTubeInfo.textContent = `Launcher ${launcher.id} [Empty]`;
             reticleTubeInfo.classList.remove('locked');
             reticleLockStatus.textContent = '';
         }
