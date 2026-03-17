@@ -1664,8 +1664,8 @@ class Submarine {
 
         // Movement state - New control scheme
         this.keys = {
-            pitchDown: false,      // W - pitch down (dive)
-            pitchUp: false,        // S - pitch up (climb)
+            pitchDown: false,
+            pitchUp: false,
             yawLeft: false,        // A - yaw left
             yawRight: false,       // D - yaw right
             decreaseDepth: false,  // Q - decrease depth (up)
@@ -4089,10 +4089,10 @@ class Submarine {
 
         switch (event.code) {
         case 'KeyW':
-            this.keys.pitchDown = true; // Pitch down (dive)
+            this.keys.throttleUp = true; // Increase throttle
             break;
         case 'KeyS':
-            this.keys.pitchUp = true; // Pitch up (climb)
+            this.keys.throttleDown = true; // Decrease throttle
             break;
         case 'KeyA':
             this.handleYawInput('left', true);
@@ -4208,10 +4208,10 @@ class Submarine {
     handleKeyUp(event) {
         switch (event.code) {
         case 'KeyW':
-            this.keys.pitchDown = false;
+            this.keys.throttleUp = false;
             break;
         case 'KeyS':
-            this.keys.pitchUp = false;
+            this.keys.throttleDown = false;
             break;
         case 'KeyA':
             this.handleYawInput('left', false);
@@ -4410,51 +4410,28 @@ class Submarine {
     handleWheel(event) {
         event.preventDefault();
 
-        // Advanced throttle progression: 1 knot (0-5), 2 knots (5-10), 5 knots (10+)
-        const wheelDirection = event.deltaY > 0 ? -1 : 1; // -1 for down/reverse, +1 for up/forward
-        const currentKnots = Math.abs(this.currentThrust);
+        // NEW: Mouse wheel controls camera zoom instead of throttle
+        if (!window.gameState) window.gameState = {};
+        if (!window.gameState.camera) return;
 
-        let knotChange;
-        if (currentKnots < 5) {
-            knotChange = 1; // 1 knot increments when below 5 knots
-        } else if (currentKnots < 10) {
-            knotChange = 2; // 2 knot increments when 5-10 knots
-        } else {
-            knotChange = 5; // 5 knot increments when above 10 knots
+        const specs = this.specs || SUBMARINE_SPECIFICATIONS[this.submarineClass] || {};
+        const hullLength = specs.hullLength || 20;
+
+        // Default over-the-shoulder: 3 hull lengths back, 1 hull length above
+        const defaultBack = 3 * hullLength;
+        const defaultUp = 1 * hullLength;
+
+        if (window.gameState.cameraBaseOffset === undefined) {
+            window.gameState.cameraBaseOffset = {
+                back: defaultBack,
+                up: defaultUp
+            };
+            window.gameState.cameraZoom = 1.0;
         }
 
-        // Calculate theoretical new thrust
-        const newThrust = this.currentThrust + (wheelDirection * knotChange);
-
-        // Deadzone around zero: require multiple wheel clicks to move away from zero
-        if (this.currentThrust === 0) {
-            // At zero speed - accumulate wheel inputs
-            this.wheelDeadzone.inputBuffer += wheelDirection;
-            
-            // Only change speed if we've accumulated enough inputs to break deadzone
-            if (Math.abs(this.wheelDeadzone.inputBuffer) > this.wheelDeadzone.range) {
-                // Break out of deadzone
-                const direction = Math.sign(this.wheelDeadzone.inputBuffer);
-                this.currentThrust = direction * knotChange;
-                this.wheelDeadzone.inputBuffer = 0; // Reset buffer
-                console.log(`🚢 Breaking deadzone: ${this.currentThrust} knots`);
-            } else {
-                console.log(`🚢 Deadzone: ${this.wheelDeadzone.inputBuffer}/${this.wheelDeadzone.range} inputs buffered`);
-                return; // Stay at zero
-            }
-        } else if (newThrust === 0 || (this.currentThrust > 0 && newThrust < 0) || (this.currentThrust < 0 && newThrust > 0)) {
-            // Moving toward or through zero - go directly to zero
-            this.currentThrust = 0;
-            this.wheelDeadzone.inputBuffer = 0; // Reset buffer when reaching zero
-            console.log(`🚢 Throttle: 0 knots (stopped)`);
-        } else {
-            // Normal speed change away from zero
-            this.currentThrust = Math.max(-100, Math.min(100, newThrust));
-            this.wheelDeadzone.inputBuffer = 0; // Reset buffer when away from zero
-            console.log(`🚢 Throttle: ${this.currentThrust} knots (change: ${wheelDirection > 0 ? '+' : ''}${wheelDirection * knotChange})`);
-        }
-
-        this.targetSpeed = this.currentThrust; // Set target speed, actual speed will gradually approach this
+        const zoomStep = 0.08;
+        const direction = event.deltaY > 0 ? 1 : -1; // wheel down = zoom out, up = zoom in
+        window.gameState.cameraZoom = Math.max(0, Math.min(2.5, window.gameState.cameraZoom + direction * zoomStep));
     }
 
     update(deltaTime = 0.016) {

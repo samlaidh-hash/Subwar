@@ -377,44 +377,64 @@ function updateCamera() {
             gameState.camera.lookAt(torpPos);
             return;
         }
-        // Lock camera focus on submarine with dynamic positioning
+        // Lock camera focus on submarine: zoom 0 = FPV on nose, 1 = OTS, max = full mission overview
         if (window.playerSubmarine && window.playerSubmarine()) {
             const submarine = window.playerSubmarine();
             const submarinePos = submarine.getPosition();
+            const submarineMesh = submarine.mesh;
 
-            // Speed-based camera positioning: every 5 knots increases distance by +0.2 units
-            const baseDistance = 8; // Basic camera position at speed 0
-            const currentSpeed = Math.abs(submarine.speed || 0);
+            const specs = submarine.specs || (window.SUBMARINE_SPECIFICATIONS && SUBMARINE_SPECIFICATIONS[submarine.submarineClass]) || {};
+            const hullLength = specs.hullLength || 20;
 
-            // Add dead zone: treat speeds under 3 knots as 0
-            const adjustedSpeed = currentSpeed < 3 ? 0 : currentSpeed;
+            // Sub forward in world (local +X in sub mesh)
+            const forward = new THREE.Vector3(1, 0, 0).applyQuaternion(submarineMesh.quaternion);
 
-            const speedIntervals = Math.floor(adjustedSpeed / 5); // Number of 5-knot intervals
-            const distanceIncrease = speedIntervals * 0.2; // +0.2 units per interval
-            const dynamicDistance = baseDistance + distanceIncrease;
+            const zoom = (gameState.cameraZoom !== undefined) ? gameState.cameraZoom : 1.0;
 
-            // Debug the distance calculation occasionally
-            if (Math.random() < 0.02) {
-                console.log(`🎯 Speed=${currentSpeed.toFixed(1)} → Adjusted=${adjustedSpeed.toFixed(1)} → Distance=${dynamicDistance.toFixed(1)}`);
+            // Mission area half-extent (map bounds ±35km) – distance needed to see full width with ~75° FOV
+            const MISSION_HALF = 35000;
+            const overviewDistance = MISSION_HALF / Math.tan((75 * 0.5 * Math.PI) / 180);
+
+            let targetPos;
+            let lookAt;
+
+            if (zoom <= 0) {
+                // FPV on the nose: camera at bow, look ahead
+                const noseOffset = 0.5 * hullLength;
+                targetPos = submarinePos.clone().add(forward.clone().multiplyScalar(noseOffset));
+                lookAt = submarinePos.clone().add(forward.clone().multiplyScalar(noseOffset + 3 * hullLength));
+            } else if (zoom >= 2.5) {
+                // Full overview: far behind and above to see whole mission area
+                const back = overviewDistance;
+                const up = overviewDistance * 0.4;
+                const offset = new THREE.Vector3(-back, up, 0).applyQuaternion(submarineMesh.quaternion);
+                targetPos = submarinePos.clone().add(offset);
+                lookAt = submarinePos.clone();
+            } else if (zoom <= 1) {
+                // 0 < zoom <= 1: blend from FPV (nose) to OTS (3L back, 1L up)
+                const noseOffset = 0.5 * hullLength;
+                const nosePos = submarinePos.clone().add(forward.clone().multiplyScalar(noseOffset));
+                const baseBack = 3 * hullLength;
+                const baseUp = 1 * hullLength;
+                const otsOffset = new THREE.Vector3(-baseBack, baseUp, 0).applyQuaternion(submarineMesh.quaternion);
+                const otsPos = submarinePos.clone().add(otsOffset);
+                const t = zoom; // 0→1
+                targetPos = new THREE.Vector3().lerpVectors(nosePos, otsPos, t);
+                lookAt = submarinePos.clone();
+            } else {
+                // 1 < zoom < 2.5: blend from OTS to full overview
+                const baseBack = 3 * hullLength;
+                const baseUp = 1 * hullLength;
+                const t = (zoom - 1) / 1.5; // 0 at zoom=1, 1 at zoom=2.5
+                const behind = baseBack + t * (overviewDistance - baseBack);
+                const up = baseUp + t * (overviewDistance * 0.4 - baseUp);
+                const offset = new THREE.Vector3(-behind, up, 0).applyQuaternion(submarineMesh.quaternion);
+                targetPos = submarinePos.clone().add(offset);
+                lookAt = submarinePos.clone();
             }
 
-
-            // Position camera behind and above submarine
-            // Behind: negative Z in submarine's local space
-            // Above: positive Y offset
-            const behindDistance = dynamicDistance; // Distance behind submarine
-            const aboveHeight = 5; // Height above submarine (increased from 3)
-            const offset = new THREE.Vector3(0, aboveHeight, -behindDistance);
-            offset.applyQuaternion(submarine.mesh.quaternion);
-
-            const targetPos = submarinePos.clone().add(offset);
-            gameState.camera.position.lerp(targetPos, 0.8); // Faster following to reach target distance
-            gameState.camera.lookAt(submarinePos);
-
-            // Debug logging (remove after testing)
-            if (Math.random() < 0.01) { // Log occasionally to avoid spam
-                console.log('Camera following - Sub pos:', submarinePos, 'Camera pos:', gameState.camera.position);
-            }
+            gameState.camera.position.lerp(targetPos, 0.85);
+            gameState.camera.lookAt(lookAt);
         }
     } else if (gameState.cameraMode === 'free') {
         // Free camera mode
