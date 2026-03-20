@@ -22,6 +22,73 @@ body {
     height: 100vh;
 }
 
+/* G — frozen map snapshot: hide combat HUD, show legend overlay */
+body.map-snapshot-mode #sonarContacts,
+body.map-snapshot-mode #launcherDisplay,
+body.map-snapshot-mode #compass,
+body.map-snapshot-mode #scavPipper,
+body.map-snapshot-mode #reticleHUD,
+body.map-snapshot-mode #offScreenIndicators,
+body.map-snapshot-mode #minimapContainer,
+body.map-snapshot-mode #hullFacingsContainer,
+body.map-snapshot-mode #systemsSection,
+body.map-snapshot-mode #eliteRadarContainer,
+body.map-snapshot-mode #controls,
+body.map-snapshot-mode #infoPanelToggle,
+body.map-snapshot-mode #hullVariantHud {
+    display: none !important;
+    visibility: hidden !important;
+}
+
+/* Procedural hull id — top centre of reticle HUD */
+.hull-variant-hud {
+    position: absolute;
+    left: 50%;
+    top: 6px;
+    transform: translateX(-50%);
+    z-index: 1002;
+    font-size: 11px;
+    font-weight: bold;
+    color: #6ff;
+    text-shadow: 0 0 6px #000, 0 0 4px #0ff;
+    letter-spacing: 0.04em;
+    pointer-events: none;
+    white-space: nowrap;
+    max-width: 96vw;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.hull-variant-hud.hull-variant-hud--fixed {
+    color: #8899aa;
+}
+
+#mapSnapshotOverlay {
+    position: fixed;
+    top: 12px;
+    left: 12px;
+    z-index: 10050;
+    pointer-events: none;
+    color: #9fe;
+    font-size: 11px;
+    text-shadow: 0 0 4px #000, 0 0 8px #000;
+    max-width: 520px;
+}
+
+.map-snapshot-hud {
+    background: rgba(0, 24, 32, 0.75);
+    border: 1px solid #0aa;
+    padding: 10px 14px;
+    border-radius: 4px;
+}
+
+.map-snapshot-scale {
+    display: flex;
+    align-items: center;
+    margin-top: 6px;
+    font-size: 10px;
+}
+
 /* Legacy revolver launcher UI — torpedoes use central magazine + reticle HUD */
 #launcherDisplay {
     display: none !important;

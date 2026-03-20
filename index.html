@@ -236,6 +236,7 @@
 
         <!-- Advanced Reticle HUD System -->
         <div id="reticleHUD">
+            <div id="hullVariantHud" class="hull-variant-hud" title="[ and ] cycle procedural hull (COBRA)">HULL: —</div>
             <!-- Torpedo Data (below reticle) -->
             <div id="reticleTorpedoData">
                 <div id="reticleTubeInfo">Tube 1 [MT]</div>
@@ -315,13 +316,14 @@
             <button type="button" id="infoPanelToggle" class="info-panel-toggle" title="Toggle info panel (I)">Info [I]</button>
             <div class="info-panel-content">
                 <strong>Movement & Controls:</strong><br>
-                Mouse Move - Maneuver Icon (Steer) | Mouse Wheel - Throttle | W/S - Pitch Down/Up (Dive/Climb) | A/D - Yaw Left/Right<br>
-                Q - Decrease Depth | E - Increase Depth | Arrow Up/Down - Throttle Up/Down<br><br>
+                Follow cam: Mouse - Look around sub (pointer lock) | A/D - Yaw left/right (double-tap = hard turn) | W/S - Throttle | Mouse Wheel - Camera zoom<br>
+                [ / ] - Cycle procedural hull (COBRA) · ID shown top of reticle HUD<br>
+                Q - Shallower | E - Deeper | Arrow Up/Down - Throttle (alt)<br><br>
                 <strong>Weapons & Torpedoes:</strong><br>
                 SPACE - Fire Sequential Torpedo / Decoy | Keys 1-4 - Revolver Launcher (rotate/hold to fire)<br>
                 Key 0 - Deploy Noisemaker | Key 9 - Deploy Mine<br><br>
                 <strong>Sonar & Sensors:</strong><br>
-                R - Single Sonar Ping | O - Cycle Sonar Mode (Active/Passive) | TAB - Cycle Selected Sonar Contact | G - Active Sonar Ping<br><br>
+                R - Single Sonar Ping | O - Cycle Sonar Mode (Active/Passive) | TAB - Cycle Selected Sonar Contact<br><br>
                 <strong>Systems & Emergency:</strong><br>
                 C - Emergency Repair | - (Minus) - Toggle Towed Array<br><br>
                 <strong>Testing & Debug:</strong><br>
@@ -329,7 +331,8 @@
                 <strong>Terrain & Visualization:</strong><br>
                 V - Toggle Terrain Wireframe | U - Toggle Thermoclines | B - Terrain Wireframe Mode | N - Terrain Solid/Shader Mode<br><br>
                 <strong>Camera & View:</strong><br>
-                K - Toggle Camera Mode (Follow/Free) | G - Toggle full mission-area overview zoom | M - Toggle Fullscreen Map | Y - Time Acceleration (5x/Normal)<br><br>
+                K - Toggle Camera Mode (Follow/Free) | G - Frozen 70 km map snapshot (isometric, pan/zoom) | M - Fullscreen tactical map | Y - Time (5x/Normal)<br>
+                Procedural hull: <strong>[</strong> / <strong>]</strong> cycle · HUD shows <code>SWH-01</code>…<code>SWH-06</code> · or <code>?hull=3</code> · Oolite: <code>SUB_USE_OOLITE_MODEL = true</code><br><br>
                 <strong>Scenarios:</strong><br>
                 F1 - Patrol Mission | F2 - Stealth Operation | F3 - Combat Training | F4 - Rescue Mission<br><br>
                 <strong>Other:</strong><br>
@@ -345,6 +348,7 @@
     <!-- Local bathymetry data -->
     <script src="data/monterey_canyon_bathymetry.js"></script>
     <script src="js/game.js"></script>
+    <script src="js/procedural_sub_hulls.js"></script>
     <script src="js/submarine.js"></script>
     <script src="js/noaa_bathymetry_terrain.js"></script>
     <script src="js/simple_terrain_fix.js"></script>

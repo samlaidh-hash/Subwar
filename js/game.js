@@ -33,7 +33,19 @@ let gameState = {
     timeMultiplier: 1.0, // Time acceleration factor
     debugHideElements: false, // Debug toggle for hiding game elements (J key)
     cameraZoom: 1.0,
-    fullSpaceView: false
+    fullSpaceView: false,
+    /** G: frozen 70 km isometric map (terrain + thermoclines only). */
+    mapSnapshotMode: false,
+    mapOrthoCamera: null,
+    mapLookTarget: null,
+    mapCamDir: null,
+    mapOrthoHalfBase: 38000,
+    mapOrthoZoom: 1,
+    mapPanSpeed: 12,
+    mapFrozenSubPosition: null,
+    mapSubMarker: null,
+    mapSnapshotOverlay: null,
+    savedCameraState: null
 };
 
 // HUD Elements
@@ -247,40 +259,206 @@ function initThreeJS() {
 
 // Handle window resize
 function onWindowResize() {
+    const w = window.innerWidth;
+    const h = window.innerHeight;
     if (gameState.camera && gameState.renderer) {
-        gameState.camera.aspect = window.innerWidth / window.innerHeight;
+        gameState.camera.aspect = w / Math.max(1, h);
         gameState.camera.updateProjectionMatrix();
-        gameState.renderer.setSize(window.innerWidth, window.innerHeight);
+        gameState.renderer.setSize(w, h);
+    }
+    if (gameState.mapOrthoCamera) {
+        const aspect = w / Math.max(1, h);
+        const half = gameState.mapOrthoHalfBase * gameState.mapOrthoZoom;
+        gameState.mapOrthoCamera.left = -half * aspect;
+        gameState.mapOrthoCamera.right = half * aspect;
+        gameState.mapOrthoCamera.top = half;
+        gameState.mapOrthoCamera.bottom = -half;
+        gameState.mapOrthoCamera.updateProjectionMatrix();
     }
 }
 
 // Game loop
 function gameLoop() {
-    if (!gameState.isRunning || gameState.isPaused) {
+    if (!gameState.isRunning) {
         return;
     }
 
-    // Safety check for Three.js objects
-    if (!gameState.scene || !gameState.camera || !gameState.renderer) {
+    if (!gameState.scene || !gameState.renderer) {
         console.error('Missing Three.js objects in game loop');
         stopGame();
         return;
     }
 
     try {
-        // Update game logic with time acceleration
+        if (gameState.mapSnapshotMode) {
+            updateMapSnapshotCamera();
+            const cam = gameState.mapOrthoCamera || gameState.camera;
+            gameState.renderer.render(gameState.scene, cam);
+            gameState.animationId = requestAnimationFrame(gameLoop);
+            return;
+        }
+
+        if (gameState.isPaused) {
+            gameState.animationId = requestAnimationFrame(gameLoop);
+            return;
+        }
+
         const acceleratedDeltaTime = 0.016 * gameState.timeMultiplier;
         update(acceleratedDeltaTime);
-
-        // Render the scene
         gameState.renderer.render(gameState.scene, gameState.camera);
-
-        // Schedule next frame
         gameState.animationId = requestAnimationFrame(gameLoop);
-
     } catch (error) {
         console.error('Error in game loop:', error);
         stopGame();
+    }
+}
+
+function updateMapSnapshotCamera() {
+    if (!gameState.mapOrthoCamera || !gameState.mapLookTarget) return;
+    const cam = gameState.mapOrthoCamera;
+    const target = gameState.mapLookTarget;
+    const dist = 85000;
+    const dir = gameState.mapCamDir.clone().normalize();
+    cam.position.copy(target.clone().add(dir.multiplyScalar(dist)));
+    cam.lookAt(target);
+    cam.updateProjectionMatrix();
+}
+
+function enterMapSnapshotMode() {
+    const subFn = window.playerSubmarine;
+    const sub = subFn && subFn();
+    if (sub && sub.mesh) {
+        gameState.mapFrozenSubPosition = sub.getPosition().clone();
+    } else {
+        gameState.mapFrozenSubPosition = new THREE.Vector3(0, 0, 0);
+    }
+
+    if (window.simpleTerrain) {
+        window.simpleTerrain.setStreamingVisible(false);
+        window.simpleTerrain.ensureOverviewSnapshotGroup();
+        window.simpleTerrain.setOverviewVisible(true);
+    }
+
+    const aspect = window.innerWidth / Math.max(1, window.innerHeight);
+    const half = gameState.mapOrthoHalfBase * gameState.mapOrthoZoom;
+    if (!gameState.mapOrthoCamera) {
+        gameState.mapOrthoCamera = new THREE.OrthographicCamera(-half * aspect, half * aspect, half, -half, 10, 500000);
+    } else {
+        gameState.mapOrthoCamera.left = -half * aspect;
+        gameState.mapOrthoCamera.right = half * aspect;
+        gameState.mapOrthoCamera.top = half;
+        gameState.mapOrthoCamera.bottom = -half;
+    }
+    if (!gameState.mapLookTarget) {
+        gameState.mapLookTarget = new THREE.Vector3(0, 0, 0);
+    }
+    if (gameState.mapFrozenSubPosition) {
+        gameState.mapLookTarget.set(
+            gameState.mapFrozenSubPosition.x,
+            0,
+            gameState.mapFrozenSubPosition.z
+        );
+    }
+    if (!gameState.mapCamDir) {
+        gameState.mapCamDir = new THREE.Vector3(1, 0.85, 1);
+    }
+
+    gameState.savedCameraState = {
+        pos: gameState.camera.position.clone(),
+        quat: gameState.camera.quaternion.clone(),
+        near: gameState.camera.near,
+        far: gameState.camera.far,
+        fov: gameState.camera.fov,
+        aspect: gameState.camera.aspect
+    };
+
+    if (!gameState.mapSubMarker) {
+        const g = new THREE.SphereGeometry(350, 10, 10);
+        const m = new THREE.MeshBasicMaterial({ color: 0xff3366 });
+        gameState.mapSubMarker = new THREE.Mesh(g, m);
+        gameState.mapSubMarker.name = 'mapSnapshotSubMarker';
+    }
+    if (gameState.mapFrozenSubPosition) {
+        gameState.mapSubMarker.position.copy(gameState.mapFrozenSubPosition);
+    }
+    gameState.scene.add(gameState.mapSubMarker);
+
+    gameState._mapSnapSceneVis = [];
+    gameState.scene.children.forEach((ch) => {
+        const keep =
+            ch.name === 'overviewSnapshot70' ||
+            ch.type === 'AmbientLight' ||
+            ch.type === 'DirectionalLight' ||
+            ch.type === 'PointLight' ||
+            ch.type === 'HemisphereLight' ||
+            ch === gameState.mapSubMarker;
+        if (keep) return;
+        gameState._mapSnapSceneVis.push({ obj: ch, vis: ch.visible });
+        ch.visible = false;
+    });
+
+    document.body.classList.add('map-snapshot-mode');
+    if (!gameState.mapSnapshotOverlay) {
+        const el = document.createElement('div');
+        el.id = 'mapSnapshotOverlay';
+        el.innerHTML = `
+<div class="map-snapshot-hud">
+  <div><strong>MAP SNAPSHOT (frozen)</strong> — 70×70 km seabed + thermoclines @ 400 m &amp; 1100 m</div>
+  <div>Bounds: X,Z ± 35 km &nbsp;|&nbsp; North = −Z (Three.js −Z) &nbsp;|&nbsp; Scale bar: 10 km</div>
+  <div class="map-snapshot-scale"><span>0</span><span style="flex:1;border-top:2px solid #0ff;margin:6px 8px 0;"></span><span>10 km</span></div>
+  <div>Drag mouse: pan &nbsp;|&nbsp; Wheel: zoom &nbsp;|&nbsp; G or Esc: exit &nbsp;|&nbsp; P: exit</div>
+</div>`;
+        document.body.appendChild(el);
+        gameState.mapSnapshotOverlay = el;
+    } else {
+        gameState.mapSnapshotOverlay.style.display = 'block';
+    }
+
+    gameState.mapSnapshotMode = true;
+    gameState.isPaused = true;
+    updateStatus('Map snapshot [G / Esc / P to exit]');
+    console.log('🗺️ Map snapshot ON — simulation frozen');
+}
+
+function exitMapSnapshotMode() {
+    gameState.mapSnapshotMode = false;
+    gameState.isPaused = false;
+    if (gameState.mapSubMarker && gameState.mapSubMarker.parent) {
+        gameState.scene.remove(gameState.mapSubMarker);
+    }
+    if (gameState._mapSnapSceneVis) {
+        gameState._mapSnapSceneVis.forEach(({ obj, vis }) => {
+            obj.visible = vis;
+        });
+        gameState._mapSnapSceneVis = null;
+    }
+    if (window.simpleTerrain) {
+        window.simpleTerrain.setOverviewVisible(false);
+        window.simpleTerrain.setStreamingVisible(true);
+    }
+    document.body.classList.remove('map-snapshot-mode');
+    if (gameState.mapSnapshotOverlay) {
+        gameState.mapSnapshotOverlay.style.display = 'none';
+    }
+    if (gameState.savedCameraState && gameState.camera) {
+        const s = gameState.savedCameraState;
+        gameState.camera.position.copy(s.pos);
+        gameState.camera.quaternion.copy(s.quat);
+        gameState.camera.near = s.near;
+        gameState.camera.far = s.far;
+        gameState.camera.fov = s.fov;
+        gameState.camera.aspect = s.aspect;
+        gameState.camera.updateProjectionMatrix();
+    }
+    updateStatus('Map snapshot off');
+    console.log('🗺️ Map snapshot OFF');
+}
+
+function toggleMapSnapshotMode() {
+    if (gameState.mapSnapshotMode) {
+        exitMapSnapshotMode();
+    } else {
+        enterMapSnapshotMode();
     }
 }
 
@@ -569,10 +747,13 @@ function initInput() {
     document.addEventListener('mouseup', handleMouseUp);
     document.addEventListener('mousemove', handleMouseMove);
     document.addEventListener('contextmenu', (e) => e.preventDefault()); // Disable right-click menu
+    document.addEventListener('wheel', handleMapSnapshotWheel, { passive: false });
 
     // Set up pointer lock for mouse control
     document.addEventListener('click', () => {
-        document.body.requestPointerLock();
+        if (!gameState.mapSnapshotMode) {
+            document.body.requestPointerLock();
+        }
     });
 
     console.log('Input system initialized with mouse controls and pointer lock');
@@ -622,10 +803,7 @@ function handleKeyDown(event) {
         }
         break;
     case 'KeyG':
-        // Toggle full mission-area overview vs normal follow zoom
-        gameState.fullSpaceView = !gameState.fullSpaceView;
-        gameState.cameraZoom = gameState.fullSpaceView ? 2.5 : 1.0;
-        updateStatus(gameState.fullSpaceView ? 'View: full mission area [G]' : 'View: normal [G]');
+        toggleMapSnapshotMode();
         event.preventDefault();
         break;
     }
@@ -650,10 +828,12 @@ function handleKeyDown(event) {
         }
         break;
     case 'KeyP':
-        togglePause();
+        if (gameState.mapSnapshotMode) exitMapSnapshotMode();
+        else togglePause();
         break;
     case 'Escape':
-        togglePause();
+        if (gameState.mapSnapshotMode) exitMapSnapshotMode();
+        else togglePause();
         break;
     case 'KeyC':
         // Toggle camera mode
@@ -795,22 +975,6 @@ function handleKeyDown(event) {
         event.preventDefault();
         event.stopPropagation();
         break;
-    case 'KeyG':
-        // Active sonar ping for extended terrain visibility
-        console.log('🔊 G key pressed - Activating sonar ping');
-        if (window.oceanEnvironment && typeof window.oceanEnvironment === 'function') {
-            const oceanEnv = window.oceanEnvironment();
-            if (oceanEnv && oceanEnv.activateSonarPing) {
-                oceanEnv.activateSonarPing();
-            } else {
-                console.log('🔍 DEBUG: oceanEnvironment() returned null or missing activateSonarPing method');
-            }
-        } else {
-            console.log('❌ No ocean environment available for sonar ping');
-        }
-        event.preventDefault();
-        event.stopPropagation();
-        break;
     case 'Tab':
         // Cycle through sonar contacts
         event.preventDefault();
@@ -926,8 +1090,19 @@ function handleKeyUp(event) {
     }
 }
 
+function handleMapSnapshotWheel(event) {
+    if (!gameState.mapSnapshotMode || !gameState.mapOrthoCamera) return;
+    event.preventDefault();
+    const z = event.deltaY > 0 ? 1.06 : 1 / 1.06;
+    gameState.mapOrthoZoom = Math.max(0.25, Math.min(5, gameState.mapOrthoZoom * z));
+    onWindowResize();
+}
+
 // Mouse handlers
 function handleMouseDown(event) {
+    if (gameState.mapSnapshotMode) {
+        return;
+    }
     if (event.button === 0) { // Left click
         // Fire weapon
         if (window.fireWeapon) {
@@ -963,8 +1138,15 @@ function handleMouseUp(event) {
 }
 
 function handleMouseMove(event) {
-    // Only handle camera mouse movement when right-click is active AND game is running
-    // Don't interfere with submarine maneuver control
+    if (gameState.mapSnapshotMode && gameState.mapLookTarget && (event.buttons & 1)) {
+        const w = window.innerWidth;
+        const aspect = w / Math.max(1, window.innerHeight);
+        const half = gameState.mapOrthoHalfBase * gameState.mapOrthoZoom;
+        const k = (2 * half * aspect / Math.max(1, w)) * 0.35;
+        gameState.mapLookTarget.x -= event.movementX * k;
+        gameState.mapLookTarget.z -= event.movementY * k;
+        return;
+    }
     if (gameState.mouse.rightClickActive && gameState.mouse.isDown && gameState.isRunning) {
         const deltaX = event.clientX - gameState.mouse.x;
         const deltaY = event.clientY - gameState.mouse.y;

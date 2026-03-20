@@ -2153,9 +2153,8 @@ class Submarine {
 
             this.mesh.name = 'playerSubmarine';
 
-            // Bow / forward in game logic is local +X. If the mesh was authored with nose along +Z,
-            // a +90° Y rotation aligns nose with +X (fixes “90° to the right” heading error).
-            this.mesh.rotation.set(0, Math.PI / 2, 0);
+            // Procedural / fallback hulls are modeled with long axis +X; Oolite GLB may differ — set SUB_USE_OOLITE_MODEL + tweak if needed.
+            this.mesh.rotation.set(0, 0, 0);
             
             // Safe spawn depth: never below 85% of crush depth; default ~15% of max depth if shallow
             const specs = SUBMARINE_SPECIFICATIONS[this.submarineClass] || {};
@@ -2189,6 +2188,81 @@ class Submarine {
             console.log('Removing duplicate submarine model:', submarine.name || submarine.type);
             this.scene.remove(submarine);
         });
+
+        this.updateHullVariantHud();
+    }
+
+    usesProceduralHullRuntime() {
+        const c = this.submarineClass;
+        if (c !== 'COBRA' && c !== 'COBRA3') return false;
+        if (window.SUB_USE_OOLITE_MODEL) return false;
+        return typeof window.buildProceduralEliteHull === 'function';
+    }
+
+    disposeSubmarineMeshGroup(root) {
+        if (!root) return;
+        root.traverse((ch) => {
+            if (ch.geometry) ch.geometry.dispose();
+            if (ch.material) {
+                if (Array.isArray(ch.material)) {
+                    ch.material.forEach((m) => m.dispose());
+                } else {
+                    ch.material.dispose();
+                }
+            }
+        });
+    }
+
+    updateHullVariantHud() {
+        const el = document.getElementById('hullVariantHud');
+        if (!el) return;
+        if (!this.usesProceduralHullRuntime()) {
+            el.textContent = `HULL: ${this.submarineClass || '—'} (fixed)`;
+            el.classList.add('hull-variant-hud--fixed');
+            return;
+        }
+        el.classList.remove('hull-variant-hud--fixed');
+        const v = typeof window.SUB_HULL_VARIANT === 'number' ? window.SUB_HULL_VARIANT : 0;
+        const line = window.getHullVariantDisplayLabel
+            ? window.getHullVariantDisplayLabel(v)
+            : `Variant ${v}`;
+        el.textContent = `HULL: ${line}  ·  [  ] cycle`;
+    }
+
+    /**
+     * [ = previous, ] = next procedural hull (COBRA / COBRA3 only).
+     */
+    cycleProceduralHullVariant(delta) {
+        if (!this.usesProceduralHullRuntime() || !this.mesh) return;
+        const n = window.PROCEDURAL_HULL_COUNT || 6;
+        let v = typeof window.SUB_HULL_VARIANT === 'number' ? window.SUB_HULL_VARIANT : 0;
+        v += delta;
+        v = ((v % n) + n) % n;
+        window.SUB_HULL_VARIANT = v;
+
+        const pos = this.mesh.position.clone();
+        const quat = this.mesh.quaternion.clone();
+        const rot = this.mesh.rotation.clone();
+
+        this.scene.remove(this.mesh);
+        this.disposeSubmarineMeshGroup(this.mesh);
+
+        const mat = new THREE.MeshBasicMaterial({
+            color: 0x00ffff,
+            side: THREE.DoubleSide
+        });
+        this.mesh = window.buildProceduralEliteHull(mat, v);
+        this.mesh.name = 'playerSubmarine';
+        this.mesh.position.copy(pos);
+        this.mesh.quaternion.copy(quat);
+        this.mesh.rotation.copy(rot);
+        this.scene.add(this.mesh);
+
+        this.updateHullVariantHud();
+        const entry = window.getHullVariantCatalogEntry ? window.getHullVariantCatalogEntry(v) : { id: v };
+        if (window.updateStatus) {
+            window.updateStatus(`Hull: ${entry.id || v} (${entry.code || ''})`);
+        }
     }
 
     createSubmarineModel(submarineClass) {
@@ -3186,52 +3260,39 @@ class Submarine {
     }
 
     createCobraClass(material) {
-        // Cobra Mk III - Classic Oolite ship adapted as submarine
-        const group = new THREE.Group();
+        // Default: unique Elite-style procedural hulls (comment variants via window.SUB_HULL_VARIANT or ?hull=0..5).
+        // Set window.SUB_USE_OOLITE_MODEL = true to try async Oolite JSON instead.
+        if (!window.SUB_USE_OOLITE_MODEL && typeof window.buildProceduralEliteHull === 'function') {
+            console.log('🐍 COBRA-class: procedural Elite-style hull');
+            return window.buildProceduralEliteHull(material);
+        }
 
-        // Try to get Oolite loader
+        const group = new THREE.Group();
         let ooliteLoader = null;
         if (window.getOoliteLoader) {
             ooliteLoader = window.getOoliteLoader();
         }
-        
-        // If no loader exists, try to initialize it
         if (!ooliteLoader && window.initOoliteLoader && this.scene) {
-            console.log('🐍 Initializing Oolite loader...');
             ooliteLoader = window.initOoliteLoader(this.scene);
         }
 
-        // Try to load Oolite Cobra model if loader is available
         if (ooliteLoader && ooliteLoader.loadModel) {
-            console.log('🐍 Attempting to load Oolite Cobra model...');
-            
-            // Load the Cobra model asynchronously
             ooliteLoader.loadModel('models/cobra3.json', {
-                scale: 0.1, // Scale down from ship to submarine size
-                rotation: { x: 0, y: Math.PI, z: 0 }, // Face forward
+                scale: 0.1,
+                rotation: { x: 0, y: Math.PI, z: 0 },
                 material: material
             })
                 .then((cobraModel) => {
-                    console.log('🐍 Oolite Cobra model loaded successfully');
-                    
-                    // Clear any existing fallback geometry
                     group.clear();
-                    
-                    // Add the loaded model
                     group.add(cobraModel);
                 })
                 .catch((error) => {
-                    console.warn('⚠️ Failed to load Oolite Cobra model, using fallback:', error);
-                    // Don't clear group here since fallback is already added
+                    console.warn('⚠️ Oolite Cobra load failed, fallback geometry:', error);
                 });
-        } else {
-            console.log('🐍 Oolite loader not available, using fallback Cobra geometry');
         }
-        
-        // Always create fallback geometry first (will be replaced if Oolite model loads)
-        this.createCobraFallback(group, material);
 
-        console.log('🐍 COBRA-class submarine created');
+        this.createCobraFallback(group, material);
+        console.log('🐍 COBRA-class submarine created (Oolite / fallback)');
         return group;
     }
 
@@ -4128,6 +4189,14 @@ class Submarine {
                 console.log('🎯 Spawned enemy submarine 400m ahead');
             }
             break;
+        case 'BracketLeft':
+            event.preventDefault();
+            this.cycleProceduralHullVariant(-1);
+            break;
+        case 'BracketRight':
+            event.preventDefault();
+            this.cycleProceduralHullVariant(1);
+            break;
         case 'Minus':
             this.toggleTowedArray();
             break;
@@ -4293,96 +4362,33 @@ class Submarine {
         const scenarioOverlay = document.getElementById('scenarioOverlay');
         if (scenarioOverlay) {
             const computedStyle = window.getComputedStyle(scenarioOverlay);
-            const isVisible = computedStyle.display !== 'none' && 
+            const isVisible = computedStyle.display !== 'none' &&
                              !scenarioOverlay.classList.contains('hidden') &&
                              computedStyle.visibility !== 'hidden';
             if (isVisible) {
-                return; // Overlay is blocking - don't process mouse movement
+                return;
             }
         }
 
-        // Record mouse movement time for auto-drift
+        const gs = typeof window !== 'undefined' ? window.gameState : null;
+
+        // Free camera (K or RMB): mouse is handled by game.js — don't steer submarine from pointer
+        if (gs && gs.cameraMode === 'free') {
+            return;
+        }
+
+        // Follow mode: mouse orbits the chase camera (A/D handles submarine yaw)
+        if (gs && gs.cameraMode === 'follow' && document.pointerLockElement === document.body) {
+            if (!gs.mouse || !gs.mouse.rightClickActive) {
+                if (typeof gs.handleCameraMouseMove === 'function') {
+                    gs.handleCameraMouseMove(event);
+                }
+            }
+            return;
+        }
+
+        // Follow without pointer lock: keep maneuver icon centered (no screen-edge steering)
         this.maneuverIcon.lastMouseMoveTime = Date.now();
-
-        // Define center coordinates for screen position calculation
-        const centerX = window.innerWidth / 2;
-        const centerY = window.innerHeight / 2;
-
-        // Use pointer lock movement if available, otherwise fallback to client position
-        if (document.pointerLockElement === document.body) {
-            // Pointer lock mode - use movement deltas for relative control
-            const sensitivity = 0.002;
-            this.maneuverIcon.x += event.movementX * sensitivity;
-            this.maneuverIcon.y += event.movementY * sensitivity;
-            
-            // Clamp to bounds
-            this.maneuverIcon.x = Math.max(-this.maneuverIcon.maxDistance,
-                Math.min(this.maneuverIcon.maxDistance, this.maneuverIcon.x));
-            this.maneuverIcon.y = Math.max(-this.maneuverIcon.maxDistance,
-                Math.min(this.maneuverIcon.maxDistance, this.maneuverIcon.y));
-        } else {
-            // Fallback to client position mode
-            // Calculate normalized position (-1 to 1) - FIXED calculation
-            const normalizedX = (event.clientX - centerX) / centerX;
-            const normalizedY = (event.clientY - centerY) / centerY;
-
-            // Clamp to maximum distance and apply to maneuver icon
-            this.maneuverIcon.x = Math.max(-this.maneuverIcon.maxDistance,
-                Math.min(this.maneuverIcon.maxDistance, normalizedX));
-            this.maneuverIcon.y = Math.max(-this.maneuverIcon.maxDistance,
-                Math.min(this.maneuverIcon.maxDistance, normalizedY));
-        }
-
-        // Calculate distance from center (reticle)
-        const distance = Math.sqrt(this.maneuverIcon.x * this.maneuverIcon.x + this.maneuverIcon.y * this.maneuverIcon.y);
-
-        // Check if in dead zone
-        this.orientationControl.deadZoneActive = distance <= this.maneuverIcon.deadZoneRadius;
-
-        if (!this.orientationControl.deadZoneActive) {
-            // Calculate turn rate multiplier based on distance from reticle
-            this.orientationControl.turnRateMultiplier = Math.min(5.0, distance * 6.0); // Max 5x turn rate
-
-            // Calculate target orientation - DIRECT mouse control
-            // Left mouse move → rotate left (positive yaw in Three.js)
-            // Right mouse move → rotate right (negative yaw in Three.js)
-            // Up mouse move → pitch up (positive pitch in Three.js)
-            // Down mouse move → pitch down (negative pitch in Three.js)
-            // Note: maneuverIcon.x is positive when mouse is RIGHT of center
-            //       maneuverIcon.y is positive when mouse is BELOW center (screen Y inverted)
-            this.orientationControl.targetYaw = -this.maneuverIcon.x * Math.PI * 0.25; // Left = positive yaw, Right = negative yaw
-
-            // Pitch: vertical movement - up = positive pitch (nose up)
-            this.orientationControl.targetPitch = -this.maneuverIcon.y * Math.PI * 0.12; // Up = positive pitch, Down = negative pitch
-
-            // Roll: calculated from combined movement for banking effect
-            this.orientationControl.targetRoll = -this.maneuverIcon.x * Math.PI * 0.1; // Max 18 degrees roll
-        } else {
-            // In dead zone - gradually return to neutral (keep submarine level)
-            this.orientationControl.turnRateMultiplier = 0.1; // Very slow return to center
-            this.orientationControl.targetYaw = 0;
-            this.orientationControl.targetPitch = 0; // Keep submarine on horizontal plane
-            this.orientationControl.targetRoll = 0;
-        }
-
-        // Update screen coordinates
-        this.maneuverIcon.screenX = centerX + (this.maneuverIcon.x * centerX);
-        this.maneuverIcon.screenY = centerY + (this.maneuverIcon.y * centerY);
-
-        // Update visual position
-        if (this.maneuverIconElement) {
-            this.maneuverIconElement.style.left = (this.maneuverIcon.screenX - 10) + 'px';
-            this.maneuverIconElement.style.top = (this.maneuverIcon.screenY - 10) + 'px';
-
-            // Change icon color based on dead zone and turn intensity
-            if (this.orientationControl.deadZoneActive) {
-                this.maneuverIconElement.style.borderColor = '#888888'; // Gray in dead zone
-            } else if (distance > 0.6) {
-                this.maneuverIconElement.style.borderColor = '#ff8800'; // Orange for high turn rate
-            } else {
-                this.maneuverIconElement.style.borderColor = '#00ffff'; // Cyan for normal
-            }
-        }
     }
 
     handleMouseDown(event) {
@@ -4537,9 +4543,9 @@ class Submarine {
             this.mappingSystem.update();
         }
 
-        // Update AI behavior for NPC submarines
+        // Update AI behavior for NPC submarines (patrol/engage use moveTowardsPosition, not keyboard yaw)
         if (this.isNPC && this.ai && this.ai.enabled) {
-            this.updateAIBehavior(deltaTime);
+            this.updateAI(deltaTime);
         }
 
         // Check for knuckle formation (high turn rate)
@@ -4716,172 +4722,59 @@ class Submarine {
     }
 
     updateManeuverControl(deltaTime) {
-        // NEW RETICLE-BASED STEERING SYSTEM
-        // Submarine turns to align firing reticle with maneuver icon
+        // A/D keyboard yaw + mouse orbits chase camera (see handleMouseMove → handleCameraMouseMove).
 
-        // Check for SCAV mode activation/deactivation
         this.updateScavMode(deltaTime);
 
-        // Auto-drift maneuver icon back to center when no mouse input
-        const timeSinceLastMouseMove = Date.now() - this.maneuverIcon.lastMouseMoveTime;
-        if (timeSinceLastMouseMove > this.maneuverIcon.driftDelay) {
-            // Drift back to center
-            const driftAmount = this.maneuverIcon.driftSpeed * (deltaTime / 1000);
-
-            // Drift X back to 0
-            if (Math.abs(this.maneuverIcon.x) > 0.01) {
-                const driftX = Math.sign(this.maneuverIcon.x) * -driftAmount;
-                this.maneuverIcon.x += driftX;
-                // Clamp to 0 if we've drifted past center
-                if (Math.sign(this.maneuverIcon.x) !== Math.sign(this.maneuverIcon.x + driftX)) {
-                    this.maneuverIcon.x = 0;
-                }
-            } else {
-                this.maneuverIcon.x = 0;
-            }
-
-            // Drift Y back to 0
-            if (Math.abs(this.maneuverIcon.y) > 0.01) {
-                const driftY = Math.sign(this.maneuverIcon.y) * -driftAmount;
-                this.maneuverIcon.y += driftY;
-                // Clamp to 0 if we've drifted past center
-                if (Math.sign(this.maneuverIcon.y) !== Math.sign(this.maneuverIcon.y + driftY)) {
-                    this.maneuverIcon.y = 0;
-                }
-            } else {
-                this.maneuverIcon.y = 0;
-            }
-
-            // Update visual position to reflect drift
-            const centerX = window.innerWidth / 2;
-            const centerY = window.innerHeight / 2;
-            this.maneuverIcon.screenX = centerX + (this.maneuverIcon.x * centerX);
-            this.maneuverIcon.screenY = centerY + (this.maneuverIcon.y * centerY);
-
-            if (this.maneuverIconElement) {
-                this.maneuverIconElement.style.left = (this.maneuverIcon.screenX - 10) + 'px';
-                this.maneuverIconElement.style.top = (this.maneuverIcon.screenY - 10) + 'px';
-            }
+        // Keep maneuver dot centered (reticle aid only; no longer drives heading)
+        const centerX = window.innerWidth / 2;
+        const centerY = window.innerHeight / 2;
+        this.maneuverIcon.x = 0;
+        this.maneuverIcon.y = 0;
+        this.maneuverIcon.screenX = centerX;
+        this.maneuverIcon.screenY = centerY;
+        this.orientationControl.deadZoneActive = true;
+        this.orientationControl.turnRateMultiplier = 0.1;
+        this.orientationControl.targetYaw = 0;
+        this.orientationControl.targetPitch = 0;
+        this.orientationControl.targetRoll = 0;
+        if (this.maneuverIconElement) {
+            this.maneuverIconElement.style.left = (centerX - 10) + 'px';
+            this.maneuverIconElement.style.top = (centerY - 10) + 'px';
+            this.maneuverIconElement.style.borderColor = '#888888';
         }
 
-        // FREELANCER-STYLE STEERING (Adapted from brihernandez/FreelancerFlightExample)
-        // Calculate distance from center for dead zone
-        const iconDistance = Math.sqrt(this.maneuverIcon.x * this.maneuverIcon.x + this.maneuverIcon.y * this.maneuverIcon.y);
-        const inDeadZone = iconDistance <= this.maneuverIcon.deadZoneRadius;
+        // Straight-and-level: roll on X, pitch on Z (matches prior Freelancer-style steering)
+        const levelSpeed = 2.0;
+        if (Math.abs(this.mesh.rotation.x) > 0.0005) {
+            this.mesh.rotation.x = THREE.MathUtils.lerp(this.mesh.rotation.x, 0, deltaTime * levelSpeed);
+        } else {
+            this.mesh.rotation.x = 0;
+        }
+        if (Math.abs(this.mesh.rotation.z) > 0.0005) {
+            this.mesh.rotation.z = THREE.MathUtils.lerp(this.mesh.rotation.z, 0, deltaTime * levelSpeed);
+        } else {
+            this.mesh.rotation.z = 0;
+        }
 
-        // Check if mouse is over reticle (larger threshold for gentle stabilization)
-        const reticleThreshold = 0.10; // Slightly tighter threshold so small inputs register as steering
-        const isOverReticle = iconDistance <= reticleThreshold;
-
-        // Get camera if available
-        const camera = window.gameState ? window.gameState.camera : null;
-
-        // If over reticle or in dead zone, stabilize submarine (straight and level)
-        if (isOverReticle || inDeadZone) {
-            // Gradually return to straight and level flight
-            const stabilizationSpeed = isOverReticle ? 2.0 : 1.0; // Faster when over reticle
-            
-            // Stabilize pitch (return to 0)
-            if (Math.abs(this.mesh.rotation.x) > 0.001) {
-                this.mesh.rotation.x = THREE.MathUtils.lerp(this.mesh.rotation.x, 0, deltaTime * stabilizationSpeed);
-            } else {
-                this.mesh.rotation.x = 0;
+        // Keyboard yaw (A/D, double-tap = drag turn)
+        let yawDir = 0;
+        if (this.keys.yawLeft || this.keys.dragTurnLeft) yawDir += 1;
+        if (this.keys.yawRight || this.keys.dragTurnRight) yawDir -= 1;
+        if (yawDir !== 0) {
+            const specNorm = (this.getEffectiveTurnRate && this.getEffectiveTurnRate()) || this.baseTurnRate || 0.008;
+            const baseline = 0.008;
+            let yawRadPerSec = 1.25 * (specNorm / baseline);
+            const dragBoost = (this.keys.dragTurnLeft || this.keys.dragTurnRight) ? (this.dragTurnMultiplier || 1.3) : 1;
+            if (this.scavMode.active) {
+                yawRadPerSec *= this.scavMode.maneuverabilityPenalty;
             }
-            
-            // Stabilize roll (return to 0)
-            if (Math.abs(this.mesh.rotation.z) > 0.001) {
-                this.mesh.rotation.z = THREE.MathUtils.lerp(this.mesh.rotation.z, 0, deltaTime * stabilizationSpeed);
-            } else {
-                this.mesh.rotation.z = 0;
-            }
-            
-            // Stabilize yaw (keep current heading, but stop any drift)
-            // Don't change yaw when over reticle or in dead zone - maintain current heading
-            
-            // Ensure maneuver icon is exactly centered when over reticle
-            if (isOverReticle && (Math.abs(this.maneuverIcon.x) > 0.001 || Math.abs(this.maneuverIcon.y) > 0.001)) {
-                this.maneuverIcon.x = 0;
-                this.maneuverIcon.y = 0;
-                const centerX = window.innerWidth / 2;
-                const centerY = window.innerHeight / 2;
-                this.maneuverIcon.screenX = centerX;
-                this.maneuverIcon.screenY = centerY;
-                if (this.maneuverIconElement) {
-                    this.maneuverIconElement.style.left = (centerX - 10) + 'px';
-                    this.maneuverIconElement.style.top = (centerY - 10) + 'px';
-                }
-            }
-        } else if (camera) {
-            // SIMPLE DIRECT SCREEN-SPACE STEERING
-            // Map maneuver icon directly to pitch/yaw so the sub always turns TOWARD the mouse.
-            // Right of reticle → turn right, Left → turn left
-            // Above reticle → nose up, Below → nose down
-
-            const inputThreshold = 0.03;
-
-            // Horizontal input: +1 when mouse is RIGHT of center, -1 when LEFT
-            let yawInput = -this.maneuverIcon.x;
-            // Vertical input: +1 when mouse is ABOVE center (nose up), -1 when BELOW
-            let pitchInput = -this.maneuverIcon.y;
-
-            // Deadzone for small inputs
-            if (Math.abs(yawInput) < inputThreshold) yawInput = 0;
-            if (Math.abs(pitchInput) < inputThreshold) pitchInput = 0;
-
-            const yawSensitivity = 1.8;
-            const pitchSensitivity = 1.8;
-            const rollSensitivity = 1.5;
-
-            // Apply pitch (model uses Z rotation for pitch)
-            if (pitchInput !== 0) {
-                this.mesh.rotation.z += pitchInput * pitchSensitivity * deltaTime;
-            }
-
-            // Apply yaw (Y rotation)
-            if (yawInput !== 0) {
-                this.mesh.rotation.y += yawInput * yawSensitivity * deltaTime;
-            }
-
-            // Clamp pitch to reasonable limits
-            this.mesh.rotation.z = Math.max(Math.min(this.mesh.rotation.z, Math.PI / 3), -Math.PI / 3);
-
-            // Normalize yaw rotation
+            this.mesh.rotation.y += yawDir * yawRadPerSec * dragBoost * deltaTime;
             while (this.mesh.rotation.y > Math.PI) this.mesh.rotation.y -= 2 * Math.PI;
             while (this.mesh.rotation.y < -Math.PI) this.mesh.rotation.y += 2 * Math.PI;
-
-            // STEP 5: Banking based on horizontal screen position (like BankShipRelativeToUpVector)
-            // Calculate signed angle between submarine up and camera up
-            const subUp = new THREE.Vector3(0, 1, 0).applyQuaternion(this.mesh.quaternion);
-            const cameraUp = new THREE.Vector3(0, 1, 0).applyQuaternion(camera.quaternion);
-            const subForward = new THREE.Vector3(1, 0, 0).applyQuaternion(this.mesh.quaternion);
-
-            // Project both up vectors onto plane perpendicular to forward
-            const subUpProjected = subUp.clone().sub(subForward.clone().multiplyScalar(subUp.dot(subForward))).normalize();
-            const cameraUpProjected = cameraUp.clone().sub(subForward.clone().multiplyScalar(cameraUp.dot(subForward))).normalize();
-
-            // Calculate angle between projected vectors
-            const cross = new THREE.Vector3().crossVectors(cameraUpProjected, subUpProjected);
-            const dot = cameraUpProjected.dot(subUpProjected);
-            const angle = Math.atan2(cross.length(), dot);
-            const sign = Math.sign(cross.dot(subForward));
-            const signedAngle = angle * sign;
-
-            // Apply banking proportional to horizontal input and current speed
-            const horizontalInput = this.maneuverIcon.x;
-            const speedFactor = Math.min(1.0, Math.abs(this.speed) / this.maxSpeed);
-            const targetRoll = -horizontalInput * (Math.PI / 4) * speedFactor; // Max 45° bank
-
-            // Smooth roll interpolation
-            const rollDiff = targetRoll - this.mesh.rotation.x;
-            this.mesh.rotation.x += rollDiff * rollSensitivity * deltaTime;
-
-        } else {
-            // In dead zone - auto-level submarine
-            this.mesh.rotation.x *= (1 - deltaTime * 2); // Auto-level roll
-            this.mesh.rotation.z *= (1 - deltaTime * 2); // Auto-level pitch
         }
 
-        // Apply movement based on maneuver icon position and thrust
+        // Forward movement along nose (+X local)
         if (Math.abs(this.speed) > 0.01) { // Lower threshold for movement
             let effectiveSpeed = this.speed;
 
@@ -4891,12 +4784,8 @@ class Submarine {
             }
 
             const moveSpeed = 1.03; // Realistic speed scaling: 100 knots = 51.44 m/s, scaled to 53.03 m/s for 70km in 22 minutes
-            const iconDistance = Math.sqrt(this.maneuverIcon.x * this.maneuverIcon.x + this.maneuverIcon.y * this.maneuverIcon.y);
-            const iconInDeadZone = iconDistance <= this.maneuverIcon.deadZoneRadius;
 
-            // FREELANCER-STYLE MOVEMENT
-            // Submarine ALWAYS moves in the direction its nose is pointing
-            // Icon position controls rotation only, not direct movement
+            // Submarine moves in the direction its nose is pointing
             const forwardDirection = new THREE.Vector3(1, 0, 0);
             forwardDirection.applyQuaternion(this.mesh.quaternion);
             const totalMovement = forwardDirection.multiplyScalar(effectiveSpeed * moveSpeed * deltaTime);

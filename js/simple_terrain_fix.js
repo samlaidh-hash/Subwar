@@ -16,6 +16,22 @@ class SimpleTerrain {
         this.useFallbackMaterial = false; // Use shader material by default
         /** Set true only when debugging terrain — adds pale planes, boxes, and marker spam (hurts FPS). */
         this.debugTerrainOverlays = false;
+
+        /** Local 2×2 km streaming seabed + thermoclines (full 70 km uses same height function). */
+        this.terrainStreamingEnabled = true;
+        this.streamPatchSize = 2000;
+        this.streamSegments = 40;
+        this.streamBlendDuration = 0.22;
+        this.streamRecenterDist = 650;
+        this._streamPrimary = null;
+        this._streamSecondary = null;
+        this._streamBlendT = 1;
+        this._streamAnchorX = 0;
+        this._streamAnchorZ = 18000;
+        this._streamSwapping = false;
+        this.streamingRoot = null;
+        /** Cached 70 km snapshot for map review (see game.js map snapshot mode). */
+        this.overviewTerrainGroup = null;
     }
 
     createTerrain() {
@@ -125,6 +141,10 @@ class SimpleTerrain {
     }
 
     createEmergencyTerrain() {
+        if (this.terrainStreamingEnabled) {
+            this.createEmergencyTerrainStreaming();
+            return;
+        }
         try {
             console.log('🌊 Creating SIMPLE terrain with realistic noise pattern...');
             console.log('🚨 DEBUG: Starting createEmergencyTerrain()...');
@@ -587,10 +607,239 @@ class SimpleTerrain {
     }
 
     update(deltaTime) {
-        // Update shader animation
-        if (this.shaderMaterial && this.shaderMaterial.uniforms) {
+        if (this.terrainStreamingEnabled) {
+            this.updateTerrainStreaming(deltaTime);
+        } else if (this.shaderMaterial && this.shaderMaterial.uniforms) {
             this.shaderMaterial.uniforms.time.value += deltaTime;
         }
+    }
+
+    /**
+     * Axis-aligned 2×2 km patch: seabed from getHeightAtPosition + two pale thermoclines (400 m / 1100 m depth).
+     */
+    createEmergencyTerrainStreaming() {
+        try {
+            console.log('🌊 Streaming terrain: 2×2 km patches, same 70 km height function');
+
+            this.streamingRoot = new THREE.Group();
+            this.streamingRoot.name = 'terrainStreaming';
+            this.terrainGroup.add(this.streamingRoot);
+
+            const px = this._streamAnchorX;
+            const pz = this._streamAnchorZ;
+            this._streamPrimary = this.buildStreamingPatchSlot(px, pz, 1);
+            this._streamSecondary = this.buildStreamingPatchSlot(px, pz, 0);
+            this._streamSecondary.group.visible = false;
+
+            this.streamingRoot.add(this._streamPrimary.group);
+            this.streamingRoot.add(this._streamSecondary.group);
+
+            this._streamAnchorX = px;
+            this._streamAnchorZ = pz;
+            this._streamBlendT = 1;
+            this._streamSwapping = false;
+
+            console.log('✅ Streaming seabed initial patch at', px, pz);
+        } catch (e) {
+            console.error('❌ Streaming terrain failed', e);
+            this.terrainStreamingEnabled = false;
+            this.createEmergencyTerrain();
+        }
+    }
+
+    _makeStreamMaterial() {
+        return new THREE.MeshBasicMaterial({
+            color: this.wireframeMode ? 0x44aa88 : 0x2d4a5c,
+            wireframe: this.wireframeMode,
+            transparent: true,
+            opacity: 1,
+            side: THREE.DoubleSide
+        });
+    }
+
+    buildStreamingPatchSlot(centerX, centerZ, initialOpacity) {
+        const group = new THREE.Group();
+        group.position.set(centerX, 0, centerZ);
+
+        const { streamPatchSize: S, streamSegments: segs } = this;
+        const geo = new THREE.PlaneGeometry(S, S, segs, segs);
+        geo.rotateX(-Math.PI / 2);
+        const pos = geo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+            const lx = pos.getX(i);
+            const lz = pos.getZ(i);
+            const wx = centerX + lx;
+            const wz = centerZ + lz;
+            const h = this.getHeightAtPosition(wx, wz);
+            pos.setY(i, h);
+        }
+        geo.computeVertexNormals();
+
+        const mat = this._makeStreamMaterial();
+        mat.transparent = true;
+        mat.opacity = initialOpacity;
+        mat.userData.baseOpacity = 1;
+        const terrainMesh = new THREE.Mesh(geo, mat);
+        terrainMesh.name = 'streamTerrain';
+        group.add(terrainMesh);
+
+        const thermoSegs = 10;
+        const makeThermo = (depthM, opac) => {
+            const y = 300 - depthM;
+            const tgeo = new THREE.PlaneGeometry(S, S, thermoSegs, thermoSegs);
+            tgeo.rotateX(-Math.PI / 2);
+            const tpos = tgeo.attributes.position;
+            for (let j = 0; j < tpos.count; j++) {
+                const tx = tpos.getX(j) * 0.0004;
+                const tz = tpos.getZ(j) * 0.0004;
+                const w = Math.sin(tx) * 1.5 + Math.sin(tz + 1.1) * 1.2;
+                tpos.setY(j, w);
+            }
+            tgeo.computeVertexNormals();
+            const tmat = new THREE.MeshBasicMaterial({
+                color: 0xc8e8d8,
+                transparent: true,
+                opacity: opac * initialOpacity,
+                depthWrite: false,
+                side: THREE.DoubleSide
+            });
+            tmat.userData.baseOpacity = opac;
+            const tm = new THREE.Mesh(tgeo, tmat);
+            tm.position.y = y;
+            tm.name = `streamThermo_${depthM}m`;
+            group.add(tm);
+        };
+
+        makeThermo(400, 0.14);
+        makeThermo(1100, 0.1);
+
+        return { group, centerX, centerZ, terrainMesh, terrainMat: mat };
+    }
+
+    _disposeStreamingSlot(slot) {
+        if (!slot || !slot.group) return;
+        slot.group.traverse((ch) => {
+            if (ch.geometry) ch.geometry.dispose();
+            if (ch.material) ch.material.dispose();
+        });
+    }
+
+    _setSlotOpacity(slot, alpha) {
+        if (!slot || !slot.group) return;
+        slot.group.traverse((ch) => {
+            if (ch.isMesh && ch.material && ch.material.userData && ch.material.userData.baseOpacity !== undefined) {
+                ch.material.opacity = ch.material.userData.baseOpacity * alpha;
+            }
+        });
+    }
+
+    updateTerrainStreaming(deltaTime) {
+        if (!this.streamingRoot || !this._streamPrimary) return;
+
+        const sub = window.playerSubmarine && window.playerSubmarine();
+        const pos = sub && sub.mesh ? sub.mesh.position : null;
+        if (!pos) return;
+
+        if (this._streamSwapping && this._streamSecondary) {
+            this._streamBlendT += deltaTime / this.streamBlendDuration;
+            const t = Math.min(1, this._streamBlendT);
+            const smooth = t * t * (3 - 2 * t);
+            this._setSlotOpacity(this._streamPrimary, 1 - smooth);
+            this._setSlotOpacity(this._streamSecondary, smooth);
+            this._streamSecondary.group.visible = smooth > 0.001;
+
+            if (t >= 1) {
+                this._streamSwapping = false;
+                this.streamingRoot.remove(this._streamPrimary.group);
+                this._disposeStreamingSlot(this._streamPrimary);
+                this._streamPrimary = this._streamSecondary;
+                this._streamAnchorX = this._streamPrimary.centerX;
+                this._streamAnchorZ = this._streamPrimary.centerZ;
+                this._setSlotOpacity(this._streamPrimary, 1);
+                this._streamSecondary = this.buildStreamingPatchSlot(this._streamAnchorX, this._streamAnchorZ, 0);
+                this._streamSecondary.group.visible = false;
+                this.streamingRoot.add(this._streamSecondary.group);
+            }
+            return;
+        }
+
+        const s = this.streamPatchSize;
+        const gx = Math.floor(pos.x / s) * s + s / 2;
+        const gz = Math.floor(pos.z / s) * s + s / 2;
+
+        if (Math.abs(gx - this._streamAnchorX) < 0.5 && Math.abs(gz - this._streamAnchorZ) < 0.5) {
+            return;
+        }
+
+        const dx = pos.x - this._streamAnchorX;
+        const dz = pos.z - this._streamAnchorZ;
+        if (dx * dx + dz * dz < this.streamRecenterDist * this.streamRecenterDist) {
+            return;
+        }
+
+        this.streamingRoot.remove(this._streamSecondary.group);
+        this._disposeStreamingSlot(this._streamSecondary);
+        this._streamSecondary = this.buildStreamingPatchSlot(gx, gz, 0);
+        this._streamSecondary.group.visible = true;
+        this.streamingRoot.add(this._streamSecondary.group);
+        this._streamBlendT = 0;
+        this._streamSwapping = true;
+        this._setSlotOpacity(this._streamPrimary, 1);
+        this._setSlotOpacity(this._streamSecondary, 0);
+    }
+
+    /** Full 70×70 km low-poly snapshot + pale thermoclines (static). */
+    ensureOverviewSnapshotGroup() {
+        if (this.overviewTerrainGroup) return this.overviewTerrainGroup;
+
+        const group = new THREE.Group();
+        group.name = 'overviewSnapshot70';
+        const segs = 96;
+        const geo = new THREE.PlaneGeometry(this.terrainSize, this.terrainSize, segs, segs);
+        geo.rotateX(-Math.PI / 2);
+        const pos = geo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+            const x = pos.getX(i);
+            const z = pos.getZ(i);
+            pos.setY(i, this.getHeightAtPosition(x, z));
+        }
+        geo.computeVertexNormals();
+        const mat = new THREE.MeshBasicMaterial({
+            color: 0x344a58,
+            side: THREE.DoubleSide
+        });
+        group.add(new THREE.Mesh(geo, mat));
+
+        const addThermo = (depthM) => {
+            const y = 300 - depthM;
+            const tg = new THREE.PlaneGeometry(this.terrainSize, this.terrainSize, 8, 8);
+            tg.rotateX(-Math.PI / 2);
+            const tmat = new THREE.MeshBasicMaterial({
+                color: 0xd8f0e8,
+                transparent: true,
+                opacity: 0.07,
+                depthWrite: false,
+                side: THREE.DoubleSide
+            });
+            const tm = new THREE.Mesh(tg, tmat);
+            tm.position.y = y;
+            group.add(tm);
+        };
+        addThermo(400);
+        addThermo(1100);
+
+        group.visible = false;
+        this.scene.add(group);
+        this.overviewTerrainGroup = group;
+        return group;
+    }
+
+    setStreamingVisible(v) {
+        if (this.streamingRoot) this.streamingRoot.visible = v;
+    }
+
+    setOverviewVisible(v) {
+        if (this.overviewTerrainGroup) this.overviewTerrainGroup.visible = v;
     }
     
     createCombinedSeafloorTexture() {

@@ -3,6 +3,8 @@
 // Ocean class for underwater environment
 class Ocean {
     constructor(scene) {
+        /** When simple terrain streams local patches, skip global ocean thermocline mesh. */
+        this.skipBuiltInThermocline = !!(window.simpleTerrain && window.simpleTerrain.terrainStreamingEnabled);
         this.scene = scene;
         this.seaFloor = null;
         this.waterPlane = null;
@@ -1397,6 +1399,9 @@ class Ocean {
 
     // Function to get seabed height at any world position
     getSeabedHeight(worldX, worldZ) {
+        if (window.simpleTerrain && typeof window.simpleTerrain.getHeightAtPosition === 'function') {
+            return window.simpleTerrain.getHeightAtPosition(worldX, worldZ);
+        }
         if (this.getTerrainHeight) {
             return this.getTerrainHeight(worldX, worldZ);
         }
@@ -1640,8 +1645,11 @@ class Ocean {
             this.createIceSheetSurface(4000);
         }
 
-        // Single simplified thermocline (pale green undulating sheet)
-        this.createDualThermoclines();
+        if (!this.skipBuiltInThermocline) {
+            this.createDualThermoclines();
+        } else {
+            console.log('🌊 Thermoclines: handled by streaming terrain (skip global sheet)');
+        }
     }
 
     createIceSheetSurface(surfaceSize) {
