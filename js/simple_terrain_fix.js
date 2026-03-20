@@ -14,6 +14,8 @@ class SimpleTerrain {
         this.currentMode = 'shader'; // Track current visualization mode: 'wireframe', 'solid', 'shader'
         this.shaderMaterial = null; // Store reference to shader for animation
         this.useFallbackMaterial = false; // Use shader material by default
+        /** Set true only when debugging terrain — adds pale planes, boxes, and marker spam (hurts FPS). */
+        this.debugTerrainOverlays = false;
     }
 
     createTerrain() {
@@ -356,93 +358,50 @@ class SimpleTerrain {
         console.log('📊 Mesh material type:', mesh.material.constructor.name);
         console.log('📊 Mesh geometry vertices:', mesh.geometry.attributes.position.count);
 
-        // DEBUG: Add a textured test plane near submarine starting position for visibility test
-        const testGeometry = new THREE.PlaneGeometry(1000, 1000);
-        testGeometry.rotateX(-Math.PI / 2);
-        const testMaterial = new THREE.MeshStandardMaterial({
-            map: this.createSandTexture(),
-            roughness: 0.7,
-            metalness: 0.0,
-            side: THREE.DoubleSide
-        });
-        const testMesh = new THREE.Mesh(testGeometry, testMaterial);
-        testMesh.position.set(0, -200, 18000); // Near submarine starting position
-        this.terrainGroup.add(testMesh);
-        console.log('🚨 DEBUG: Added textured test plane at submarine starting area (0, -200, 18000)');
-        console.log('🌊 ZONE LAYOUT (North to South):');
-        console.log('  📍 Continental Shelf (0-10km): 100-200m depth');
-        console.log('  📍 Continental Slope (10-40km): 200-2000m depth');  
-        console.log('  📍 Abyssal Plain (40-50km): 2000-6000m depth');
-        console.log('  🏔️ GRAND CANYON-STYLE TRENCH (45km): Meandering canyon with flat floor');
-        console.log('    🌊 Canyon Floor: Flat 11000m depth (center 30% width)');
-        console.log('    ⛰️  North Wall: 4 stepped terraces (Grand Canyon style)');
-        console.log('      🟢 Terrace 1: 6000-7250m depth');
-        console.log('      🟢 Terrace 2: 7250-8500m depth');  
-        console.log('      🟢 Terrace 3: 8500-9750m depth');
-        console.log('      🟢 Terrace 4: 9750-11000m depth');
-        console.log('    🧗 South Wall: Sheer cliff face (6000-11000m)');
-        console.log('    🌊 Meandering Path: ±1200m natural curves along X-axis');
-        console.log('  🗻 SEAMOUNT GROUP (South of trench): 8 discrete vertical features');
-        console.log('    🏔️  Large seamounts: 800-1000m base radius, plateau tops at 150-350m depth');
-        console.log('    ⛰️  Medium seamounts: 500-700m base radius, plateau tops at 100-300m depth');
-        console.log('    🔺 Small seamounts: 350-400m base radius, plateau tops at 400-500m depth');
-        console.log('    📐 Features: Flat plateau tops with sheer slopes to abyssal floor');
-        console.log('  🏔️ BRANCHING CANYON SYSTEM: Shelf to trench navigation routes');
-        console.log('    🌊 Canyon head: Continental shelf (-5000, -20000) at 300m depth');
-        console.log('    🌿 Main trunk: 800m wide, deepens to 1800m through continental slope');
-        console.log('    🍀 Three branches: Split at (0, 5000), terminate at trench as hanging valleys');
-        console.log('    ⛰️  West branch: 600m wide, ends at 9km depth (-3000, 19000)');
-        console.log('    ⛰️  Central branch: 700m wide, ends at 9.5km depth (500, 19500)');
-        console.log('    ⛰️  East branch: 500m wide, ends at 9.2km depth (2000, 19200)');
-        console.log('📊 Total depth range: -100m to -11000m (including trench, seamount tops, and canyon heads)');
-        
-        // Add textured reference plane above the terrain for comparison
-        const cyanGeometry = new THREE.PlaneGeometry(this.terrainSize * 0.1, this.terrainSize * 0.1); // 10% of terrain size reference plane
-        cyanGeometry.rotateX(-Math.PI / 2);
-        const cyanMaterial = new THREE.MeshStandardMaterial({ 
-            map: this.createCombinedSeafloorTexture(),
-            roughness: 0.6,
-            metalness: 0.0,
-            side: THREE.DoubleSide,
-            transparent: true,
-            opacity: 0.3
-        });
-        const cyanMesh = new THREE.Mesh(cyanGeometry, cyanMaterial);
-        cyanMesh.position.set(0, -50, 0); // Above the continental shelf (shallowest area)
-        this.terrainGroup.add(cyanMesh);
-        console.log('✅ Cyan reference plane (5km×5km) added at Y=-50 (above continental shelf)');
-        
-        // Add red debug box for reference  
-        const debugBox = new THREE.Mesh(
-            new THREE.BoxGeometry(200, 200, 200),
-            new THREE.MeshBasicMaterial({ color: 0xFF0000 })
-        );
-        debugBox.position.set(0, -50, 0); // Well above terrain
-        this.terrainGroup.add(debugBox);
-        console.log('✅ Red debug box added at Y=-50');
-        
-        // Add seamount debug markers for visibility
-        this.addSeamountMarkers();
-        
-        // Add canyon debug markers for visibility
-        this.addCanyonMarkers();
-        
-        // Add trench terrace markers for stepped side visibility
-        this.addGrandCanyonMarkers();
-        
-        // Add dogfighting terrain markers
-        this.addDogfightingTerrainMarkers();
-        
-        // Add western depression markers
-        this.addWesternDepressionMarkers();
-        
-        console.log('📊 HEIGHT VARIED TERRAIN SUMMARY:');
-        console.log('  - Terrain: 10km x 10km with hills/valleys (-200m to 0m depth)');
-        console.log('  - Segments: 32x32 for smooth height variation');
-        console.log('  - Height algorithm: 3-layer sine waves for natural look');
-        console.log('  - Cyan reference: 2km x 2km at Y=-100');  
-        console.log('  - Red debug box: 200x200x200 at Y=-50');
-        console.log('  - Total objects in terrainGroup:', this.terrainGroup.children.length);
+        if (this.debugTerrainOverlays) {
+            // DEBUG: pale planes / boxes / markers — off by default (were the “pale flat surface” + FPS hit)
+            const testGeometry = new THREE.PlaneGeometry(1000, 1000);
+            testGeometry.rotateX(-Math.PI / 2);
+            const testMaterial = new THREE.MeshStandardMaterial({
+                map: this.createSandTexture(),
+                roughness: 0.7,
+                metalness: 0.0,
+                side: THREE.DoubleSide
+            });
+            const testMesh = new THREE.Mesh(testGeometry, testMaterial);
+            testMesh.position.set(0, -200, 18000);
+            this.terrainGroup.add(testMesh);
+
+            const cyanGeometry = new THREE.PlaneGeometry(this.terrainSize * 0.1, this.terrainSize * 0.1);
+            cyanGeometry.rotateX(-Math.PI / 2);
+            const cyanMaterial = new THREE.MeshStandardMaterial({
+                map: this.createCombinedSeafloorTexture(),
+                roughness: 0.6,
+                metalness: 0.0,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 0.3
+            });
+            const cyanMesh = new THREE.Mesh(cyanGeometry, cyanMaterial);
+            cyanMesh.position.set(0, -50, 0);
+            this.terrainGroup.add(cyanMesh);
+
+            const debugBox = new THREE.Mesh(
+                new THREE.BoxGeometry(200, 200, 200),
+                new THREE.MeshBasicMaterial({ color: 0xFF0000 })
+            );
+            debugBox.position.set(0, -50, 0);
+            this.terrainGroup.add(debugBox);
+
+            this.addSeamountMarkers();
+            this.addCanyonMarkers();
+            this.addGrandCanyonMarkers();
+            this.addDogfightingTerrainMarkers();
+            this.addWesternDepressionMarkers();
+            console.log('📊 Debug terrain overlays ON — terrainGroup children:', this.terrainGroup.children.length);
+        } else {
+            console.log('📊 Terrain debug overlays OFF (no reference planes / marker spam)');
+        }
 
         } catch (error) {
             console.error('❌ ERROR in createEmergencyTerrain():', error);

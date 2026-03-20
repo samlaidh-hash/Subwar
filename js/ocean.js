@@ -7,7 +7,7 @@ class Ocean {
         this.seaFloor = null;
         this.waterPlane = null;
         this.iceSheet = null;
-        this.enableIceSheet = true;
+        this.enableIceSheet = false;
         this.rocks = [];
         this.debris = [];
         this.kelp = [];
@@ -21,7 +21,7 @@ class Ocean {
         // ENABLED: Wireframe terrain generation for visibility
         this.createVectorWireframeTerrain();
         this.createWaterSurface();
-        this.createDualThermoclines();  // Add thermoclines back
+        // Thermoclines created inside createWaterSurface (single simplified layer)
         this.createRockFormations();
         this.createDebris();
         this.createKelpForest();
@@ -1633,50 +1633,14 @@ class Ocean {
     }
 
     createWaterSurface() {
-        // Create wireframe water surface grid (much larger to match terrain)
-        const vectorMaterial = new THREE.LineBasicMaterial({
-            color: 0x0099ff, // Blue tint for water
-            linewidth: 1,
-            transparent: true,
-            opacity: 0.3
-        });
+        // Skip pale wireframe sea surface at y=300 (was distracting / flat look)
+        this.waterPlane = null;
 
-        const surfaceGroup = new THREE.Group();
-        const surfaceSize = 4000; // Match terrain size
-        const surfaceDivisions = 50; // More divisions for detail
-
-        // Surface grid lines
-        for (let i = 0; i <= surfaceDivisions; i++) {
-            const x = (i / surfaceDivisions) * surfaceSize - surfaceSize/2;
-            const geometry = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(x, 0, -surfaceSize/2),
-                new THREE.Vector3(x, 0, surfaceSize/2)
-            ]);
-            const line = new THREE.Line(geometry, vectorMaterial);
-            surfaceGroup.add(line);
-        }
-
-        for (let i = 0; i <= surfaceDivisions; i++) {
-            const z = (i / surfaceDivisions) * surfaceSize - surfaceSize/2;
-            const geometry = new THREE.BufferGeometry().setFromPoints([
-                new THREE.Vector3(-surfaceSize/2, 0, z),
-                new THREE.Vector3(surfaceSize/2, 0, z)
-            ]);
-            const line = new THREE.Line(geometry, vectorMaterial);
-            surfaceGroup.add(line);
-        }
-
-        this.waterPlane = surfaceGroup;
-        this.waterPlane.position.y = 300; // Move to top of 3D scene (above highest peaks)
-        this.waterPlane.name = 'waterSurface';
-        this.scene.add(this.waterPlane);
-
-        // Optional ice sheet overlay for surface combat/visuals
         if (this.enableIceSheet) {
-            this.createIceSheetSurface(surfaceSize);
+            this.createIceSheetSurface(4000);
         }
 
-        // Add dual thermoclines at specified depths
+        // Single simplified thermocline (pale green undulating sheet)
         this.createDualThermoclines();
     }
 
@@ -2508,73 +2472,40 @@ class Ocean {
     }
 
     createDualThermoclines() {
-        // Create dual thermoclines at 200m and 1100m depths with variations
-        const thermoclineMaterial = new THREE.LineBasicMaterial({
-            color: 0x00ffaa,  // Green-cyan for thermoclines (distinct from terrain)
+        // Single low-cost pale green undulating sheet (~400m depth)
+        if (this.thermoclineMesh) {
+            this.scene.remove(this.thermoclineMesh);
+            this.thermoclineMesh.geometry.dispose();
+            this.thermoclineMesh.material.dispose();
+        }
+
+        const size = 14000;
+        const segs = 16;
+        const geo = new THREE.PlaneGeometry(size, size, segs, segs);
+        const pos = geo.attributes.position;
+        for (let i = 0; i < pos.count; i++) {
+            const x = pos.getX(i);
+            const y = pos.getY(i);
+            const w = Math.sin(x * 0.00035) * 10 + Math.cos(y * 0.00035) * 8;
+            pos.setZ(i, w);
+        }
+        geo.computeVertexNormals();
+
+        const mat = new THREE.MeshBasicMaterial({
+            color: 0xb8d4c4,
             transparent: true,
-            opacity: 0.7,
-            linewidth: 2
+            opacity: 0.2,
+            side: THREE.DoubleSide,
+            depthWrite: false
         });
-
-        // Thermocline 1: ~200m depth (varies 180m-220m)
-        this.createThermoclineLayer(this.thermoclineDepth1, 20, thermoclineMaterial, 'thermocline_200m');
-        
-        // Thermocline 2: ~1100m depth (varies 1050m-1150m) 
-        this.createThermoclineLayer(this.thermoclineDepth2, 50, thermoclineMaterial, 'thermocline_1100m');
-
-        console.log('Dual thermoclines created at', this.thermoclineDepth1, 'and', this.thermoclineDepth2, 'meters');
-    }
-
-    createThermoclineLayer(baseDepth, variation, material, name) {
-        const thermoclineGroup = new THREE.Group();
-        const gridSize = 30; // 30x30 grid for smooth thermocline
-        const span = 100000; // 100km span (half the 200km terrain)
-
-        // Create horizontal grid lines
-        for (let i = 0; i <= gridSize; i++) {
-            const points = [];
-            const zPos = (i / gridSize - 0.5) * span;
-
-            for (let j = 0; j <= gridSize; j++) {
-                const xPos = (j / gridSize - 0.5) * span;
-                
-                // Create undulating thermocline surface
-                const wave1 = Math.sin(xPos * 0.0002) * variation;
-                const wave2 = Math.cos(zPos * 0.0003) * (variation * 0.6);
-                const wave3 = Math.sin((xPos + zPos) * 0.0001) * (variation * 0.4);
-                
-                const depth = baseDepth + wave1 + wave2 + wave3;
-                points.push(new THREE.Vector3(xPos, depth, zPos));
-            }
-
-            const geometry = new THREE.BufferGeometry().setFromPoints(points);
-            const line = new THREE.Line(geometry, material);
-            thermoclineGroup.add(line);
-        }
-
-        // Create vertical grid lines
-        for (let i = 0; i <= gridSize; i++) {
-            const points = [];
-            const xPos = (i / gridSize - 0.5) * span;
-
-            for (let j = 0; j <= gridSize; j++) {
-                const zPos = (j / gridSize - 0.5) * span;
-                
-                const wave1 = Math.sin(xPos * 0.0002) * variation;
-                const wave2 = Math.cos(zPos * 0.0003) * (variation * 0.6);
-                const wave3 = Math.sin((xPos + zPos) * 0.0001) * (variation * 0.4);
-                
-                const depth = baseDepth + wave1 + wave2 + wave3;
-                points.push(new THREE.Vector3(xPos, depth, zPos));
-            }
-
-            const geometry = new THREE.BufferGeometry().setFromPoints(points);
-            const line = new THREE.Line(geometry, material);
-            thermoclineGroup.add(line);
-        }
-
-        thermoclineGroup.name = name;
-        this.scene.add(thermoclineGroup);
+        const mesh = new THREE.Mesh(geo, mat);
+        mesh.rotation.x = -Math.PI / 2;
+        mesh.position.y = -420;
+        mesh.name = 'thermocline_simple';
+        this.scene.add(mesh);
+        this.thermoclineMesh = mesh;
+        this.thermoclineData = null;
+        console.log('Simplified thermocline sheet created');
     }
 
     createThermoclines() {
@@ -2707,38 +2638,28 @@ class Ocean {
         }
 
 
-        // Gentle water surface animation (now at top of scene)
-        if (this.waterPlane) {
+        // Gentle water surface animation (disabled when waterPlane not used)
+        if (this.waterPlane && this.waterPlane.position) {
             this.waterPlane.position.y = 300 + Math.sin(Date.now() * 0.0005) * 0.2;
+        }
+
+        // Slow undulation on simplified thermocline (cheap: one mesh)
+        if (this.thermoclineMesh && this.thermoclineMesh.geometry) {
+            const t = Date.now() * 0.00025;
+            const pos = this.thermoclineMesh.geometry.attributes.position;
+            for (let i = 0; i < pos.count; i++) {
+                const x = pos.getX(i);
+                const y = pos.getY(i);
+                const w = Math.sin(x * 0.00035 + t) * 10 + Math.cos(y * 0.00035 + t * 0.8) * 8;
+                pos.setZ(i, w);
+            }
+            pos.needsUpdate = true;
         }
 
         if (this.hotSmokers && this.updateHotSmokers) {
             this.updateHotSmokers(deltaTime);
         }
 
-        // Animate thermocline undulation
-        if (this.thermoclineData) {
-            const time = Date.now() * 0.0003; // Very slow undulation
-            const waveAmplitude = 8; // Gentle wave height
-
-            this.thermoclineData.lines.forEach((lineData, lineIndex) => {
-                const positions = lineData.geometry.attributes.position.array;
-
-                // Update each point in the line
-                for (let i = 0; i < positions.length; i += 3) {
-                    const x = positions[i];
-                    const z = positions[i + 2];
-
-                    // Create slow, gentle waves
-                    const wave1 = Math.sin(time + x * 0.003 + z * 0.002) * waveAmplitude;
-                    const wave2 = Math.cos(time * 0.7 + x * 0.002 - z * 0.003) * waveAmplitude * 0.6;
-
-                    positions[i + 1] = this.thermoclineData.baseDepth + wave1 + wave2;
-                }
-
-                lineData.geometry.attributes.position.needsUpdate = true;
-            });
-        }
     }
 
     getBases() {
@@ -2775,8 +2696,14 @@ class Ocean {
 
         if (this.waterPlane) {
             this.scene.remove(this.waterPlane);
-            this.waterPlane.geometry.dispose();
-            this.waterPlane.material.dispose();
+            if (this.waterPlane.geometry) this.waterPlane.geometry.dispose();
+            if (this.waterPlane.material) this.waterPlane.material.dispose();
+        }
+        if (this.thermoclineMesh) {
+            this.scene.remove(this.thermoclineMesh);
+            if (this.thermoclineMesh.geometry) this.thermoclineMesh.geometry.dispose();
+            if (this.thermoclineMesh.material) this.thermoclineMesh.material.dispose();
+            this.thermoclineMesh = null;
         }
     }
 

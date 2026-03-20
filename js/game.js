@@ -31,7 +31,9 @@ let gameState = {
         down: false
     },
     timeMultiplier: 1.0, // Time acceleration factor
-    debugHideElements: false // Debug toggle for hiding game elements (J key)
+    debugHideElements: false, // Debug toggle for hiding game elements (J key)
+    cameraZoom: 1.0,
+    fullSpaceView: false
 };
 
 // HUD Elements
@@ -618,6 +620,13 @@ function handleKeyDown(event) {
             gameState.freeCamera.position.copy(gameState.camera.position);
             gameState.freeCamera.rotation.copy(gameState.camera.rotation);
         }
+        break;
+    case 'KeyG':
+        // Toggle full mission-area overview vs normal follow zoom
+        gameState.fullSpaceView = !gameState.fullSpaceView;
+        gameState.cameraZoom = gameState.fullSpaceView ? 2.5 : 1.0;
+        updateStatus(gameState.fullSpaceView ? 'View: full mission area [G]' : 'View: normal [G]');
+        event.preventDefault();
         break;
     }
 

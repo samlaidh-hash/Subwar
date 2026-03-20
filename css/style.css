@@ -22,6 +22,11 @@ body {
     height: 100vh;
 }
 
+/* Legacy revolver launcher UI — torpedoes use central magazine + reticle HUD */
+#launcherDisplay {
+    display: none !important;
+}
+
 /* Three.js canvas will be inserted here automatically */
 canvas {
     position: absolute;
@@ -701,16 +706,17 @@ canvas {
     100% { opacity: 1; }
 }
 
-/* Torpedo Launch Display - Horizontal Rows */
+/* Torpedo Launch Display — deprecated; kept hidden (reticle HUD replaces this) */
 #launcherDisplay {
     position: absolute;
     bottom: 20px;
     left: 20px;
     z-index: 10;
-    display: flex;
+    display: none !important;
     gap: 8px;
     flex-direction: column;
     pointer-events: none;
+    visibility: hidden;
 }
 
 .launcher-row-container {

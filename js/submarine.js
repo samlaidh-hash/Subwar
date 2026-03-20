@@ -1193,7 +1193,7 @@ class AudioManager {
         if (depth >= depthThreshold) {
             // Above 3000m - play underwater_ambience
             if (!this.ambienceLoop) {
-                this.playSoundFile('underwater_ambience', 0.5, true).then(audio => {
+                this.playSoundFile('underwater_ambience', 0.125, true).then(audio => {
                     if (audio) {
                         this.ambienceLoop = audio;
                     }
@@ -1210,7 +1210,7 @@ class AudioManager {
             
             // Start deep ambience if not playing
             if (!this.deepAmbienceLoop) {
-                this.playSoundFile('deep_underwater_ambience', 0.5 * fadeProgress, true).then(audio => {
+                this.playSoundFile('deep_underwater_ambience', 0.125 * fadeProgress, true).then(audio => {
                     if (audio) {
                         this.deepAmbienceLoop = audio;
                     }
@@ -1219,10 +1219,10 @@ class AudioManager {
             
             // Fade ambience volumes
             if (this.ambienceLoop) {
-                this.ambienceLoop.volume = 0.5 * (1 - fadeProgress);
+                this.ambienceLoop.volume = 0.125 * (1 - fadeProgress);
             }
             if (this.deepAmbienceLoop) {
-                this.deepAmbienceLoop.volume = 0.5 * fadeProgress;
+                this.deepAmbienceLoop.volume = 0.125 * fadeProgress;
             }
         }
     }
@@ -2153,12 +2153,16 @@ class Submarine {
 
             this.mesh.name = 'playerSubmarine';
 
-            // Initialize mesh rotation to level (ensure submarine starts straight and level)
-            this.mesh.rotation.set(0, 0, 0);
+            // Bow / forward in game logic is local +X. If the mesh was authored with nose along +Z,
+            // a +90° Y rotation aligns nose with +X (fixes “90° to the right” heading error).
+            this.mesh.rotation.set(0, Math.PI / 2, 0);
             
-            // Set initial position at safe shallow depth to avoid terrain collision
-            // Spawn submarine at 300m depth (well above any terrain features)
-            this.mesh.position.set(0, -300, 18000); // X=0, Y=-300m (300m depth), Z=18000 (2km north of trench)
+            // Safe spawn depth: never below 85% of crush depth; default ~15% of max depth if shallow
+            const specs = SUBMARINE_SPECIFICATIONS[this.submarineClass] || {};
+            const maxD = specs.crushDepth || 1500;
+            const targetDepthM = Math.min(300, Math.max(50, maxD * 0.15));
+            const spawnY = 300 - targetDepthM;
+            this.mesh.position.set(0, spawnY, 18000);
 
             console.log('➕ Adding submarine mesh to scene...');
             this.scene.add(this.mesh);
@@ -4114,7 +4118,7 @@ class Submarine {
         case 'KeyO':
             this.cycleSonarMode(); // Active/Passive only (O key for sOnar)
             break;
-        case 'KeyQ':
+        case 'KeyU':
             this.toggleQMADSystem();
             break;
         case 'KeyH':
@@ -4439,14 +4443,17 @@ class Submarine {
 
         // Update gradual acceleration/deceleration system
         this.updateSpeedControl(deltaTime);
+
+        // Q/E depth (always runs; not tied to maneuver steering path)
+        this.updateDepthControls(deltaTime);
         
         // Update audio systems
         const isAccelerating = Math.abs(this.currentAcceleration) > 0.1;
         this.audioManager.updateEngineSound(this.speed, isAccelerating);
         
         // Update ambience based on depth (underwater_ambience down to 3000m, then fade to deep_underwater_ambience)
-        const currentDepth = Math.abs(this.mesh.position.y);
-        this.audioManager.startAmbience(-currentDepth); // Pass negative depth (below surface)
+        const currentDepth = Math.max(0, 300 - this.mesh.position.y);
+        this.audioManager.startAmbience(-currentDepth); // Negative meters below surface (see startAmbience)
         
         // Update proximity sound for nearby submarines
         this.updateProximitySound();
@@ -4874,9 +4881,6 @@ class Submarine {
             this.mesh.rotation.z *= (1 - deltaTime * 2); // Auto-level pitch
         }
 
-        // Handle QE depth controls
-        this.updateDepthControls(deltaTime);
-
         // Apply movement based on maneuver icon position and thrust
         if (Math.abs(this.speed) > 0.01) { // Lower threshold for movement
             let effectiveSpeed = this.speed;
@@ -4932,7 +4936,11 @@ class Submarine {
     }
 
     updateDepthControls(deltaTime) {
-        // Handle Q/E depth controls
+        // Handle Q/E depth controls (also honor game.js key state so depth works if one listener path misses)
+        const gs = typeof window !== 'undefined' && window.gameState && window.gameState.keys ? window.gameState.keys : null;
+        const wantUp = this.keys.decreaseDepth || !!(gs && gs.up);
+        const wantDown = this.keys.increaseDepth || !!(gs && gs.down);
+
         let depthChangeRate = 30; // meters per second
         
         // Apply emergency blow penalty if used
@@ -4940,14 +4948,14 @@ class Submarine {
             depthChangeRate *= (1 - this.emergencyBlow.depthChangePenalty);
         }
         
-        if (this.keys.decreaseDepth) {
+        if (wantUp) {
             // Q key - go up (decrease depth)
             this.mesh.position.y += depthChangeRate * deltaTime;
             // Clamp to surface (y=300)
             this.mesh.position.y = Math.min(this.mesh.position.y, 300);
         }
         
-        if (this.keys.increaseDepth) {
+        if (wantDown) {
             // E key - go down (increase depth)
             this.mesh.position.y -= depthChangeRate * deltaTime;
             // Clamp to maximum depth (y = 300 - maxDepth)
@@ -7152,8 +7160,6 @@ class Submarine {
                 this.mesh.position.y = seabedHeight + 2;
                 console.log(`Collision resolved: Sub moved to Y=${this.mesh.position.y.toFixed(1)} (seabed + 2)`);
 
-                // Update depth display immediately after collision
-                this.depth = this.mesh.position.y;
                 this.speed *= 0.5; // Reduce speed after impact
 
                 // Level out mouse pitch when hitting seabed
@@ -7465,8 +7471,8 @@ class Submarine {
     }
 
     updateCrushDepthDamage(deltaTime) {
-        // Get current depth (negative values for underwater)
-        const currentDepth = Math.abs(this.mesh.position.y);
+        // Depth in meters below surface (surface y = 300)
+        const currentDepth = Math.max(0, 300 - this.mesh.position.y);
 
         // Get submarine crush depth from specifications
         const crushDepth = this.maxDepth || 500; // Use this.maxDepth which is set from specs.crushDepth
@@ -7814,7 +7820,7 @@ class Submarine {
         // Six facings: % remaining. Green 75%+, Orange 26-70%, Red ≤25%. Flash when below crush depth.
         const facings = ['fore', 'port', 'starboard', 'aft', 'top', 'bottom'];
         const crushDepth = this.maxDepth || 500;
-        const currentDepth = this.mesh ? Math.abs(this.mesh.position.y) : 0;
+        const currentDepth = this.mesh ? Math.max(0, 300 - this.mesh.position.y) : 0;
         const belowCrush = currentDepth > crushDepth;
         const flashOn = belowCrush && (Math.sin(Date.now() / 150) > 0);
 
@@ -8796,6 +8802,11 @@ class Submarine {
         const bottomDepthMarker = document.getElementById('bottomDepthMarker');
 
         if (!depthBarFill || !depthBarContainer || !depthCurrent || !depthCrush || !depthBottom || !bottomDepthMarker) return;
+
+        // Sync depth from mesh every frame (reticle HUD does not call updateHUD)
+        if (this.mesh) {
+            this.depth = Math.max(0, 300 - this.mesh.position.y);
+        }
 
         const currentDepth = Math.abs(this.depth);
         const crushDepth = this.maxDepth;
